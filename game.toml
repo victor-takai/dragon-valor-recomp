@@ -48,6 +48,13 @@ known_crc32 = [
 seeds = "seeds/ghidra_funcs.txt"
 out_dir = "generated"
 strict = true
+# Functions whose generated entry calls the mod function-entry hook
+# (psxrecomp/docs/MOD_PACKAGES.md, "Trusted static plugins"). Regenerate
+# generated/ after changing this list.
+#   0x8006C250  pad-response copy (SIO response buffer -> game pad struct),
+#               called once the frame's SIO exchange is complete;
+#               dragonvalor.skip-intro writes Start into the response there.
+mod_function_entry_funcs = ["0x8006C250"]
 
 [runtime]
 window_title = "DragonValorUS Recompiled"

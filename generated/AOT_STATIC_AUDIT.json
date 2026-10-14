@@ -1,6 +1,6 @@
 {
   "game_id": "SLUS-01092",
-  "recipe_input_sha256": "fc8fa7dbfaec707d26bfe8665413ef386ed8b41c96e18456fed67f214f0b6874",
+  "recipe_input_sha256": "53027b51c3f9d5d5e240fff934a179caf86ec92cf98010117977deba72dde36c",
   "recipe_count": 5,
   "all_pairs_valid": true,
   "all_guards_match_known_input_bytes": true,
@@ -23213,14 +23213,14 @@
   "generation_inputs": {
     "schema": "psxrecomp AOT static generation inputs v1",
     "profile_sha256": "ab45700973cc8fb986d55bf1527f06cb879ecc2a4ab8839091fb565734760cf4",
-    "game_toml_sha256": "3993af433b65cb75e68bccd08e13063a92417e099de14e248173b3cc6911ca4f",
+    "game_toml_sha256": "8788b14edbcc0f8c54edb8784502501e12b2b613141e9ff4f4116520747d7786",
     "disc": {
       "sha256": "9b41965d1c1bd8ab909d3a5301f376aaf4be346039aae070869b018afe59c59f"
     },
     "recompiler_sha256": "fe892a04fe6c06bbd766e2caaa942ffcd57cdce3361748e5677bd430b1e4ed16",
-    "cache_tag": "cg18_0bea7895_gcc15c8ed0_f0",
+    "cache_tag": "cg18_0bea7895_gc558cfcc3_f0",
     "cps": true,
-    "gcc": "gcc",
+    "gcc": "C:\\retcomm-toolchain\\bin\\clang.exe",
     "tools": {
       "tools/aligned_lzss_banks.py": "1fe2f23d3b632a4e16401f382475ccd5ea99e9348b693d90c08375b0717ae08b",
       "tools/aot_overlay_pipeline.py": "2f96436807ba87b85834fd4602eea97b9441b52f3e14ed1808b8d2e0151e2e10",
@@ -23237,5 +23237,5 @@
     },
     "mod_packages": {}
   },
-  "generation_inputs_sha256": "d1b519e0b2a15ba57f6a324775e3382c4c6b3ef983e0dd700c9388decec12bb1"
+  "generation_inputs_sha256": "78ab5517fcbfa6cc9ace2b5a63dfcd1034ea73b41b853ff588bfbda52c6a8077"
 }

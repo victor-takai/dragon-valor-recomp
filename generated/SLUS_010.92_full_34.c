@@ -21566,6 +21566,7 @@ void func_8006C250(CPUState* cpu)
         }
     }
     debug_server_log_call_entry(0x8006C250u);
+    if (psx_mod_function_entry(cpu, 0x8006C250u)) return;  /* trusted opt-in game-mod hook */
     /* Address: 0x8006C250, Size: 612 bytes, Blocks: 36 */
 
 block_8006C250:

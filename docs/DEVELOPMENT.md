@@ -298,6 +298,60 @@ package and its features with `enabled = true` to `<build>/mods/state.toml`
 `tools/dvdbg.py launch --state 0`, `write_ram` the stat and read it back
 (`tests/test_cheats.py on|off` does exactly that).
 
+#### This project's package: `dragonvalor.skip-intro`
+
+`mods/preloaded/packages/dragonvalor.skip-intro/1.0.0/manifest.toml`: one
+feature, off by default, that presses Start for the player as soon as the
+intro movie starts, the skip the game itself offers, so power-on reaches the
+title with no button. Plugin: `mods/plugins/dragonvalor_skip_intro.c`.
+
+How the boot sequences (intro module at `0x800BBEF0`, mode byte
+`0x8008634C`, sub-state `0x8008634D`, traced with `wtrace_arm`):
+
+| Mode | What | Transition |
+|---|---|---|
+| 0 | boot | |
+| 1 sub 0‥5 | Namco logo: loads, fade in, hold, hold, fade out (~6 s from frame ~490) | the fade-out handler does `mode++; sub = 0` when its stage timer (`*(0x800D8DD0)+4`) runs out |
+| 2 | intro movie `MOVIE/MOVIE1.STR` (~31 s) | Start → `func_800BD038` tears the movie down and does `mode++` |
+| 3 sub 0‥1 | title logo animation | by itself after ~26 s, or earlier |
+| 5 sub 0 → 17 sub 0 → 5 sub 2 | title still (~5 s) → menu load → **menu ready** (New Game / Load Game / Configuration) | |
+| 17 sub 1 → 8 sub 1‥ / 4 sub 16‥13 → 17 → 8 | story demo and attract gameplay (DEMO.BIN) | back to the menu later |
+| 6 | New Game (prologue text) | from the ready menu |
+
+Start cannot be injected from a VBlank callback: the game runs its own SIO
+pad exchange inside its per-frame pad routine (`func_80069F0C`, driver
+`func_8006A330`) and only then copies the response (pad struct `+0x3C`,
+`0x800BBC78` for pad 1: id `0x73`, `0x5A`, buttons active-low, sticks) into
+its pad struct (`+0x30`, `0x800A2F20`; buttons at `0x800A2F22`, held word
+`0x800A2F66`) through `func_8006C250`. That copy is listed in `game.toml`
+`[recompiler] mod_function_entry_funcs`, which makes the recompiler emit
+`psx_mod_function_entry()` at its entry (one line in
+`generated/SLUS_010.92_full_34.c`; regenerate after editing the list), and
+the plugin's function-entry hook clears the Start bit in the response (a0 =
+pad struct) there. Details that cost a day:
+
+- The movie player reacts to a press **edge**: a response that always
+  carries Start never skips. The plugin presses 4 frames every 24.
+- Without a controller the SIO response is not refreshed every frame, so
+  the plugin also writes Start *released* in its off phases and during the
+  first 60 frames of mode 3.
+- The Namco logo is not skippable: ending it early (poking `mode = 2`, or
+  expiring its stage timers from sub 2 or 3) sends the title into the story
+  demo; cutting only sub 4 stalls the title animation. Its stages evidently
+  cover loads the title depends on.
+- After the skip the title behaves exactly as after a manual Start: in
+  some runs it goes title still → menu, in others it plays the story demo
+  first (`17/1 → 8/1`, or `4/16 → … → 17/0 → 8/1`) and reaches the menu
+  afterwards. Which one happens looks like a race in the game's own title
+  logic (same with a debug-server press); worth watching during the human
+  session.
+- On the ready menu (mode 5 sub 2) Start = New Game (mode 6). A Start on the
+  title still (5 sub 0) or on the animation starts the story demo instead.
+
+`tests/test_skip_intro.py` (fresh boot, feature enabled in `state.toml`)
+checks that the title animation starts within 14 s and that the title then
+moves on; `--off` checks the movie keeps playing.
+
 #### HD texture packs on this game
 
 `psx.enhancement.hd-textures` (bundled) works here, OpenGL only. Dumping
@@ -384,7 +438,8 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
   manifest statically (ids, default-off features, option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
   exercises the cheat plugins on a running debug build from slot 0 (see *This
-  project's package* for the `state.toml` setup).
+  project's package* for the `state.toml` setup); `python
+  tests/test_skip_intro.py [--off]` checks the intro skip on a fresh boot.
 
 ## Project layout (what is ours)
 
@@ -401,10 +456,10 @@ aot/overlays.json     AOT profile for the five BIN/*.BIN modules (docs/AOT.md)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
 launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon
-mods/preloaded/       bundled mod packages (dragonvalor.cheats manifest)
+mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
-tools/sync_symbols.py framework copy of the symbol sync
+tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
 tests/states/         committed save state slot 0 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)
 Play.bat, PlayDebug.bat     player / debug launch

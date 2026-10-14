@@ -43,8 +43,10 @@ analog stick. Memory cards live in `saves/`.
 
 The launcher's **Mods** page lists the bundled features, all off by default:
 the framework's enhancements (HD texture packs, PGXP, CD speed, 8 MB RAM,
-bezel) and this project's **Dragon Valor Cheats** package (Infinite HP,
-Infinite MP, Val floor). Tick a feature, set its options, Play. See
+bezel) and this project's packages: **Dragon Valor Cheats** (Infinite HP,
+Infinite MP, Val floor) and **Dragon Valor Skip Intro** (presses Start for
+you as soon as the intro movie starts). Tick a feature, set its options,
+Play. See
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#modding-what-the-framework-offers).
 
 | PlayStation | Keyboard | | PlayStation | Keyboard |

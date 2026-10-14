@@ -67,7 +67,8 @@ psxrecomp_add_game_runtime(psx-runtime
 # implementations linked here (a package never carries native code). See
 # psxrecomp/docs/MOD_PACKAGES.md, "Trusted static plugins".
 target_sources(psx-runtime PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_cheats.c")
+    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_cheats.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_skip_intro.c")
 
 # Stage runtime configs next to the exe for direct build/ launches. Only copy
 # files that exist — never fail when game_options.toml is absent.

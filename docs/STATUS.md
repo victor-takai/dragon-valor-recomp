@@ -55,7 +55,11 @@ the native 60 Hz version.
 ## Open items
 
 1. Human play session (saves, Load Game, reaching disc 2 in-game, whether the
-   Xbox pad actually rumbles with Vibration ON) — not done yet.
+   Xbox pad actually rumbles with Vibration ON) — not done yet. Also watch
+   what the title does after a Start during the intro movie: in scripted
+   runs it sometimes goes to the menu and sometimes plays the story demo
+   first (see `DEVELOPMENT.md`, *skip-intro*); the same race may show up
+   with a real press.
 2. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale (see [`HISTORY.md`](HISTORY.md)).
 3. Hero/weapon swap: the hero-selecting field is not identified; needs a
@@ -86,7 +90,10 @@ committed copy in `tests/states/`, restored into `saves/openbios/` by
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
 
 Mods: the project ships `dragonvalor.cheats` (Infinite HP, Infinite MP, Val
-floor) as a bundled package backed by VBlank plugins in `mods/plugins/`, all
-off by default and verified on and off from slot 0 (2026-10-14). The
+floor) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
+own Start path through a function-entry hook on the pad copy) as bundled
+packages backed by plugins in `mods/plugins/`, all off by default and
+verified on and off (2026-10-14). The Namco logo stays: shortening it breaks
+the title's loads. The
 framework's HD texture dumper works on this game once a stage reloads
 (563 PNGs from a session from the title into Brize Forest). See [`DEVELOPMENT.md`](DEVELOPMENT.md#modding-what-the-framework-offers).

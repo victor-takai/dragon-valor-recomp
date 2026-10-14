@@ -1,0 +1,34 @@
+# Dragon Valor (USA) "Skip intro". The plugin (mods/plugins/dragonvalor_skip_intro.c)
+# presses Start for the player as soon as the intro movie starts, the skip the
+# game itself offers; nothing is patched on disc. Off by default.
+format_version = 7
+id = "dragonvalor.skip-intro"
+version = "1.0.0"
+name = "Dragon Valor Skip Intro"
+author = "DragonValorUSRecomp"
+description = "Skips the intro movie at boot with the game's own Start skip. Off by default."
+license = "MIT"
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "SLUS-01092"
+
+[[feature]]
+id = "skip-intro"
+name = "Skip intro"
+description = "The intro movie is skipped the moment it starts, so power-on reaches the title with no button press. The Namco logo stays: the title screen loads its data behind it."
+group = "Convenience"
+default_enabled = false
+
+[[option]]
+feature = "skip-intro"
+id = "movie"
+label = "Skip intro movie"
+description = "Presses Start for you as soon as the movie starts, the same skip the game offers. Off, the movie plays until you press Start."
+type = "boolean"
+default = "true"
+
+[[plugin]]
+feature = "skip-intro"
+id = "dragonvalor.skip-intro"
