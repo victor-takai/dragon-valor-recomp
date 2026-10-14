@@ -164,6 +164,11 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x800A2DD0` | u16 | Val (gold; Status shows 4 digits, 10000 reads 0000) | `func_8004BF84` |
 | `0x800A2E06`‥`0D` | u8 ×8 | Magic levels: Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex (0 = not learned, 1‥3 = LEVEL) | |
 
+| `0x800A2DD2`‥ | u16 ×N | Inventory counts, one per item type: Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key, … (accessories, trade goods, keys; **no weapons**) | |
+| `0x800A2F18` / `0x800A2F1A` | u16 ×2 | Area and stage id of the stage to load (DEMO.BIN writes 0/6‥9 and 7/31‥34 before calling `func_8003A9B0`); slot 0 is 0/2 | `func_80025264` (W), `func_80038094`, … |
+| `0x8008634C` / `0x8008634D` | u8 ×2 | Game mode and sub-state: 8 = action stage, 10 = loading, 17 = attract demo | `func_8004BF84`, `func_80025264`, … |
+| `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields | |
+
 `write_ram` writes one byte per call (`addr=`, `val=`). The GameShark codes
 circulating on GameRevolution are correct for Val (`800A2DD0 2700`) and the
 magic levels (`300A2E06`‥`0D 0003`); its HP/MP codes (`800A5AE0 0064`, …) are
@@ -172,6 +177,59 @@ sell items, pause, press Up Down Left Right Select" cheat from the same page
 has no button-sequence table in the EXE or the BIN modules and did nothing
 when tried from slot 0; its precondition (first boss beaten) was not met, so
 it stays unverified rather than disproved.
+
+Useful test route: writing 0 to HP gives GAME OVER → CONTINUE? in ~5 s, and
+Cross on YES reloads the current stage from disc (stage id restored from the
+game's own record, so `0x800A2F1A` is overwritten). Area values 1‥3 written
+before CONTINUE leave the game black in mode 10 (CD-ROM status polling, no
+crash); 0 and 7 reload normally.
+
+### Character and weapon (2026-10-14 status)
+
+Not swappable by a RAM poke yet. Chapter 1's hero (Clovis) is decided by the
+game's chapter progress, the hero's model and the Status portrait are loaded
+from `DATA.CDR` at stage start, and the weapon is part of the hero: the
+inventory holds no weapons, and STR is the only weapon-related number. Nothing
+in the stats struct, the inventory block or the area/stage pair changes the
+hero, and the field that selects the hero has not been identified. What it
+takes:
+
+1. A second reference point: a save (memory card or save state) in a later
+   chapter with another hero, then a RAM diff against slot 0 around
+   `0x800A2Dxx`‥`0x800A31xx` and `0x80086xxx` to find the hero/chapter field.
+   Nothing public was found (GameFAQs blocks fetches); the human play session
+   will produce one.
+2. Confirm by writing the field and reloading through GAME OVER → CONTINUE.
+3. For a cosmetic weapon/hero change without game logic: HD texture
+   replacement (OpenGL, `psx.enhancement.hd-textures` dumps the originals) or
+   a `[[overlay]]` on the model data inside `DATA.CDR`.
+
+### Modding: what the framework offers
+
+`psxrecomp/docs/MOD_PACKAGES.md` is the reference. A `.psxmod` package
+(`mods/preloaded/packages/<id>/<version>/manifest.toml`, bundled by the build,
+or installed by the player through the launcher's Mods page) can carry:
+
+- **`[[patch]]`** — guarded byte patches on `main_exe` (guest address,
+  expected bytes, replacement; bounded-integer options encode into them).
+  Right for one-shot changes of EXE code or data (e.g. starting Val/levels).
+- **`[[overlay]]`** — file-backed replacement of disc ranges by LBA with
+  SHA-256 guards (`disc_sha256` of the stock image required). Right for asset
+  swaps inside `DATA.CDR` (models, textures, text).
+- **`[[plugin]]`** — a C plugin statically linked into our exe and registered
+  by id: function-entry hooks on functions listed in `[recompiler]
+  mod_function_entry_funcs` (regenerate afterwards), a deterministic VBlank
+  callback (per-frame RAM writes = GameShark-style cheats or a hero/weapon
+  override), guarded instruction callbacks. This is how a "choose hero" mod
+  would be done once the field is known.
+- **HD texture packs** and **string translation** are built-in features with
+  their own docs.
+
+Identification tooling: `tools/dvdbg.py` + `read_ram`/`write_ram` for RAM
+probes, the scratch `refs.json` (EXE data xrefs: address → function, width,
+read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
+modules, `symbols.toml` to name functions as they are understood.
+
 
 ### Play sessions
 

@@ -60,7 +60,10 @@ the native 60 Hz version.
    machine).
 3. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale (see [`HISTORY.md`](HISTORY.md)).
-4. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
+4. Hero/weapon swap: the hero-selecting field is not identified; needs a
+   later-chapter save to diff against (see `DEVELOPMENT.md`, *Character and
+   weapon*). Inventory, stats, Val, magic, area/stage ids are mapped.
+5. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
    beside the exe on every boot (false positive during the disc load) — a
    player install accumulates them. Upstream issue to file; until then a note
    in README or a cleanup on launch.
