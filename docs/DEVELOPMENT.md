@@ -313,6 +313,17 @@ forest while the native `screenshot` kept the original artwork. The
 dump/replacement file names are hashes of the upload data, so dumps taken
 on one build match on the other.
 
+A human session from the title into Brize Forest (2026-10-14, release build,
+dump on) produced 563 PNGs (7.7 MB): 474 4-bit paletted (`P4`), 72
+semi-transparent 4-bit (`STP4`), 16 8-bit (`P8`), 1 `STP8`; the commonest
+sizes are 64×64 (117), 16×32 (43) and 16×16 (36). Besides tiles and sprites
+it holds the title artwork, the Namco card, the prologue frame borders, the
+sword icon and **pre-rendered text atlases**: item names ("STR UP", "H.P.
+MAX+6", "POISON", the Tone items…), the enemy roster ("ORC", "SKULL
+KNIGHT", "ROCK MONSTER"…), "Prologue", "Dragon Valor". That is why no
+readable string exists on the disc: the game's text is artwork, so a text
+mod is a texture replacement, not a string patch.
+
 Identification tooling: `tools/dvdbg.py` + `read_ram`/`write_ram` for RAM
 probes, the scratch `refs.json` (EXE data xrefs: address → function, width,
 read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
