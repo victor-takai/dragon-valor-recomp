@@ -70,9 +70,10 @@ Notes:
 
 - `Play.bat` — player launch (`build-release`). `Play.bat -dbg` uses `build-debug`.
 - `PlayDebug.bat` — debug build with the debug server and the FPS readout on.
-- `PlaySmooth.bat` — release build with `PSX_RENDER_THREAD=1 PSX_FRAME_GEN=1`
-  (`[video] render_thread` / `frame_generation`; `PSX_FRAME_GEN_METHOD=redraw|reprojection`).
-  NTSC title: the guest runs at 60 Hz, generation only adds presented frames.
+- Frame generation (`[video] render_thread` / `frame_generation`, or
+  `PSX_RENDER_THREAD=1 PSX_FRAME_GEN=1`) is of no use on this 60 Hz title and
+  its launcher script was removed on 2026-10-14; the Settings page still
+  exposes the switches.
 - Both open the **recomp-ui launcher** first (disc check, Disc 1/2, pad mode,
   memory cards, Settings, Mods). `--no-launcher` or `PSX_NO_LAUNCHER=1` boots
   straight into the game.

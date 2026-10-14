@@ -70,7 +70,8 @@ static shard, which removed it (and the ~12k dirty-RAM interpreted blocks).
   keyboard-only (`PSX_FPS_TELEMETRY=1` turns it on at start). `ping` is
   answered by the io-thread variant; use `frame`, `unknown_dispatch_log`,
   `segment_misses`, `pad_status`.
-- Frame generation (`PlaySmooth.bat`) and dynamic resolution compete for GPU
+- Frame generation (`PlaySmooth.bat`, removed from the USA project on
+  2026-10-14) and dynamic resolution compete for GPU
   time; with dynamic resolution on, the generation breaker trips
   intermittently (felt as stutter). Fixing the internal resolution stabilises
   it. Of little value on the 60 Hz USA build.

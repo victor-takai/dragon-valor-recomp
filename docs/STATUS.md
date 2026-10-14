@@ -73,8 +73,8 @@ the native 60 Hz version.
 
 ## Tooling
 
-Same as the PAL project: `Play.bat`, `PlayDebug.bat`, `PlaySmooth.bat`,
-`tools/dvdbg.py`, `tools/session_monitor.py`. See [`DEVELOPMENT.md`](DEVELOPMENT.md).
+`Play.bat`, `PlayDebug.bat` (`PlaySmooth.bat` was dropped on 2026-10-14: frame
+generation adds nothing at 60 Hz), `tools/dvdbg.py`, `tools/session_monitor.py`. See [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 Automated tests start from save state slot 0 (first screen of gameplay;
 committed copy in `tests/states/`, restored into `saves/openbios/` by

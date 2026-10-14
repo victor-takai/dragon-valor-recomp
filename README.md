@@ -30,8 +30,7 @@ overlays: [`docs/AOT.md`](docs/AOT.md).
 
 ## Playing
 
-1. Build (see below) or unpack a release, then run **`Play.bat`**
-   (`PlaySmooth.bat` adds the OpenGL render thread and frame generation).
+1. Build (see below) or unpack a release, then run **`Play.bat`**.
 2. The launcher opens. On the first run browse to your own `Dragon Valor (USA)
    (Disc 1).cue` (see [`DISC.md`](DISC.md) for the dumps that work); it checks
    the serial, region and ISO header and remembers the location. The same
