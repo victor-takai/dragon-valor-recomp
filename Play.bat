@@ -7,6 +7,10 @@ setlocal
 set "EXE=DragonValorUS_Recompiled.exe"
 set "GAMEDIR=%~dp0build-release"
 if /I "%~1"=="-dbg" set "GAMEDIR=%~dp0build-debug"
+REM xBR texture filtering (OpenGL). The launcher's toggle only knows nearest and
+REM bilinear and rewrites settings.toml on every Play, so the durable way to get
+REM xBR is this per-run override, which the runtime reads after the launcher.
+set "PSX_TEXTURE_FILTER=3"
 if not exist "%GAMEDIR%\%EXE%" (
     echo %EXE% nao encontrado em "%GAMEDIR%". Rode o rebuild indicado no topo deste script.
     pause
