@@ -30,6 +30,17 @@ the native 60 Hz version.
   (`configured 0, runs 0`); 4217 static entries / 4630 variants registered,
   4.3 M native hits within the first 20 s.
 - Pad: Xbox 360 opens as player 1 in DualShock mode (analog).
+- **Menu flow (USA)**: the Namco logo ignores Start; Start during the intro
+  FMV (from ~f1000) skips to the title, and the title screen *is* the main
+  menu (New Game / Load Game / Configuration, New Game highlighted — Start
+  there starts a New Game: prologue text → opening cutscene). Left idle, the
+  title cycles title → gameplay demo → story movie.
+- **Configuration** (reached by injected input, 2026-10-14): *Controller
+  Setup* — in-game remap of L1/L2 Dash, R1/R2 Duck, △ Status, ○ Magic, × Jump,
+  □ Attack, D-pad Move, Start Pause, Select = default, and **Vibration Setup
+  ON/OFF (ON by default)**, so the game drives DualShock rumble; *Adjust
+  Screen* — move the picture with the D-pad, Start confirms, △ default;
+  *Audio Setup* (not photographed yet).
 - Release build: window LIVE, title bar `[Game 60 fps 1.00x]`, NTSC-U detected
   (59.94 Hz pacing).
 - **Disc 2** (`--disc` override, SLUS-01164): boots, 59.9 fps, 0 unknown
@@ -38,7 +49,8 @@ the native 60 Hz version.
 
 ## Open items
 
-1. Human play session (menus, saves, Load Game, reaching disc 2 in-game) — not done yet.
+1. Human play session (saves, Load Game, reaching disc 2 in-game, whether the
+   Xbox pad actually rumbles with Vibration ON) — not done yet.
 2. `game.toml` points at absolute local disc paths (development only).
 3. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale, boot-time freeze dumps (see [`HISTORY.md`](HISTORY.md)).
