@@ -148,20 +148,30 @@ them (`state save`, then `state keep`).
 
 ### Known RAM addresses (USA EXE)
 
-Found by pattern search over `read_ram` and confirmed by `write_ram` in slot 0
-(the HUD counts toward the new value):
+Found by pattern search over `read_ram` and confirmed by `write_ram` from slot
+0 (the HUD and the Status screen follow the new values). psxdatacenter lists
+the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
+`8008A5B0 03E7`, `8008A5B2 03E7`).
 
 | Address | Width | Meaning | Referenced by |
 |---|---|---|---|
-| `0x8008A5AE` | u16 | HP current | `func_800389F4`, `func_80038F0C` |
+| `0x8008A5AE` | u16 | HP current (HUD shows 3 digits) | `func_800389F4`, `func_80038F0C` |
 | `0x8008A5B0` | u16 | HP max | |
 | `0x8008A5B2` | u16 | MP current | |
 | `0x8008A5B4` | u16 | MP max | `func_80034908` |
+| `0x8008A5B6` | u16 | STR | |
+| `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
+| `0x800A2DD0` | u16 | Val (gold; Status shows 4 digits, 10000 reads 0000) | `func_8004BF84` |
+| `0x800A2E06`‥`0D` | u8 ×8 | Magic levels: Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex (0 = not learned, 1‥3 = LEVEL) | |
 
 `write_ram` writes one byte per call (`addr=`, `val=`). The GameShark codes
-circulating online (`800A5AE0 0064`, `800A5B20 0064`, …) are these addresses
-with one hex digit dropped; their `800A2DD0 2700` (Val) did not change the
-Val shown on the Status screen here, so it is not confirmed.
+circulating on GameRevolution are correct for Val (`800A2DD0 2700`) and the
+magic levels (`300A2E06`‥`0D 0003`); its HP/MP codes (`800A5AE0 0064`, …) are
+the addresses above with one hex digit dropped. The "beat the first boss,
+sell items, pause, press Up Down Left Right Select" cheat from the same page
+has no button-sequence table in the EXE or the BIN modules and did nothing
+when tried from slot 0; its precondition (first boss beaten) was not met, so
+it stays unverified rather than disproved.
 
 ### Play sessions
 

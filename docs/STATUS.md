@@ -72,5 +72,5 @@ Same as the PAL project: `Play.bat`, `PlayDebug.bat`, `PlaySmooth.bat`,
 
 Automated tests start from save state slot 0 (first screen of gameplay;
 committed copy in `tests/states/`, restored into `saves/openbios/` by
-`python tools/dvdbg.py launch --state 0`). HP/MP RAM addresses and the
-save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
+`python tools/dvdbg.py launch --state 0`). RAM addresses for HP/MP/STR/DEF, Val and
+magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
