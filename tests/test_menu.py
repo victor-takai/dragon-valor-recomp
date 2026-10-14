@@ -10,7 +10,8 @@ events a keyboard produces) and checks, from slot 0:
   2. Cheats page: Enter on "Infinite HP" turns it on; after closing the menu
      the guest runs again and HP written to 5 refills to HPmax within a frame
      (the option reached the plugin live, through psx_mod_set_option_live).
-  3. The same row turns it off again; a written HP stays.
+  3. The same row turns it off again; a written HP stays. The Val row
+     (third on the page) writes RAM at once: one step right = 100.
   4. System page: "Save state" on slot 2 (runtime slot 1) writes the slot file.
 The menu always opens on the first section (Display) with nothing selected,
 so a path is Down x N then Enter. Exit code 0 on PASS.
@@ -80,6 +81,14 @@ def main(argv):
     hp = rd16(HP)
     check("Infinite HP off again (written HP stays)", hp == 5)
     wr16(HP, rd16(HPMAX))   # leave the hero healthy
+
+    # 3b. Val editor: third row of the Cheats page, one step right = +100, written at once
+    VAL = 0x800A2DD0
+    wr16(VAL, 0); time.sleep(0.2)
+    key("Escape"); goto_section("Cheats"); key("Down", 2); key("Right"); close()
+    val = rd16(VAL)
+    check("Val editor wrote 100 into RAM", val == 100)
+    wr16(VAL, 0)
 
     # 4. save state to slot 2 from the System page: Resume, State slot, Save state, ...
     target = SAVES_STATES_DIR / slot_file(1, os.environ.get("DVDBG_DISC") or DEFAULT_DISC)

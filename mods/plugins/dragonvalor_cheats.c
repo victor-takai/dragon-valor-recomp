@@ -11,12 +11,12 @@
  * always in the plan and the in-game menu can switch the options live
  * through the option-changed callback (psx_mod_set_option_live). Each
  * option is one GameShark-style "every frame" write from the VBlank callback.
+ * One-shot edits (Val, stats, magic levels, items) are not options: the
+ * in-game menu writes them straight into RAM (mods/plugins/dragonvalor_menu.cpp).
  * Addresses come from docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)".
  */
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "mod_plugins.h"
 
@@ -24,14 +24,11 @@
 #define DV_HP_MAX   0x8008A5B0u   /* u16 maximum HP            */
 #define DV_MP       0x8008A5B2u   /* u16 current MP            */
 #define DV_MP_MAX   0x8008A5B4u   /* u16 maximum MP            */
-#define DV_VAL      0x800A2DD0u   /* u16 Val (gold), HUD shows 4 digits */
-#define DV_VAL_CAP  9999u
 #define DV_STAT_CAP 999u          /* HUD shows three digits    */
 
 #define DV_PLUGIN_ID "dragonvalor.cheats"
 
 static int g_infinite_hp, g_infinite_mp;
-static uint16_t g_val_floor;   /* 0 = off */
 
 static int dv_opt_bool(const char* id)
 {
@@ -40,20 +37,10 @@ static int dv_opt_bool(const char* id)
     return text[0] == 't' || text[0] == '1';
 }
 
-static uint16_t dv_opt_val(const char* id)
-{
-    char text[16];
-    unsigned long v;
-    if (!psx_mod_current_option_value(id, text, sizeof text)) return 0;
-    v = strtoul(text, NULL, 10);
-    return (uint16_t)(v > DV_VAL_CAP ? DV_VAL_CAP : v);
-}
-
 static void dv_cheats_read_options(void)
 {
     g_infinite_hp = dv_opt_bool("infinite_hp");
     g_infinite_mp = dv_opt_bool("infinite_mp");
-    g_val_floor = dv_opt_val("val_floor");
 }
 
 /* Session start: the committed plan's option values. */
@@ -86,12 +73,10 @@ static void dv_top_up(uint32_t cur_addr, uint32_t max_addr)
 
 static void dv_cheats_vblank(void)
 {
-    if (!(g_infinite_hp || g_infinite_mp || g_val_floor)) return;
+    if (!(g_infinite_hp || g_infinite_mp)) return;
     if (!dv_hero_loaded()) return;
     if (g_infinite_hp) dv_top_up(DV_HP, DV_HP_MAX);
     if (g_infinite_mp) dv_top_up(DV_MP, DV_MP_MAX);
-    /* Val floor: shopping still works, the purse just never drops below it. */
-    if (g_val_floor && psx_mod_read_half(DV_VAL) < g_val_floor) psx_mod_write_half(DV_VAL, g_val_floor);
 }
 
 PSX_MOD_CONSTRUCTOR(dv_register_cheat_plugins)

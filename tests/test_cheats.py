@@ -7,7 +7,7 @@ Setup (see docs/DEVELOPMENT.md, "This project's package"):
      append:
         [[package]]
         id = "dragonvalor.cheats"
-        version = "1.1.0"
+        version = "1.2.0"
         [[feature]]
         package_id = "dragonvalor.cheats"
         id = "cheats"
@@ -15,13 +15,13 @@ Setup (see docs/DEVELOPMENT.md, "This project's package"):
         [feature.values]
         infinite_hp = "true"
         infinite_mp = "true"
-        val_floor = "5000"
   2. python tools/dvdbg.py launch --state 0
   3. python tests/test_cheats.py on      # or: off  (control run)
 
 Writes HP=5, MP=3, Val=12 through the debug server and reads them back half
-a second later: with the features on they must be back at HPmax/MPmax/5000,
-with them off they must stay. Exit code 0 on PASS.
+a second later: with the options on HP/MP must be back at HPmax/MPmax (Val
+is never touched by the plugin), with them off they must stay. Exit code 0
+on PASS.
 """
 import sys
 import time
@@ -31,7 +31,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 from dvdbg import rpc, port_from_args  # noqa: E402
 
 HP, HPMAX, MP, MPMAX, VAL = 0x8008A5AE, 0x8008A5B0, 0x8008A5B2, 0x8008A5B4, 0x800A2DD0
-FLOOR = 5000   # the `val_floor` option value the setup above writes
 
 
 def main(argv):
@@ -58,7 +57,7 @@ def main(argv):
     hp, mp, val = rd16(HP), rd16(MP), rd16(VAL)
     print(f"after writing HP=5 MP=3 Val=12 and waiting 0.5 s: HP {hp} MP {mp} Val {val}")
     if expect_on:
-        ok = hp == hpmax and mp == mpmax and val == FLOOR
+        ok = hp == hpmax and mp == mpmax and val == 12
     else:
         ok = hp == 5 and mp == 3 and val == 12
     print("RESULT:", "PASS" if ok else "FAIL", f"(cheats expected {'ON' if expect_on else 'OFF'})")

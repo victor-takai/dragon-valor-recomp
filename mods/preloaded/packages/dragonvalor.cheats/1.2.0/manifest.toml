@@ -2,14 +2,16 @@
 # that keeps the plugin (mods/plugins/dragonvalor_cheats.c) in the session's
 # plan, so the in-game menu (Escape / Select+Start) can switch each cheat on
 # and off at once, and the launcher's Mods page sets the same options before
-# a start. Each option is a GameShark-style "every frame" write.
+# a start. Each option is a GameShark-style "every frame" write. One-shot
+# edits (Val, max HP/MP, STR, DEF, spell levels, items) live in the in-game
+# menu's Cheats / Magic / Items pages, not here.
 # RAM addresses: docs/DEVELOPMENT.md, "Known RAM addresses".
 format_version = 7
 id = "dragonvalor.cheats"
-version = "1.1.0"
+version = "1.2.0"
 name = "Dragon Valor Cheats"
 author = "DragonValorUSRecomp"
-description = "Infinite HP, infinite MP and a Val floor for the USA release, switchable in-game. Every cheat is off until you turn it on."
+description = "Infinite HP and infinite MP for the USA release, switchable in-game (the in-game menu also edits Val, stats, spells and items). Both off until you turn them on."
 license = "MIT"
 resolver = "declarative"
 # Cheats change RAM only; saves stay interchangeable with a stock session.
@@ -40,17 +42,6 @@ label = "Infinite MP"
 description = "Refills MP to its maximum every frame while a hero is loaded, so magic is free."
 type = "boolean"
 default = "false"
-
-[[option]]
-feature = "cheats"
-id = "val_floor"
-label = "Val floor"
-description = "Val (gold) is topped up to this amount whenever it falls below it; 0 turns it off. Shops still work."
-type = "integer"
-min = 0
-max = 9999
-step = 100
-default = 0
 
 [[plugin]]
 feature = "cheats"

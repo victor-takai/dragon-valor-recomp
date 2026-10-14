@@ -269,7 +269,7 @@ or installed by the player through the launcher's Mods page) can carry:
 
 #### This project's package: `dragonvalor.cheats`
 
-`mods/preloaded/packages/dragonvalor.cheats/1.1.0/manifest.toml` (format 7)
+`mods/preloaded/packages/dragonvalor.cheats/1.2.0/manifest.toml` (format 7)
 declares **one feature, `cheats`, on by default with every option off**, backed
 by `mods/plugins/dragonvalor_cheats.c`. The feature stays in the session's
 plan so the in-game menu can switch its options live; with every option off
@@ -280,7 +280,12 @@ id; the C file is linked by the `target_sources` line in `CMakeLists.txt`.
 |---|---|
 | `infinite_hp` | HP ← HPmax |
 | `infinite_mp` | MP ← MPmax |
-| `val_floor` (0‥9999, step 100, 0 = off) | Val ← max(Val, floor) |
+
+One-shot edits are not options: the in-game menu writes Val, max HP/MP,
+STR, DEF, the eight spell levels and the seventeen inventory counts straight
+into RAM (next section). A "Val floor" option existed in 1.1.0 and was
+dropped: a value that keeps resetting is not what a player wants from a gold
+cheat.
 
 The plugin reads the options at activation and again in its option-changed
 callback (`psx_mod_register_option_changed_plugin`), which is what makes a
@@ -288,9 +293,9 @@ change from the in-game menu (`PsxMenuHost.mod_set` →
 `psx_mod_set_option_live`) take effect the same frame. The build stages the
 package into `<build>/mods/bundled/dragonvalor.cheats`; the launcher's Mods
 page and the in-game menu both write `<build>/mods/state.toml`. Verified
-2026-10-14 from slot 0 on build-debug: with the options on, HP/MP/Val written
-to 5/3/12 read back 30/20/5000 within half a second; with them off the
-written values stayed; toggled from the menu, HP refilled at once. Limitation
+2026-10-14 from slot 0 on build-debug: with the options on, HP/MP written to
+5/3 read back 30/20 within half a second; with them off the written values
+stayed; toggled from the menu, HP refilled at once. Limitation
 shared with GameShark codes: the refill runs once per frame, so a single hit
 of at least HPmax still kills (writing HP = 0 produced GAME OVER).
 
@@ -316,7 +321,9 @@ Sections and rows:
 | Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
 | Audio | Volume | `host_volume_set` |
 | System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
-| Cheats | Infinite HP, Infinite MP, Val floor | `mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml` |
+| Cheats | Infinite HP, Infinite MP (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded |
+| Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3 | bytes `0x800A2E06`‥`0D`, written at once |
+| Items | Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key: 0‥99 | u16 counts from `0x800A2DD2`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu

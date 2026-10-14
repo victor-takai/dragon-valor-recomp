@@ -45,10 +45,43 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_DYNRES      "dv.graphics.dynamic_resolution"
 #define DV_KEY_CHEAT_HP    "dv.cheats.infinite_hp"
 #define DV_KEY_CHEAT_MP    "dv.cheats.infinite_mp"
-#define DV_KEY_CHEAT_VAL   "dv.cheats.val_floor"
 #define DV_KEY_SKIP_INTRO  "dv.game.skip_intro"
 #define DV_KEY_DISC1       "dv.disc.1"
 #define DV_KEY_DISC2       "dv.disc.2"
+
+/* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
+ * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
+ * are enabled only while a hero is loaded (HPmax != 0); the guest is paused
+ * while the menu is up and the event path runs on the emulation thread, so a
+ * plain write is a one-shot cheat, not a per-frame lock. */
+struct RamRow { const char* key; uint32_t addr; int width; };
+#define DV_RAM_VAL "dv.ram.val"
+const RamRow kRamRows[] = {
+    {DV_RAM_VAL, 0x800A2DD0u, 2},        {"dv.ram.hpmax", 0x8008A5B0u, 2},
+    {"dv.ram.mpmax", 0x8008A5B4u, 2},    {"dv.ram.str", 0x8008A5B6u, 2},
+    {"dv.ram.def", 0x8008A5B8u, 2},
+    {"dv.ram.magic0", 0x800A2E06u, 1}, {"dv.ram.magic1", 0x800A2E07u, 1},
+    {"dv.ram.magic2", 0x800A2E08u, 1}, {"dv.ram.magic3", 0x800A2E09u, 1},
+    {"dv.ram.magic4", 0x800A2E0Au, 1}, {"dv.ram.magic5", 0x800A2E0Bu, 1},
+    {"dv.ram.magic6", 0x800A2E0Cu, 1}, {"dv.ram.magic7", 0x800A2E0Du, 1},
+    {"dv.ram.item0", 0x800A2DD2u, 2},  {"dv.ram.item1", 0x800A2DD4u, 2},
+    {"dv.ram.item2", 0x800A2DD6u, 2},  {"dv.ram.item3", 0x800A2DD8u, 2},
+    {"dv.ram.item4", 0x800A2DDAu, 2},  {"dv.ram.item5", 0x800A2DDCu, 2},
+    {"dv.ram.item6", 0x800A2DDEu, 2},  {"dv.ram.item7", 0x800A2DE0u, 2},
+    {"dv.ram.item8", 0x800A2DE2u, 2},  {"dv.ram.item9", 0x800A2DE4u, 2},
+    {"dv.ram.item10", 0x800A2DE6u, 2}, {"dv.ram.item11", 0x800A2DE8u, 2},
+    {"dv.ram.item12", 0x800A2DEAu, 2}, {"dv.ram.item13", 0x800A2DECu, 2},
+    {"dv.ram.item14", 0x800A2DEEu, 2}, {"dv.ram.item15", 0x800A2DF0u, 2},
+    {"dv.ram.item16", 0x800A2DF2u, 2},
+};
+const char* const kMagicChoices[] = {"Not learned", "Level 1", "Level 2", "Level 3"};
+
+#define DV_ROW_INT(key, section, label, desc, lo, hi, step) \
+    {key, section, label, desc, RECOMP_RUNTIME_UI_INT, lo, hi, step, nullptr, 0, nullptr}
+#define DV_ROW_MAGIC(key, label) \
+    {key, "Magic", label, "Spell level, written to the game at once.", RECOMP_RUNTIME_UI_CHOICE, 0, 3, 1, kMagicChoices, 4, nullptr}
+#define DV_ROW_ITEM(key, label) \
+    DV_ROW_INT(key, "Items", label, "How many you carry, written at once.", 0, 99, 1)
 
 const RecompRuntimeUiItem kExtraItems[] = {
     {DV_KEY_TEXFILTER, "Graphics", "Texture filtering",
@@ -63,9 +96,24 @@ const RecompRuntimeUiItem kExtraItems[] = {
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
     {DV_KEY_CHEAT_MP, "Cheats", "Infinite MP", "MP refills every frame. Applies at once.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_CHEAT_VAL, "Cheats", "Val floor",
-     "Val never drops below this amount (0 = off). Applies at once.",
-     RECOMP_RUNTIME_UI_INT, 0, 9999, 100, nullptr, 0, nullptr},
+    DV_ROW_INT(DV_RAM_VAL, "Cheats", "Val", "Your gold, written at once (the HUD shows four digits).", 0, 9999, 100),
+    DV_ROW_INT("dv.ram.hpmax", "Cheats", "Max HP", "Maximum HP, written at once.", 1, 999, 10),
+    DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP, written at once.", 1, 999, 10),
+    DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power shown on the Status screen, written at once.", 0, 999, 5),
+    DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense shown on the Status screen, written at once.", 0, 999, 5),
+    DV_ROW_MAGIC("dv.ram.magic0", "Heal"),    DV_ROW_MAGIC("dv.ram.magic1", "Defense"),
+    DV_ROW_MAGIC("dv.ram.magic2", "Fire"),    DV_ROW_MAGIC("dv.ram.magic3", "Ice"),
+    DV_ROW_MAGIC("dv.ram.magic4", "Thunder"), DV_ROW_MAGIC("dv.ram.magic5", "Mine"),
+    DV_ROW_MAGIC("dv.ram.magic6", "Stealth"), DV_ROW_MAGIC("dv.ram.magic7", "Vortex"),
+    DV_ROW_ITEM("dv.ram.item0", "Pendant"),     DV_ROW_ITEM("dv.ram.item1", "Lithograph"),
+    DV_ROW_ITEM("dv.ram.item2", "Ring"),        DV_ROW_ITEM("dv.ram.item3", "Talisman"),
+    DV_ROW_ITEM("dv.ram.item4", "Wine"),        DV_ROW_ITEM("dv.ram.item5", "Pepper"),
+    DV_ROW_ITEM("dv.ram.item6", "Earrings"),    DV_ROW_ITEM("dv.ram.item7", "Bracelet"),
+    DV_ROW_ITEM("dv.ram.item8", "Horn"),        DV_ROW_ITEM("dv.ram.item9", "Perfume"),
+    DV_ROW_ITEM("dv.ram.item10", "Tea"),        DV_ROW_ITEM("dv.ram.item11", "Mask"),
+    DV_ROW_ITEM("dv.ram.item12", "Silver Key"), DV_ROW_ITEM("dv.ram.item13", "Gold Key"),
+    DV_ROW_ITEM("dv.ram.item14", "Harp"),       DV_ROW_ITEM("dv.ram.item15", "Tiara"),
+    DV_ROW_ITEM("dv.ram.item16", "Copper Key"),
     {DV_KEY_SKIP_INTRO, "Game", "Skip intro movie",
      "Press Start for you when the intro movie starts. Takes effect at the next start.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
@@ -91,7 +139,7 @@ struct Menu {
     int dim = RECOMP_RUNTIME_UI_DEFAULT_DIM_PERCENT, opacity = 100;
     int slot = 1;                  /* 1-based state slot shown; runtime slot = slot - 1 */
     /* mirrors of the mod selection (the catalogue is the host's) */
-    int cheat_hp = 0, cheat_mp = 0, cheat_val = 0, skip_intro = 0;
+    int cheat_hp = 0, cheat_mp = 0, skip_intro = 0;
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
 };
@@ -108,6 +156,18 @@ int opt_int(const char* pkg, const char* feat, const char* opt, int dflt) {
 
 /* ---- model callbacks (main thread, under g_menu.mu) ----------------------- */
 bool is(const RecompRuntimeUiItem* item, const char* key) { return std::strcmp(item->key, key) == 0; }
+
+const RamRow* ram_row(const RecompRuntimeUiItem* item) {
+    for (const RamRow& r : kRamRows)
+        if (std::strcmp(item->key, r.key) == 0) return &r;
+    return nullptr;
+}
+bool hero_loaded() { return psx_mod_game_started() && psx_mod_read_half(0x8008A5B0u) != 0; }
+int ram_read(const RamRow& r) { return r.width == 1 ? psx_mod_read_byte(r.addr) : psx_mod_read_half(r.addr); }
+void ram_write(const RamRow& r, int v) {
+    if (r.width == 1) psx_mod_write_byte(r.addr, (uint8_t)v);
+    else psx_mod_write_half(r.addr, (uint16_t)v);
+}
 
 int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     Menu& m = *static_cast<Menu*>(ctx);
@@ -130,8 +190,12 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { *out = m.slot; return 1; }
     if (is(item, DV_KEY_CHEAT_HP)) { *out = m.cheat_hp; return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { *out = m.cheat_mp; return 1; }
-    if (is(item, DV_KEY_CHEAT_VAL)) { *out = m.cheat_val; return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { *out = m.skip_intro; return 1; }
+    if (const RamRow* r = ram_row(item)) {
+        const int v = hero_loaded() ? ram_read(*r) : 0;
+        *out = v > item->maximum ? item->maximum : v < item->minimum ? item->minimum : v;
+        return 1;
+    }
     return 0;
 }
 
@@ -168,11 +232,14 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { m.slot = value; return 1; }
     if (is(item, DV_KEY_CHEAT_HP)) { m.cheat_hp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { m.cheat_mp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_mp", value ? "true" : "false"); return 1; }
-    if (is(item, DV_KEY_CHEAT_VAL)) {
-        m.cheat_val = value; std::snprintf(text, sizeof text, "%d", value);
-        set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "val_floor", text); return 1;
-    }
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
+    if (const RamRow* r = ram_row(item)) {
+        if (!hero_loaded()) { recomp_runtime_ui_set_status(m.ui, "No hero loaded yet"); return 0; }
+        ram_write(*r, value);
+        std::snprintf(text, sizeof text, "Written: %d", value);
+        recomp_runtime_ui_set_status(m.ui, text);
+        return 1;
+    }
     return 0;
 }
 
@@ -216,6 +283,7 @@ int cb_is_enabled(void* ctx, const RecompRuntimeUiItem* item) {
         const int n = is(item, DV_KEY_DISC1) ? 1 : 2;
         return m.host->disc_count() >= n && m.host->disc_mounted() != n;
     }
+    if (ram_row(item)) return hero_loaded() ? 1 : 0;
     return 1;
 }
 
@@ -291,7 +359,6 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
     /* the committed selection is what the launcher left; mirror it */
     m.cheat_hp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", 0);
     m.cheat_mp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_mp", 0);
-    m.cheat_val = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "val_floor", 0);
     m.skip_intro = opt_int(DV_SKIP_PKG, DV_SKIP_FEAT, "movie", 0) ? 1 : 0;   /* 0 unless the feature is in the plan */
     if (!m.imgui) {
         IMGUI_CHECKVERSION();
