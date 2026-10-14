@@ -422,6 +422,31 @@ mod stays off. How that was decided, on build-debug from slot 0:
   mod off and at 2×, 4× and 8× (0 unknown dispatches each time): the reload
   is paced by the game's own fades, not by the drive. No reason to ship it on.
 
+#### PGXP (on by default since 2026-10-14)
+
+The runtime is built as the **PGXP hook flavour** (`PGXP` in
+`psxrecomp_add_game_runtime`): the generated C already carries the hook
+sites, so `generated/` did not change, but the one executable now tracks GTE
+precision through every vertex path. On the base flavour the
+`psx.enhancement.pgxp` mod corrected almost nothing on this title (only
+`swc2` is shadowed there). PGXP is armed by the mod, which ships **on** through
+`mods/preloaded/packages/psx.enhancement.pgxp/1.0.0/manifest.toml` (the
+builtin manifest verbatim with `default_enabled = true`, shadowing the
+framework copy under the same id and version) plus `[video] pgxp_mod_only =
+true` in `game.toml`, so the Mods page row is the one switch and netplay runs
+with it off (ENHANCEMENTS.md G1.11/G1.12).
+
+A/B on build-debug from slot 0 (`scratchpad pgxp_ab.py`: save slot 11, load
+it twice, `pgxp geometry= texture=` live, `screenshot_hires`,
+`geom_correction` census): with PGXP on the census counted 214,218 vertex
+lookups, 141,168 dataflow hits (66 %), 73,050 native, 2,160 value
+mismatches; 36.5 % of the 1920×1200 pixels moved between the two shots (the
+whole 3D scene shifts by sub-pixel amounts, the HUD does not); no cracks or
+missing polygons in Brize Forest; frame rate while walking 60.0 → 60.0
+frames/s. Save states are flavour-specific: `tests/states` was re-taken on
+this flavour with `tests/retake_state0.py`. Precise culling and CPU-mode
+propagation stay off (the manifest's defaults).
+
 #### HD texture packs on this game
 
 `psx.enhancement.hd-textures` (bundled) works here, OpenGL only. Dumping

@@ -73,6 +73,10 @@ internal_resolution = "1080p"
 # visible in a static Brize Forest shot, it acts against shimmer in motion.
 texture_lod = "mipmap"
 anisotropic_filtering = 4
+# PGXP ships on by default through the overriding psx.enhancement.pgxp manifest
+# in mods/preloaded (the runtime is the PGXP hook flavour); the mod is the one
+# switch, so the [video] geometry keys and the launcher's own row stay out.
+pgxp_mod_only = true
 
 [audio]
 # Input-to-sound delay. Default is 180 ms; 90 ms showed no pump underruns in

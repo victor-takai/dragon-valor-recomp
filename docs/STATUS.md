@@ -101,6 +101,8 @@ volume, saves and loads states, changes disc and returns to the launcher.
 The Namco logo stays: shortening it breaks the title's loads. Title defaults
 measured the same day: mipmapped 3D textures with 4 anisotropic taps and a
 90 ms audio buffer ship in `game.toml`; FXAA and CD Speed do not help here
-(see `DEVELOPMENT.md`, *Video and audio defaults*). The
+(see `DEVELOPMENT.md`, *Video and audio defaults*). The runtime is the PGXP
+hook flavour and PGXP ships on by default (66 % of vertices corrected, 60
+fps kept; `DEVELOPMENT.md`, *PGXP*). The
 framework's HD texture dumper works on this game once a stage reloads
 (563 PNGs from a session from the title into Brize Forest). See [`DEVELOPMENT.md`](DEVELOPMENT.md#modding-what-the-framework-offers).

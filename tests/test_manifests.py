@@ -19,7 +19,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = ROOT / "mods" / "preloaded" / "packages"
-PLUGIN_SRC = "\n".join(Path(p).read_text(encoding="utf-8") for p in glob.glob(str(ROOT / "mods" / "plugins" / "*.c")))
+# Plugin ids must be registered somewhere in the executable: our plugins, or the
+# framework's builtin ones (an overriding manifest such as psx.enhancement.pgxp
+# keeps the framework's plugin id).
+PLUGIN_SRC = "\n".join(Path(p).read_text(encoding="utf-8", errors="replace")
+                       for p in glob.glob(str(ROOT / "mods" / "plugins" / "*.c*"))
+                       + glob.glob(str(ROOT / "psxrecomp" / "runtime" / "src" / "mod_builtin_*.c")))
 
 
 def check(manifest: Path) -> list[str]:
