@@ -1,10 +1,10 @@
 # Dragon Valor (USA) Recompiled — status
 
 Last updated: 2026-10-14. Framework: psxrecomp @ 54abcb70 (submodule), OpenBIOS only.
-**This is the active project** (since 2026-10-14). Sister project:
-`../DragonValorRecomp` (PAL, SCES-01705) — same game at 50 Hz, set aside; its
-`docs/STATUS.md` holds the investigation history (controller, dissolve
-rendering, first play session) that applies to this build too.
+The project started on the PAL release (SCES-01705, 50 Hz) and moved to this
+USA version on 2026-10-14; the PAL tree was deleted. What that bring-up
+established (controller, dissolve rendering, first play session, framework
+quirks) is in [`HISTORY.md`](HISTORY.md).
 
 ## Identity
 
@@ -37,9 +37,8 @@ the native 60 Hz version.
 
 1. Human play session (menus, saves, Load Game, disc 2) — not done yet.
 2. `game.toml` points at absolute local disc paths (development only).
-3. Everything listed as open in the PAL project's STATUS.md (dissolve
-   brightness at high internal scale, boot-time freeze dumps) is expected here
-   too and has not been re-checked.
+3. Known from the PAL bring-up and not re-checked here: dissolve brightness at
+   high internal scale, boot-time freeze dumps (see [`HISTORY.md`](HISTORY.md)).
 
 ## Tooling
 
