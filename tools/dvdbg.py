@@ -15,6 +15,9 @@ through `raw`. All waits are in-process, so it is safe from any shell.
   python tools/dvdbg.py frame             guest frame counter
   python tools/dvdbg.py pad               SIO pad status (connected/analog/type)
   python tools/dvdbg.py health            unknown dispatches + segment misses
+  python tools/dvdbg.py state save|load [N]
+        runtime save state in slot N (files under saves/openbios/); slot 0 is
+        kept at the start of gameplay so tests can skip the 5 min intro
   python tools/dvdbg.py raw <cmd> [k=v ...]
   python tools/dvdbg.py kill              stop every DragonValorUS_Recompiled.exe
 
@@ -146,6 +149,11 @@ def main(argv):
         for c in ("unknown_dispatch_log", "segment_misses"):
             r = rpc(port, c)
             print(f"{c}: total={r.get('total')} unique={r.get('unique')}")
+    elif cmd == "state":
+        # state save|load <slot>: the runtime's save states (persist under saves/),
+        # the fast way to start a test at a known point instead of replaying the intro
+        op, slot = args[0], int(args[1]) if len(args) > 1 else 0
+        print(rpc(port, "savestate", op=op, slot=slot))
     elif cmd == "raw":
         params = {}
         for kv in args[1:]:

@@ -123,6 +123,40 @@ Useful facts:
   LIVE/FROZEN verdict from what the monitor shows (screenshots come from VRAM
   and can lie about a frozen window).
 
+### Save states
+
+The runtime's save states (`savestate op=save|load slot=N`, files under
+`saves/openbios/`, gitignored) are the shortcut around the ~5 min intro:
+
+```bash
+python tools/dvdbg.py launch
+python tools/dvdbg.py state load 0      # Brize Forest, first screen of gameplay
+python tools/dvdbg.py raw savestate_status
+```
+
+Slot 0 is kept at the start of gameplay (New Game → prologue → opening
+cutscene → first enemy; HP 030/030, MP 020/020). It loads on a fresh boot
+about 3 s after the server comes up (verified 2026-10-14) — the state carries
+the loaded `ACTION.BIN`, so nothing of the menu route has to be replayed.
+Re-create it with `state save 0` if a runtime update changes the format.
+
+### Known RAM addresses (USA EXE)
+
+Found by pattern search over `read_ram` and confirmed by `write_ram` in slot 0
+(the HUD counts toward the new value):
+
+| Address | Width | Meaning | Referenced by |
+|---|---|---|---|
+| `0x8008A5AE` | u16 | HP current | `func_800389F4`, `func_80038F0C` |
+| `0x8008A5B0` | u16 | HP max | |
+| `0x8008A5B2` | u16 | MP current | |
+| `0x8008A5B4` | u16 | MP max | `func_80034908` |
+
+`write_ram` writes one byte per call (`addr=`, `val=`). The GameShark codes
+circulating online (`800A5AE0 0064`, `800A5B20 0064`, …) are these addresses
+with one hex digit dropped; their `800A2DD0 2700` (Val) did not change the
+Val shown on the Status screen here, so it is not confirmed.
+
 ### Play sessions
 
 Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
