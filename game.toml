@@ -6,7 +6,14 @@ name = "DragonValorUS"
 id = "SLUS-01092"
 players = 1
 exe = "disc/SLUS_010.92"
-disc = "F:\\dragon-valor-recomp\\Dragon Valor (Disc 1)\\Dragon Valor (Disc 1).cue"
+discs = [
+    "F:\\dragon-valor-recomp\\Dragon Valor (Disc 1)\\Dragon Valor (Disc 1).cue",
+    "F:\\dragon-valor-recomp\\Dragon Valor (Disc 2)\\Dragon Valor (Disc 2).cue",
+]
+disc_serials = [
+    "SLUS-01092",
+    "SLUS-01164",
+]
 load_address = "0x80010000"
 entry_pc = "0x80012EA0"
 text_size = "0x00067800"
@@ -44,11 +51,20 @@ renderer = "opengl"
 aspect_ratio = "4:3"
 
 [controller]
-default_mode = "digital"
+# The game reads the analog axes ("digital" folds the stick into 8 directions).
+default_mode = "dualshock"
+# Route player 1 to the first SDL game controller; the runtime default is
+# "keyboard" (its "auto" branch sits behind a PSX_DEBUG_TOOLS macro that
+# runtime.cmake never defines).
+p1_device = "auto"
 
 # Online mount gate: digests + track count + optional TOC fingerprint
 # (see docs/NETPLAY.md).
 [netplay]
+required_disc_fps = [
+    "6608a91715cda8396af139845bfe2e6d461dd18b49c519dce529ecfd7110161b",
+    "5bb1e329e91768a8dd28d70a8c0623e4299354ed21a617fc34f2ebb6524b6415",
+]
 require_cue = true
 required_tracks = 2
 required_disc_fp = "6608a91715cda8396af139845bfe2e6d461dd18b49c519dce529ecfd7110161b"

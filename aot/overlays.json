@@ -1,0 +1,49 @@
+{
+  "schema": "psxrecomp AOT methods v1",
+  "game_id": "SLUS-01092",
+  "notes": [
+    "Dragon Valor (USA) disc 1 (SLUS-01092; disc 2 SLUS-01164 carries the same EXE). The boot EXE clears its BSS from 0x800774A8 up to 0x800BBEF0 at entry and uses 0x800BBEF0 as the heap base; the five mode modules under BIN/ are read whole (header included) into that address, one at a time.",
+    "Same loader as the PAL release (there: 0x800BC268); MAP.BIN / OPENNING.BIN header pointers sit 0x378 lower, matching the base shift."
+  ],
+  "disc_hashes": {
+    "sha256": "9b41965d1c1bd8ab909d3a5301f376aaf4be346039aae070869b018afe59c59f"
+  },
+  "checks": [
+    {
+      "method": "words",
+      "file": "SLUS_010.92",
+      "file_offset": "0x800",
+      "base": "0x80010000",
+      "values": {
+        "0x80012EA8": "0x3C03800C",
+        "0x80012EAC": "0x2463BEF0",
+        "0x80012EF0": "0x3C04800C",
+        "0x80012EF4": "0x2484BEF0"
+      }
+    }
+  ],
+  "images": [
+    {
+      "method": "fixed_address_files",
+      "files": [
+        "BIN/MAP.BIN",
+        "BIN/ACTION.BIN",
+        "BIN/OPENNING.BIN",
+        "BIN/ENDING.BIN"
+      ],
+      "load_addr": "0x800BBEF0"
+    },
+    {
+      "method": "fixed_address_files",
+      "files": [
+        "BIN/DEMO.BIN"
+      ],
+      "load_addr": "0x800BBEF0",
+      "allow_missing": true,
+      "note": "1.7 KB module the generic detector does not vote on; same loader slot, static root discovery only."
+    }
+  ],
+  "expected_records": 5,
+  "strict_bounds": true,
+  "static_output": "generated/overlays_static.c"
+}

@@ -25,6 +25,16 @@ project(DragonValorUSRecomp LANGUAGES C CXX)
 # set(PSX_SETUP_WIZARD ON CACHE BOOL "..." FORCE)
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 
+# Box art for the launcher (tools/new_project_layout/fetch_boxart.py writes the
+# TGA). Optional: the launcher runs without it.
+set(DV_BOXART "${CMAKE_CURRENT_SOURCE_DIR}/launcher_assets/img/boxart.tga")
+if(EXISTS "${DV_BOXART}")
+    set(DV_BOXART_ARG LAUNCHER_BOXART "${DV_BOXART}")
+else()
+    set(DV_BOXART_ARG "")
+    message(STATUS "DragonValorUS: no launcher boxart at ${DV_BOXART}")
+endif()
+
 # This project's own mod catalog. The FRAMEWORK stages it -- together with its
 # builtin psx.* packages -- into <exe-dir>/mods/bundled, and refuses to
 # configure if a catalog exists here but is not declared. Never copy it by
@@ -43,21 +53,32 @@ psxrecomp_add_game_runtime(psx-runtime
     WINDOW_TITLE "DragonValorUS Recompiled"
     DEFAULT_GAME_CONFIG_PATH "game.toml"
     MAX_PLAYERS 1
-    # LAUNCHER_BOXART "${CMAKE_CURRENT_SOURCE_DIR}/launcher_assets/img/boxart.tga"
+    ${DV_BOXART_ARG}
     APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/psxrecomp.ico"
     # Committed game C (psxrecomp_cli.py generate; git add generated). Release
     # CI configures with -DPSXRECOMP_REQUIRE_GAME_C=ON so a checkout without
     # it fails instead of building a setup host.
+    # Build-time static overlay shard for the BIN/*.BIN mode modules (profile:
+    # aot/overlays.json, written by tools/aot_overlay_pipeline.py `static` or by
+    # psxrecomp_cli.py generate). Must name the profile's static_output and stay
+    # BEFORE GEN_FULL_GLOB (a multi-value arg would swallow it).
+    GAME_OVERLAY_STATIC_C "${CMAKE_CURRENT_SOURCE_DIR}/generated/overlays_static.c"
     GEN_MARKER "generated/SLUS_010.92_dispatch.c"
     GEN_FULL_GLOB "generated/SLUS_010.92_full_*.c"
     CODEGEN_SETUP_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/codegen_setup.c"
 )
 
 # Stage runtime configs next to the exe for direct build/ launches. Only copy
-# files that exist — never fail POST_BUILD when game_options.toml is absent.
+# files that exist — never fail when game_options.toml is absent.
+#
+# Done by a dedicated ALL target instead of a POST_BUILD step on psx-runtime: a
+# POST_BUILD step runs only when the exe is relinked, so a config-only edit was
+# never re-staged and the runtime silently kept the old game.toml.
+add_custom_target(psx-stage-configs ALL)
+add_dependencies(psx-runtime psx-stage-configs)
 foreach(_PSX_RUNTIME_CONFIG game.toml game_options.toml)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_PSX_RUNTIME_CONFIG}")
-        add_custom_command(TARGET psx-runtime POST_BUILD
+        add_custom_command(TARGET psx-stage-configs POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/${_PSX_RUNTIME_CONFIG}"
                 "$<TARGET_FILE_DIR:psx-runtime>/${_PSX_RUNTIME_CONFIG}"
