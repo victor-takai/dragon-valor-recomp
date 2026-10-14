@@ -4,9 +4,13 @@
 Progressive naming for PSX titles (partial decomp). Catalog freely; set
 emit=true only when an entry is safe for AOT / host hooks.
 
-Usage (from game repo root):
+Usage (any cwd; paths resolve from this file's repo):
   python3 tools/sync_symbols.py
   python3 tools/sync_symbols.py --check
+
+Project copy of psxrecomp/tools/new_project_layout/sync_symbols.py: resolves
+the repo from this file instead of the cwd and takes the header label from
+game.toml [game] name, so `--check` matches the committed header.
 """
 
 from __future__ import annotations
@@ -25,7 +29,7 @@ except ModuleNotFoundError:  # pragma: no cover
         print("error: need Python 3.11+ tomllib or pip install tomli", file=sys.stderr)
         raise SystemExit(2)
 
-ROOT = pathlib.Path.cwd()
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 SYMBOLS_PATH = ROOT / "symbols.toml"
 HEADER_PATH = ROOT / "psx_symbols.h"
 
@@ -82,6 +86,17 @@ def render_header(funcs: list[dict], *, game: str) -> str:
     return "\n".join(lines)
 
 
+def _game_name(root: pathlib.Path) -> str:
+    """[game] name from game.toml beside symbols.toml, or ''."""
+    cfg = root / "game.toml"
+    if not cfg.is_file():
+        return ""
+    try:
+        return str(tomllib.loads(cfg.read_text(encoding="utf-8")).get("game", {}).get("name", ""))
+    except Exception:
+        return ""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="exit 1 if header would change")
@@ -94,7 +109,7 @@ def main() -> int:
         print(f"error: missing {args.symbols}", file=sys.stderr)
         return 1
 
-    game = args.game or args.symbols.parent.name
+    game = args.game or _game_name(args.symbols.parent) or args.symbols.parent.name
     funcs = load_funcs(args.symbols)
     text = render_header(funcs, game=game)
 

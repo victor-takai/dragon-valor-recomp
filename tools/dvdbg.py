@@ -3,7 +3,8 @@
 
 The runtime in build-debug/ (PSX_DEBUG_TOOLS=ON) listens on 127.0.0.1:4370.
 This wraps the handful of commands a test session needs; anything else goes
-through `raw`. All waits are in-process, so it is safe from any shell.
+through `raw`. Windows only (detached process, taskkill); all waits are
+in-process, so it is safe from any shell.
 
   python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--build DIR] [--disc CUE] [--state N]
         start the runtime detached, wait for the server, print pid and the
@@ -38,7 +39,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EXE_NAME = "DragonValorUS_Recompiled.exe"
-ENTRY_PC = "80012EA0"                             # the runtime keys slot files by entry PC
+
+
+def _entry_pc():
+    """Entry PC from game.toml (the runtime keys slot files by it)."""
+    try:
+        import tomllib
+        v = tomllib.loads((ROOT / "game.toml").read_text(encoding="utf-8"))["game"]["entry_pc"]
+        return f"{int(str(v), 0):08X}"
+    except Exception:
+        return "80012EA0"
+
+
+ENTRY_PC = _entry_pc()
 STATES_DIR = ROOT / "tests" / "states"            # committed test states
 SAVES_STATES_DIR = ROOT / "saves" / "openbios"    # where the runtime reads/writes slots
 DEFAULT_DISC = str(ROOT.parent / "Dragon Valor (USA) (Disc 1)" / "Dragon Valor (USA) (Disc 1).cue")
@@ -50,10 +63,20 @@ BUTTONS = {
 }
 
 
+def flag_value(args, name, default=None):
+    """Value after a `--flag`, or default; a flag without a value is an error."""
+    if name not in args:
+        return default
+    i = args.index(name)
+    if i + 1 >= len(args) or args[i + 1].startswith("--"):
+        sys.exit(f"{name} needs a value")
+    return args[i + 1]
+
+
 def port_from_args(args):
     if "--port" in args:
         i = args.index("--port")
-        p = int(args[i + 1])
+        p = int(flag_value(args, "--port"))
         del args[i:i + 2]
         return p
     return int(os.environ.get("PORT", "4370"))
@@ -75,28 +98,38 @@ def rpc(port, cmd, **params):
 def cmd_launch(args):
     sw = "--sw" in args
     sound = "--sound" in args
-    build = ROOT / "build-debug"
-    if "--build" in args:
-        build = Path(args[args.index("--build") + 1])
+    build = Path(flag_value(args, "--build", str(ROOT / "build-debug")))
     port = port_from_args(args) if "--port" in args else (4371 if sw else 4370)
     # --no-launcher: skip the recomp-ui launcher window and boot the game directly.
     # --disc: game.toml names the discs by Redump file name only (players point
     # the launcher at their dumps), so scripted runs pass the local path.
-    disc = os.environ.get("DVDBG_DISC") or DEFAULT_DISC
-    if "--disc" in args:
-        disc = args[args.index("--disc") + 1]
+    disc = flag_value(args, "--disc", os.environ.get("DVDBG_DISC") or DEFAULT_DISC)
+    if not Path(disc).is_file():
+        sys.exit(f"disc not found: {disc}\n"
+                 "pass --disc <cue> or set DVDBG_DISC (docs/DEVELOPMENT.md, Prerequisites)")
+    if not (build / EXE_NAME).is_file():
+        sys.exit(f"no {EXE_NAME} in {build}; build it first (docs/DEVELOPMENT.md, Build)")
+    # A second runtime on a taken port logs "bind FAILED" and keeps running, and
+    # every poll below would be answered by the old process; refuse up front.
+    try:
+        rpc(port, "frame")
+    except OSError:
+        pass
+    else:
+        sys.exit(f"port {port} already answers: another instance is running "
+                 "(`dvdbg.py kill`, or pick --port N)")
     exe_args = ["--debug-port", str(port), "--no-launcher", "--disc", disc]
     if sw:
         exe_args += ["--renderer", "software"]
-    env = dict(os.environ, PSX_DEBUG_SERVER="1", PSX_FPS_TELEMETRY="1")
+    env = dict(os.environ, PSX_FPS_TELEMETRY="1")   # the debug server is compiled in (PSX_DEBUG_TOOLS=ON)
     if not sound:
         env["SDL_AUDIO_DRIVER"] = "dummy"   # SDL3 name; SDL2 reads the next one
         env["SDL_AUDIODRIVER"] = "dummy"
     log_path = build / f"dvdbg_{port}.log"
-    log = open(log_path, "w", encoding="utf-8", errors="replace")
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-    proc = subprocess.Popen([str(build / EXE_NAME), *exe_args], cwd=str(build), env=env,
-                            stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
+    with open(log_path, "w", encoding="utf-8", errors="replace") as log:   # the child keeps its own handle
+        proc = subprocess.Popen([str(build / EXE_NAME), *exe_args], cwd=str(build), env=env,
+                                stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
     print(f"pid={proc.pid} port={port} renderer={'software' if sw else 'opengl'} "
           f"audio={'on' if sound else 'muted'} log={log_path}")
     t0 = time.time()
@@ -111,7 +144,6 @@ def cmd_launch(args):
     else:
         sys.exit("debug server did not come up (is this build PSX_DEBUG_TOOLS=ON?)")
     time.sleep(3)
-    log.flush()
     for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
         if "opened controller" in line:
             print(line.strip())
@@ -119,7 +151,7 @@ def cmd_launch(args):
     else:
         print("no gamepad opened (check [controller] p1_device in game.toml)")
     if "--state" in args:
-        cmd_state(port, ["load", args[args.index("--state") + 1]], disc)
+        cmd_state(port, ["load", flag_value(args, "--state")], disc)
 
 
 def slot_file(slot, disc_path):
@@ -157,17 +189,24 @@ def cmd_state(port, args, disc_path):
         return
     if op not in ("save", "load"):
         sys.exit("state save|load|keep [slot]")
-    if op == "load" and not local.exists() and kept.exists():
-        SAVES_STATES_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(kept, local)
-        print(f"restored slot {slot} from {kept}")
+    if op == "load" and kept.exists():
+        # Restore the committed copy when the local slot is missing or older
+        # (a pull re-took it); a locally re-taken, newer slot is kept.
+        stale = (not local.exists() or local.stat().st_size != kept.stat().st_size
+                 or local.stat().st_mtime < kept.stat().st_mtime)
+        if stale:
+            SAVES_STATES_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(kept, local)
+            print(f"restored slot {slot} from {kept}")
     gen = rpc(port, "savestate_status").get("generation", 0)
     ack = rpc(port, "savestate", op=op, slot=slot)
     if not ack.get("ok"):
         sys.exit(f"savestate {op} {slot} refused: {ack}")
     st = wait_savestate(port, gen)
     if not st or not st.get("last_ok"):
-        sys.exit(f"savestate {op} {slot} did not complete: {st or 'timeout'}")
+        hint = (" (a slot taken on an older framework pin can be refused: re-take it with"
+                " `state save N`, then `state keep N`)" if op == "load" else "")
+        sys.exit(f"savestate {op} {slot} did not complete: {st or 'timeout'}{hint}")
     if op == "load":
         time.sleep(1)   # let the restored frame reach the display before the caller shoots
     print(f"{op} slot {slot} ok (frame {rpc(port, 'frame').get('frame')}, {local})")
@@ -176,7 +215,9 @@ def cmd_state(port, args, disc_path):
 def cmd_press(port, specs):
     for spec in specs:
         name, _, frames = spec.partition(":")
-        mask = BUTTONS[name.lower()]
+        mask = BUTTONS.get(name.lower())
+        if mask is None:
+            sys.exit(f"unknown button {name!r}; one of: {', '.join(BUTTONS)}")
         rpc(port, "press", buttons=0xFFFF & ~mask, frames=int(frames or 6))
         time.sleep(0.5)
         rpc(port, "clear_input")
@@ -213,11 +254,19 @@ def main(argv):
     elif cmd == "state":
         cmd_state(port, args, os.environ.get("DVDBG_DISC") or DEFAULT_DISC)
     elif cmd == "raw":
+        if not args:
+            sys.exit("raw <cmd> [k=v ...]")
         params = {}
         for kv in args[1:]:
             k, _, v = kv.partition("=")
-            params[k] = int(v, 0) if v.lstrip("-").isdigit() or v.startswith("0x") else v
-        print(json.dumps(rpc(port, args[0], **params), indent=1)[:4000])
+            if re.fullmatch(r"-?0[xX][0-9a-fA-F]+", v):
+                params[k] = int(v, 16)
+            elif re.fullmatch(r"-?\d+", v):
+                params[k] = int(v, 10)
+            else:
+                params[k] = v
+        text = json.dumps(rpc(port, args[0], **params), indent=1)
+        print(text[:4000] + ("\n...truncated" if len(text) > 4000 else ""))
     else:
         sys.exit(f"unknown command {cmd!r}; see --help")
     return 0
