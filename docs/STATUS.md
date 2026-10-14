@@ -53,10 +53,17 @@ the native 60 Hz version.
    Xbox pad actually rumbles with Vibration ON) — not done yet.
 2. ~~`game.toml` points at absolute local disc paths~~ — done 2026-10-14:
    `discs` carries the Redump cue names only, the launcher asks for the
-   images, `DISC.md` ships at the zip root; `scripts/package_release.sh`
-   stages cleanly (`--stage-only` dry run, unsigned).
+   images, `DISC.md` ships at the zip root. `scripts/package_release.sh
+   build-release windows-x64` produced `dist/dvus-0.1.0-windows-x64.zip`
+   (25 MB, unsigned); unpacked elsewhere it boots at 60 fps with the bundled
+   OpenBIOS and tcc-based overlay autocompile (no compiler on the player's
+   machine).
 3. Known from the PAL bring-up and not re-checked here: dissolve brightness at
-   high internal scale, boot-time freeze dumps (see [`HISTORY.md`](HISTORY.md)).
+   high internal scale (see [`HISTORY.md`](HISTORY.md)).
+4. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
+   beside the exe on every boot (false positive during the disc load) — a
+   player install accumulates them. Upstream issue to file; until then a note
+   in README or a cleanup on launch.
 
 ## Tooling
 
