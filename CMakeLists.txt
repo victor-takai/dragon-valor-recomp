@@ -11,21 +11,12 @@ endif()
 
 project(DragonValorUSRecomp LANGUAGES C CXX)
 
-# --- Opt-in product surfaces (OFF by default in the framework) -------------
-# Scaffold prompts / flags fill these. Without recomp-ui, PSX_RECOMP_UI is OFF.
-# The wizard (WIZARD_CMAKE_BLOCK / ENABLE_SETUP_WIZARD) is the first-run disc
-# picker; releases are compiled from the committed generated/ C, so it never
-# needs to generate or rebuild anything on a player's machine.
-# recomp-ui submodule present (PSX_RECOMP_UI defaults ON).
-# Full netplay UI -- enable after adding recomp-ui + testing:
-# if(EXISTS "${PSXRECOMP_ROOT}/lib/recomp-net/CMakeLists.txt")
-#     set(PSX_NETPLAY ON CACHE BOOL "..." FORCE)
-# endif()
-# First-run setup wizard -- enable after testing:
-# set(PSX_SETUP_WIZARD ON CACHE BOOL "..." FORCE)
+# Opt-in product surfaces: PSX_RECOMP_UI is ON (recomp-ui submodule present);
+# netplay (PSX_NETPLAY) and the first-run setup wizard (PSX_SETUP_WIZARD) stay
+# OFF until tested -- see psxrecomp/runtime/runtime.cmake for the options.
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 
-# Box art for the launcher (tools/new_project_layout/fetch_boxart.py writes the
+# Box art for the launcher (psxrecomp/tools/new_project_layout/fetch_boxart.py writes the
 # TGA). Optional: the launcher runs without it.
 set(DV_BOXART "${CMAKE_CURRENT_SOURCE_DIR}/launcher_assets/img/boxart.tga")
 if(EXISTS "${DV_BOXART}")
@@ -47,6 +38,9 @@ endif()
 
 psxrecomp_add_game_runtime(psx-runtime
     PRELOADED_MODS_DIR "${PSX_PRELOADED_MODS}"
+    # The generic loading detector is deprecated by its own manifest; CD Speed
+    # is the supported accelerator (psxrecomp/docs/MOD_PACKAGES.md).
+    EXCLUDE_BUILTIN_MODS psx.enhancement.fast-loading
     # ENABLE_NETPLAY_IF_PRESENT
     # NETPLAY_LOBBY_URL ws://netplay.retcomm.net:8765
     # ENABLE_SETUP_WIZARD

@@ -1,13 +1,13 @@
 # DragonValorUS Recompiled
 
 <!-- retcomm-readme-metrics -->
-[![GitHub downloads (all assets, all releases)](https://img.shields.io/github/downloads/RetroPortingToolKit/DragonValorUSRecomp/total)](https://github.com/RetroPortingToolKit/DragonValorUSRecomp/releases)
-[![GitHub downloads (latest release)](https://img.shields.io/github/downloads/RetroPortingToolKit/DragonValorUSRecomp/latest/total)](https://github.com/RetroPortingToolKit/DragonValorUSRecomp/releases/latest)
-[![GitHub release](https://img.shields.io/github/v/release/RetroPortingToolKit/DragonValorUSRecomp)](https://github.com/RetroPortingToolKit/DragonValorUSRecomp/releases/latest)
+[![GitHub downloads (all assets, all releases)](https://img.shields.io/github/downloads/victor-takai/dragon-valor-recomp/total)](https://github.com/victor-takai/dragon-valor-recomp/releases)
+[![GitHub downloads (latest release)](https://img.shields.io/github/downloads/victor-takai/dragon-valor-recomp/latest/total)](https://github.com/victor-takai/dragon-valor-recomp/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/victor-takai/dragon-valor-recomp)](https://github.com/victor-takai/dragon-valor-recomp/releases/latest)
 <!-- /retcomm-readme-metrics -->
 
 Static recompilation of **DragonValorUS** built on
-[psxrecomp](https://github.com/mstan/psxrecomp) and
+[psxrecomp](https://github.com/RetroPortingToolKit/psxrecomp) and
 [recomp-ui](https://github.com/RetroPortingToolKit/recomp-ui).
 
 Action RPG by Namco; two-disc NTSC-U release.
@@ -20,9 +20,9 @@ Action RPG by Namco; two-disc NTSC-U release.
 | Year | 2000 |
 
 Supported discs: **SLUS-01092** (disc 1) and **SLUS-01164** (disc 2), USA.
-Both boot the same executable; the launcher lets you pick the disc. The PAL
-release has its own project (`../DragonValorRecomp`); this is the native 60 Hz
-version.
+Both boot the same executable; the launcher lets you pick the disc. This is
+the native 60 Hz version; the PAL bring-up that preceded it is recorded in
+[`docs/HISTORY.md`](docs/HISTORY.md).
 
 State, open issues and pitfalls: [`docs/STATUS.md`](docs/STATUS.md). Build /
 debug workflow: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Ahead-of-time
@@ -36,7 +36,7 @@ overlays: [`docs/AOT.md`](docs/AOT.md).
    the serial, region and ISO header and remembers the location. The same
    screen has the Disc 1 / Disc 2 choice, controller and its mode (Analog /
    D-Pad), memory cards, video and audio settings and mods.
-3. **Play.** On the first screen Start skips the intro movie.
+3. **Play.** Press Start during the intro movie to skip it.
 
 Xbox / PlayStation / Switch pads work out of the box; the game reads the
 analog stick. Memory cards live in `saves/`.
@@ -101,22 +101,36 @@ Optional box art under `launcher_assets/img/` may come from
 [libretro-thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails)
 (`Named_Boxarts`); see `BOXART_SOURCE.txt` when present.
 
+## Licensing
+
+Our own files (`tools/`, `scripts/`, `docs/`, `mods/`, `codegen_setup.c`,
+the CMake and config files) are MIT, see [`LICENSE`](LICENSE). The committed
+`generated/` tree is machine output derived from the game's code and carries
+no licence grant from us. The framework (`psxrecomp/`) is PolyForm
+Noncommercial 1.0.0 and the launcher (`recomp-ui/`) is MIT, so a built
+executable inherits the framework's noncommercial terms. No game data is
+included.
+
 ## Quick start (dev)
+
+The full recipe (toolchain on `PATH`, `generate`, `rebuild` of both build
+dirs, `--disc`) is in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#build). In
+short, from Git Bash with `C:\retcomm-toolchain\bin` first on `PATH` and
+`PSXRECOMP_TOOLCHAIN_DIR` set:
 
 ```bash
 git submodule update --init --recursive
-./psxrecomp/tools/ci/build_emitters.sh
-python3 psxrecomp/psxrecomp_cli.py generate \
-  --config game.toml --project-root . --disc disc/<your>.cue
-git add generated && git commit -m "Regenerate game C"
-cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build-release --target psx-runtime
+bash psxrecomp/tools/ci/build_emitters.sh
+python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . --build-dir build-release --no-pgo
 ```
 
-Releases: tag `vX.Y.Z` (or run the *Release builds* workflow). CI builds the
-committed `generated/` C on Linux, Windows and macOS and attaches
+`generated/` is committed, so a fresh clone needs no disc to build.
+
+Releases: tag `vX.Y.Z` or run the *Release builds* workflow
+(`.github/workflows/release.yml`, generated from the framework template). CI
+builds the committed `generated/` C on Linux, Windows and macOS and attaches
 `dvus-<version>-<platform>.zip`, the compiled game. Locally:
-`scripts/package_release.sh build-release linux-x64`.
+`scripts/package_release.sh build-release windows-x64`.
 
 ## Symbols
 
@@ -139,6 +153,6 @@ in release CI.
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/Ad9BwSzctP"><img src=".github/raid-discord.png" alt="Join the Retro AI Development (R.A.I.D.) Discord" width="200"></a>
+  <a href="https://discord.gg/Ad9BwSzctP">Join the R.A.I.D. Discord</a>
 </p>
 <!-- /retcomm-readme-raid -->

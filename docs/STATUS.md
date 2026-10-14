@@ -13,7 +13,7 @@ quirks) is in [`HISTORY.md`](HISTORY.md).
 | Discs | SLUS-01092 (disc 1), SLUS-01164 (disc 2) — USA, NTSC, 2 tracks each |
 | Boot EXE | `SLUS_010.92` / `SLUS_011.64`, identical bytes (sha256 `ab40d44b…`) |
 | Entry / load / text | `0x80012EA0` / `0x80010000` / `0x67800` |
-| Generated C | 35 shards, 1,302,445 lines, 1962 dispatch entries |
+| Generated C | 35 shards under `generated/`, committed, byte-identical across runs |
 | Seeds | 572 first-pass JAL targets |
 | AOT | `aot/overlays.json`: five `BIN/*.BIN` modules at `0x800BBEF0`, 4630 static variants ([`AOT.md`](AOT.md)) |
 
@@ -46,36 +46,34 @@ the native 60 Hz version.
 - **Disc 2** (`--disc` override, SLUS-01164): boots, 59.9 fps, 0 unknown
   dispatches at 80 s; its five `BIN/*.BIN` are byte-identical to disc 1's, so
   the static shard serves both discs (only `SYSTEM.CNF` and the EXE name differ).
+- **Release zip**: `scripts/package_release.sh build-release windows-x64`
+  produced `dist/dvus-0.1.0-windows-x64.zip` (25 MB, unsigned); unpacked
+  elsewhere it boots at 60 fps with the bundled OpenBIOS and the tcc-based
+  overlay autocompile (no compiler on the player's machine). `game.toml` names
+  the discs by Redump file name only and `DISC.md` ships at the zip root.
 
 ## Open items
 
 1. Human play session (saves, Load Game, reaching disc 2 in-game, whether the
    Xbox pad actually rumbles with Vibration ON) — not done yet.
-2. ~~`game.toml` points at absolute local disc paths~~ — done 2026-10-14:
-   `discs` carries the Redump cue names only, the launcher asks for the
-   images, `DISC.md` ships at the zip root. `scripts/package_release.sh
-   build-release windows-x64` produced `dist/dvus-0.1.0-windows-x64.zip`
-   (25 MB, unsigned); unpacked elsewhere it boots at 60 fps with the bundled
-   OpenBIOS and tcc-based overlay autocompile (no compiler on the player's
-   machine).
-3. Known from the PAL bring-up and not re-checked here: dissolve brightness at
+2. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale (see [`HISTORY.md`](HISTORY.md)).
-4. Hero/weapon swap: the hero-selecting field is not identified; needs a
+3. Hero/weapon swap: the hero-selecting field is not identified; needs a
    later-chapter save to diff against (see `DEVELOPMENT.md`, *Character and
    weapon*). Inventory, stats, Val, magic, area/stage ids, play time and the
    save-block layout are mapped. The only public save (GameFAQs, post-clear
    prologue) was loaded and is Clovis again, so the reference must come from
    a human play session.
-5. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
-   beside the exe on every boot (false positive during the disc load) — a
-   player install accumulates them. Upstream issue to file; until then a note
-   in README or a cleanup on launch.
+4. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
+   beside the exe on every boot (false positive on statically compiled code).
+   Upstream PR #646 fixes it; until the pin includes it, delete the dumps
+   before timing runs (no config switch exists).
 
 ## Backlog
 
 A read-only review on 2026-10-14 (code, docs, config, and a survey of other
-psxrecomp titles) is recorded in [`BACKLOG.md`](BACKLOG.md); nothing in it has
-been applied yet.
+psxrecomp titles) is recorded in [`BACKLOG.md`](BACKLOG.md), which marks what
+has been applied since.
 
 ## Tooling
 
@@ -91,4 +89,4 @@ Mods: the project ships `dragonvalor.cheats` (Infinite HP, Infinite MP, Val
 floor) as a bundled package backed by VBlank plugins in `mods/plugins/`, all
 off by default and verified on and off from slot 0 (2026-10-14). The
 framework's HD texture dumper works on this game once a stage reloads
-(67 PNGs from Brize Forest). See [`DEVELOPMENT.md`](DEVELOPMENT.md#modding-what-the-framework-offers).
+(563 PNGs from a session from the title into Brize Forest). See [`DEVELOPMENT.md`](DEVELOPMENT.md#modding-what-the-framework-offers).

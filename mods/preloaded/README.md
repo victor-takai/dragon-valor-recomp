@@ -18,7 +18,8 @@ manager rather than committing them here.
 
 Native code for `[[plugin]]` ids lives in `../plugins/` (linked into the exe
 by `CMakeLists.txt`), never inside a package. Current catalog:
-`packages/dragonvalor.cheats` (Infinite HP, Infinite MP, Val floor), see
-`docs/DEVELOPMENT.md`, *This project's package*.
+`packages/dragonvalor.cheats` (Infinite HP, Infinite MP, Val floor); details in
+<https://github.com/victor-takai/dragon-valor-recomp/blob/master/docs/DEVELOPMENT.md>
+(*This project's package*). This file is staged beside the game as `mods/README.md`.
 
 See `psxrecomp/docs/MOD_PACKAGES.md`.

@@ -8,7 +8,7 @@ How this repo is built, run and debugged on the machine it was brought up on
 | Need | Where |
 |---|---|
 | Git for Windows (`bash` on PATH for the framework scripts) | `C:\Program Files\Git\bin` |
-| Python 3.12+ (3.13 used) with Pillow (used by the test helpers) | system |
+| Python 3.12+ (3.13 used); Pillow optional, for screenshot analysis | system |
 | RetroPorting toolchain: cmake 3.31, ninja, clang 22 | `C:\retcomm-toolchain` (unzipped `cmake-clang-v1-windows-x64.zip`) |
 
 Every build shell needs the toolchain first on `PATH` and the framework told
@@ -27,9 +27,11 @@ $env:PSXRECOMP_TOOLCHAIN_DIR = "C:\retcomm-toolchain"
 Discs are not in the repo. `game.toml` names them by Redump file name only
 (`Dragon Valor (USA) (Disc N).cue`): the launcher asks the player for each
 image and remembers it in `settings.toml`; the multi-disc roster matches a disc
-by its file-name stem, so dumps must keep the Redump names. On this machine the
-dumps live in `F:\dragon-valor-recomp\Dragon Valor (USA) (Disc N)\`; scripted
-runs pass `--disc` (`tools/dvdbg.py launch` does, or `DVDBG_DISC=<cue>`).
+by its file-name stem, so dumps must keep the Redump names. Convention for
+scripted runs: the dumps sit **beside the repo**, as sibling folders named
+`Dragon Valor (USA) (Disc N)` (here under `F:\dragon-valor-recomp\`); that is
+the default of `tools/dvdbg.py launch`. Anywhere else, pass `--disc <cue>` or
+set `DVDBG_DISC`.
 
 ## Build
 
@@ -55,9 +57,9 @@ python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . \
 Notes:
 - `rebuild` forces `-DPSX_DEBUG_TOOLS=OFF`; the `--cmake-extra` in 3b is what
   turns the debug server on (later flags win).
-- `generated/` is deterministic (35 shards, 1,302,445 lines, 1962 dispatch
-  entries). It is committed; regenerate and commit together with the seed or
-  pin change that caused it.
+- `generated/` is deterministic (35 shards, byte-identical across runs). It is
+  committed; regenerate and commit together with the seed or pin change that
+  caused it.
 - `game.toml` / `game_options.toml` are re-staged next to the exe by the
   always-run `psx-stage-configs` target. After editing only `game.toml`, run
   `ninja -C build-release psx-stage-configs` (and the same for `build-debug`)
@@ -287,7 +289,7 @@ rebuild both build dirs. Scripted test without the launcher: append the
 package and its features with `enabled = true` to `<build>/mods/state.toml`
 (format 2; option values are strings under `[feature.values]`), then
 `tools/dvdbg.py launch --state 0`, `write_ram` the stat and read it back
-(`scratchpad/cheatmod/test_cheats.py` did exactly that).
+(`tests/test_cheats.py on|off` does exactly that).
 
 #### HD texture packs on this game
 
@@ -326,20 +328,23 @@ readable string exists on the disc: the game's text is artwork, so a text
 mod is a texture replacement, not a string patch.
 
 Without any pack, the renderer's own options already sharpen the picture:
-Settings → Display → Internal resolution (1080p or more; the launcher
-default here is native 240 lines) plus `[video] texture_filtering = "xbr"`
-in `settings.toml` beside the exe (the launcher toggle only offers nearest
-and bilinear; xBR is OpenGL-only and acts wherever a texel covers two or
-more output pixels). Compared 2026-10-14 at 1080p with the live
-`texture_filter` command (modes 0/1/3) and `present_shot`: nearest keeps
-the blocky texels, bilinear blurs them, xBR keeps flat areas crisp and
+`game.toml` now ships `internal_resolution = "1080p"` as the per-title
+default (the launcher's Settings → Display row and the player's
+`settings.toml` outrank it), and `Play.bat` sets `PSX_TEXTURE_FILTER=3` for
+xBR texture filtering. xBR cannot be chosen in the launcher: recomp-ui clamps
+the filter to nearest/bilinear on every start and the runtime persists that
+to `settings.toml`, so a hand-edit lasts one Play; the env override is read
+after the launcher and wins for the run (OpenGL only; it acts wherever a
+texel covers two or more output pixels). Compared 2026-10-14 at 1080p with
+the live `texture_filter` command (modes 0/1/3) and `present_shot`: nearest
+keeps the blocky texels, bilinear blurs them, xBR keeps flat areas crisp and
 removes the staircase on diagonals. Dumps keep accumulating across normal
 play sessions, so a texture pack can grow progressively instead of
 requiring a dedicated full playthrough; the attract demo (stages 6‥9 and
 31‥34) adds a few more areas unattended.
 
 Identification tooling: `tools/dvdbg.py` + `read_ram`/`write_ram` for RAM
-probes, the scratch `refs.json` (EXE data xrefs: address → function, width,
+probes, a data-xref listing of the EXE (address → function, width,
 read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
 modules, `symbols.toml` to name functions as they are understood.
 
@@ -363,7 +368,7 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
   press run deterministically, offset by a constant frame count (difference of
   the frames at which Start was pressed). Sample `screenshot` every second,
   name files by `frame`, and pair GL/SW by that offset; PIL luma timelines find
-  transitions quickly. This is how the dissolve finding in `STATUS.md` was made.
+  transitions quickly. This is how the dissolve finding in `HISTORY.md` was made.
 - **Attract route.** Boot → Start once (skips the FMV) → leave the title alone:
   story movie → main menu → gameplay demo (dungeon, dragon arena), looping.
   A second Start on the title goes to the menu; a Start on the menu starts a
@@ -372,15 +377,28 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
 ## Project layout (what is ours)
 
 ```
-CMakeLists.txt        psxrecomp_add_game_runtime(...) + config staging target
-game.toml             identity, both discs, [controller] p1_device/default_mode
-generated/            recompiled game C (committed)
+CMakeLists.txt        psxrecomp_add_game_runtime(...), plugin sources, config staging target
+codegen_setup.c/.h    launcher-side codegen hooks (display name, generated marker)
+game.toml             identity, both discs, [prepare_disc] digests, [video]/[controller] defaults
+game_options.toml     optional runtime options staged beside the exe
+.recomp.json          recomp.fyi status card;  VERSION  release stamp (rewritten by the packager)
+catalog_identity.json, disc_probe.json  Retro-Catalog identity / probe output (scaffold)
+framework_pins.txt    scaffold snapshot of the submodule SHAs (gitlinks are authoritative)
+generated/            recompiled game C + static AOT shard (committed)
+aot/overlays.json     AOT profile for the five BIN/*.BIN modules (docs/AOT.md)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
-launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt)
+launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon
 mods/preloaded/       bundled mod packages (dragonvalor.cheats manifest)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids
-tools/dvdbg.py        debug-server helper;  tools/sync_symbols.py (framework copy)
-docs/STATUS.md        state, open items, pitfalls;  docs/DEVELOPMENT.md (this file)
+tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
+tools/sync_symbols.py framework copy of the symbol sync
+tests/states/         committed save state slot 0 (+ README)
+scripts/package_release.sh  local release zip (wraps the framework packager)
+Play.bat, PlayDebug.bat     player / debug launch
+DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
+docs/STATUS.md        state, open items;  docs/DEVELOPMENT.md (this file);
+docs/AOT.md, docs/HISTORY.md, docs/BACKLOG.md
+.github/workflows/release.yml  bundled release CI (framework template)
 psxrecomp/, recomp-ui/  framework and launcher submodules (pinned gitlinks)
 ```

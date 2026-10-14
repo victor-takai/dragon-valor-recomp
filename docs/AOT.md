@@ -40,7 +40,7 @@ Schema `psxrecomp AOT methods v1`, game `SLUS-01092`:
 
 - `disc_hashes.sha256` of the disc 1 data track
   (`9b41965d…9c59f`), so another dump exits 3 instead of producing a shard.
-- `checks[0]` (`words`) pins the two `lui/addiu` pairs that form `0x800BC268`
+- `checks[0]` (`words`) pins the two `lui/addiu` pairs that form `0x800BBEF0`
   in `SLUS_010.92`; a changed loader fails the build loudly.
 - `images[0]`: `fixed_address_files` for MAP / ACTION / OPENNING / ENDING at
   `0x800BBEF0`; `images[1]`: `DEMO.BIN` with `allow_missing` (the generic

@@ -1,4 +1,4 @@
-# Autofilled by tools/new_project_layout/probe_disc.py from your legal dump.
+# Autofilled by psxrecomp/tools/new_project_layout/probe_disc.py from your legal dump.
 # Review before shipping. Runtime quirks / overlay seeds still need hand work.
 
 [game]
@@ -29,15 +29,19 @@ out_dir = "disc"
 bin_name = "Dragon Valor (USA) (Disc 1) (Track 1).bin"
 cue_name = "Dragon Valor (USA) (Disc 1).cue"
 boot_exe = "SLUS_010.92"
-known_sizes = [590288496]
+# One entry per disc: disc 1 (SLUS-01092), disc 2 (SLUS-01164).
+known_sizes = [590288496, 657981408]
 known_md5 = [
   "2c9782f6009ac474217dc748337078a8",
+  "80bf8b4b01e57d63d9e49942f72b4aa7",
 ]
 known_sha1 = [
   "110e7239892f1b7fe0848eea46fa75325cf16111",
+  "15e75aee2fdb989f8ba62d9269317949e835f325",
 ]
 known_crc32 = [
   "16aae053",
+  "99727f4a",
 ]
 
 [recompiler]
@@ -53,17 +57,20 @@ overlay_cache = true
 [video]
 renderer = "opengl"
 aspect_ratio = "4:3"
+# Per-title default (the player's settings.toml outranks it): a fresh install
+# renders at 1080p instead of the native 240 lines. 3D title, OpenGL.
+internal_resolution = "1080p"
 
 [controller]
-# The game reads the analog axes ("digital" folds the stick into 8 directions).
-default_mode = "dualshock"
+# "analog" pins a DualShock in analog mode (the game reads the stick; "digital"
+# folds it into 8 directions). Only "analog"/"digital" are parsed.
+default_mode = "analog"
 # Route player 1 to the first SDL game controller; the runtime default is
-# "keyboard" (its "auto" branch sits behind a PSX_DEBUG_TOOLS macro that
-# runtime.cmake never defines).
+# "keyboard".
 p1_device = "auto"
 
 # Online mount gate: digests + track count + optional TOC fingerprint
-# (see docs/NETPLAY.md).
+# (see psxrecomp/docs/NETPLAY.md).
 [netplay]
 required_disc_fps = [
     "6608a91715cda8396af139845bfe2e6d461dd18b49c519dce529ecfd7110161b",
