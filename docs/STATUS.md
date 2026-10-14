@@ -1,7 +1,8 @@
 # Dragon Valor (USA) Recompiled — status
 
 Last updated: 2026-10-14. Framework: psxrecomp @ 54abcb70 (submodule), OpenBIOS only.
-Sister project: `../DragonValorRecomp` (PAL, SCES-01705) — same game, 50 Hz; its
+**This is the active project** (since 2026-10-14). Sister project:
+`../DragonValorRecomp` (PAL, SCES-01705) — same game at 50 Hz, set aside; its
 `docs/STATUS.md` holds the investigation history (controller, dissolve
 rendering, first play session) that applies to this build too.
 
