@@ -257,6 +257,52 @@ or installed by the player through the launcher's Mods page) can carry:
 - **HD texture packs** and **string translation** are built-in features with
   their own docs.
 
+#### This project's package: `dragonvalor.cheats`
+
+`mods/preloaded/packages/dragonvalor.cheats/1.0.0/manifest.toml` (format 7)
+declares three features, all off by default, each backed by a VBlank
+callback in `mods/plugins/dragonvalor_cheats.c`. That file is linked into the
+exe by the `target_sources` line in `CMakeLists.txt`; the package itself
+carries no native code, only the plugin ids.
+
+| Feature (launcher group "Cheats") | Plugin id | Each VBlank, while HPmax ≠ 0 |
+|---|---|---|
+| Infinite HP | `dragonvalor.infinite-hp` | HP ← HPmax |
+| Infinite MP | `dragonvalor.infinite-mp` | MP ← MPmax |
+| Val floor | `dragonvalor.val-floor` | Val ← max(Val, `amount`); integer option 0‥9999, default 9999 |
+
+The build stages the package into `<build>/mods/bundled/dragonvalor.cheats`,
+the launcher lists the features, and the player's choice lands in
+`<build>/mods/state.toml`. Verified 2026-10-14 from slot 0 on build-debug:
+with the features on, HP/MP/Val written to 5/3/12 read back 30/20/5000
+within half a second; with them off the written values stayed. Limitation
+shared with GameShark codes: the refill runs once per frame, so a single hit
+of at least HPmax still kills (writing HP = 0 produced GAME OVER).
+
+To add a feature: write the callback in `dragonvalor_cheats.c`, register its
+id in the `PSX_MOD_CONSTRUCTOR` block, add `[[feature]]` + `[[plugin]]` (and
+`[[option]]`s, read with `psx_mod_current_option_value`) to the manifest,
+rebuild both build dirs. Scripted test without the launcher: append the
+package and its features with `enabled = true` to `<build>/mods/state.toml`
+(format 2; option values are strings under `[feature.values]`), then
+`tools/dvdbg.py launch --state 0`, `write_ram` the stat and read it back
+(`scratchpad/cheatmod/test_cheats.py` did exactly that).
+
+#### HD texture packs on this game
+
+`psx.enhancement.hd-textures` (bundled) works here, OpenGL only. Dumping
+captures texture **uploads**, so a session that starts from a save state
+captures nothing until the game uploads again: force a stage reload (GAME
+OVER → CONTINUE, or any stage change). One reload of Brize Forest gave
+67 PNGs (740 KB; 4-bit paletted parts of 64×64 and smaller: ground tiles,
+tree trunks, the hero and the first enemy) in
+`<build>/mods/texture-packs/SLUS-01092/dumps/` after a clean exit (the
+`quit` debug command answers "emu busy" but does exit, and the PNGs are
+written on exit). Replacements go into `replacements/` under the same file
+names, enlarged by an integer factor. No Dragon Valor pack exists publicly;
+the first one would be drawn from these dumps. Reference:
+`psxrecomp/docs/HD_TEXTURE_PACKS.md`.
+
 Identification tooling: `tools/dvdbg.py` + `read_ram`/`write_ram` for RAM
 probes, the scratch `refs.json` (EXE data xrefs: address → function, width,
 read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
@@ -297,6 +343,8 @@ generated/            recompiled game C (committed)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
 launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt)
+mods/preloaded/       bundled mod packages (dragonvalor.cheats manifest)
+mods/plugins/         C plugins behind those packages' [[plugin]] ids
 tools/dvdbg.py        debug-server helper;  tools/sync_symbols.py (framework copy)
 docs/STATUS.md        state, open items, pitfalls;  docs/DEVELOPMENT.md (this file)
 psxrecomp/, recomp-ui/  framework and launcher submodules (pinned gitlinks)

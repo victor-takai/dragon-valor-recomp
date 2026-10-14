@@ -1,0 +1,59 @@
+# Dragon Valor (USA) cheats. Each feature is one GameShark-style "every frame"
+# write done by a trusted static plugin (mods/plugins/dragonvalor_cheats.c);
+# the launcher's Mods page turns features on and off and stores the choice in
+# mods/state.toml. RAM addresses: docs/DEVELOPMENT.md, "Known RAM addresses".
+format_version = 7
+id = "dragonvalor.cheats"
+version = "1.0.0"
+name = "Dragon Valor Cheats"
+author = "DragonValorUSRecomp"
+description = "Infinite HP, infinite MP and a Val floor for the USA release. All off by default."
+license = "MIT"
+resolver = "declarative"
+
+[[target]]
+game_id = "SLUS-01092"
+
+[[feature]]
+id = "infinite-hp"
+name = "Infinite HP"
+description = "Refills HP to its maximum every frame while a hero is loaded. A hit still shows, but the bar never reaches zero."
+group = "Cheats"
+default_enabled = false
+
+[[plugin]]
+feature = "infinite-hp"
+id = "dragonvalor.infinite-hp"
+
+[[feature]]
+id = "infinite-mp"
+name = "Infinite MP"
+description = "Refills MP to its maximum every frame while a hero is loaded, so magic is free."
+group = "Cheats"
+default_enabled = false
+
+[[plugin]]
+feature = "infinite-mp"
+id = "dragonvalor.infinite-mp"
+
+[[feature]]
+id = "val-floor"
+name = "Val floor"
+description = "Keeps Val (gold) at or above the chosen amount. Shops still work; the purse just never drops below the floor."
+group = "Cheats"
+default_enabled = false
+
+[[option]]
+feature = "val-floor"
+id = "amount"
+label = "Minimum Val"
+description = "Val is topped up to this amount whenever it falls below it (the HUD shows four digits)."
+type = "integer"
+min = 0
+max = 9999
+step = 1
+default = 9999
+
+[[plugin]]
+feature = "val-floor"
+id = "dragonvalor.val-floor"

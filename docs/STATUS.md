@@ -80,3 +80,9 @@ Automated tests start from save state slot 0 (first screen of gameplay;
 committed copy in `tests/states/`, restored into `saves/openbios/` by
 `python tools/dvdbg.py launch --state 0`). RAM addresses for HP/MP/STR/DEF, Val and
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
+
+Mods: the project ships `dragonvalor.cheats` (Infinite HP, Infinite MP, Val
+floor) as a bundled package backed by VBlank plugins in `mods/plugins/`, all
+off by default and verified on and off from slot 0 (2026-10-14). The
+framework's HD texture dumper works on this game once a stage reloads
+(67 PNGs from Brize Forest). See [`DEVELOPMENT.md`](DEVELOPMENT.md#modding-what-the-framework-offers).
