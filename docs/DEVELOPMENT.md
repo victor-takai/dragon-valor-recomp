@@ -324,6 +324,19 @@ KNIGHT", "ROCK MONSTER"…), "Prologue", "Dragon Valor". That is why no
 readable string exists on the disc: the game's text is artwork, so a text
 mod is a texture replacement, not a string patch.
 
+Without any pack, the renderer's own options already sharpen the picture:
+Settings → Display → Internal resolution (1080p or more; the launcher
+default here is native 240 lines) plus `[video] texture_filtering = "xbr"`
+in `settings.toml` beside the exe (the launcher toggle only offers nearest
+and bilinear; xBR is OpenGL-only and acts wherever a texel covers two or
+more output pixels). Compared 2026-10-14 at 1080p with the live
+`texture_filter` command (modes 0/1/3) and `present_shot`: nearest keeps
+the blocky texels, bilinear blurs them, xBR keeps flat areas crisp and
+removes the staircase on diagonals. Dumps keep accumulating across normal
+play sessions, so a texture pack can grow progressively instead of
+requiring a dedicated full playthrough; the attract demo (stages 6‥9 and
+31‥34) adds a few more areas unattended.
+
 Identification tooling: `tools/dvdbg.py` + `read_ram`/`write_ram` for RAM
 probes, the scratch `refs.json` (EXE data xrefs: address → function, width,
 read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
