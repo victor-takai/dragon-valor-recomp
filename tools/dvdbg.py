@@ -5,7 +5,7 @@ The runtime in build-debug/ (PSX_DEBUG_TOOLS=ON) listens on 127.0.0.1:4370.
 This wraps the handful of commands a test session needs; anything else goes
 through `raw`. All waits are in-process, so it is safe from any shell.
 
-  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--build DIR]
+  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--build DIR] [--disc CUE]
         start the runtime detached, wait for the server, print pid and the
         controller line. Muted (SDL dummy audio driver) unless --sound.
   python tools/dvdbg.py press start cross down:8 ...
@@ -68,8 +68,13 @@ def cmd_launch(args):
     if "--build" in args:
         build = Path(args[args.index("--build") + 1])
     port = port_from_args(args) if "--port" in args else (4371 if sw else 4370)
-    # --no-launcher: skip the recomp-ui launcher window and boot the game directly
-    exe_args = ["--debug-port", str(port), "--no-launcher"]
+    # --no-launcher: skip the recomp-ui launcher window and boot the game directly.
+    # --disc: game.toml names the discs by Redump file name only (players point
+    # the launcher at their dumps), so scripted runs pass the local path.
+    disc = os.environ.get("DVDBG_DISC") or str(ROOT.parent / "Dragon Valor (USA) (Disc 1)" / "Dragon Valor (USA) (Disc 1).cue")
+    if "--disc" in args:
+        disc = args[args.index("--disc") + 1]
+    exe_args = ["--debug-port", str(port), "--no-launcher", "--disc", disc]
     if sw:
         exe_args += ["--renderer", "software"]
     env = dict(os.environ, PSX_DEBUG_SERVER="1", PSX_FPS_TELEMETRY="1")

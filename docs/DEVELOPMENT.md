@@ -24,10 +24,12 @@ $env:Path = "C:\retcomm-toolchain\bin;C:\Program Files\Git\bin;$env:Path"
 $env:PSXRECOMP_TOOLCHAIN_DIR = "C:\retcomm-toolchain"
 ```
 
-Discs are not in the repo. `game.toml` points at the two Redump cues under
-`F:\dragon-valor-recomp\Dragon Valor (Disc N)\` (USA) (absolute paths —
-fine for development, to be replaced by `disc_crc` + launcher selection before
-any release).
+Discs are not in the repo. `game.toml` names them by Redump file name only
+(`Dragon Valor (USA) (Disc N).cue`): the launcher asks the player for each
+image and remembers it in `settings.toml`; the multi-disc roster matches a disc
+by its file-name stem, so dumps must keep the Redump names. On this machine the
+dumps live in `F:\dragon-valor-recomp\Dragon Valor (USA) (Disc N)\`; scripted
+runs pass `--disc` (`tools/dvdbg.py launch` does, or `DVDBG_DISC=<cue>`).
 
 ## Build
 
@@ -39,7 +41,7 @@ bash psxrecomp/tools/ci/build_emitters.sh
 
 # 2. game C from the disc (only when seeds or the framework pin change) -> generated/
 python psxrecomp/psxrecomp_cli.py generate --config game.toml --project-root . \
-    --disc "../Dragon Valor (Disc 1)/Dragon Valor (Disc 1).cue"
+    --disc "../Dragon Valor (USA) (Disc 1)/Dragon Valor (USA) (Disc 1).cue"
 
 # 3a. player build (no debug server)            -> build-release/DragonValorUS_Recompiled.exe
 python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . \

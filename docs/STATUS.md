@@ -51,7 +51,10 @@ the native 60 Hz version.
 
 1. Human play session (saves, Load Game, reaching disc 2 in-game, whether the
    Xbox pad actually rumbles with Vibration ON) — not done yet.
-2. `game.toml` points at absolute local disc paths (development only).
+2. ~~`game.toml` points at absolute local disc paths~~ — done 2026-10-14:
+   `discs` carries the Redump cue names only, the launcher asks for the
+   images, `DISC.md` ships at the zip root; `scripts/package_release.sh`
+   stages cleanly (`--stage-only` dry run, unsigned).
 3. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale, boot-time freeze dumps (see [`HISTORY.md`](HISTORY.md)).
 

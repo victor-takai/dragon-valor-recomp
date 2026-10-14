@@ -57,12 +57,12 @@ swallow it).
 ```bash
 # verify inventory only
 python psxrecomp/tools/aot_overlay_pipeline.py extract --profile aot/overlays.json \
-  --game-toml game.toml --disc "../Dragon Valor (Disc 1)/Dragon Valor (Disc 1).cue" \
+  --game-toml game.toml --disc "../Dragon Valor (USA) (Disc 1)/Dragon Valor (USA) (Disc 1).cue" \
   --recompiler build-recompiler/psxrecomp-game.exe --work-dir <scratch>/aot-work
 
 # build generated/overlays_static.c + units + AOT_STATIC_AUDIT.json (CPS runtime)
 python psxrecomp/tools/aot_overlay_pipeline.py static --profile aot/overlays.json \
-  --game-toml game.toml --disc "../Dragon Valor (Disc 1)/Dragon Valor (Disc 1).cue" \
+  --game-toml game.toml --disc "../Dragon Valor (USA) (Disc 1)/Dragon Valor (USA) (Disc 1).cue" \
   --recompiler build-recompiler/psxrecomp-game.exe --work-dir <scratch>/aot-static-work \
   --out-dir generated --cps
 ```
