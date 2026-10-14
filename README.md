@@ -19,8 +19,40 @@ Action RPG by Namco; two-disc NTSC-U release.
 | Publisher | Namco |
 | Year | 2000 |
 
-Scaffolded with the New Project Layout. See
-`psxrecomp/docs/GAME_PROJECT_SETUP.md` for the full flow.
+Supported discs: **SLUS-01092** (disc 1) and **SLUS-01164** (disc 2), USA.
+Both boot the same executable; the launcher lets you pick the disc. The PAL
+release has its own project (`../DragonValorRecomp`); this is the native 60 Hz
+version.
+
+State, open issues and pitfalls: [`docs/STATUS.md`](docs/STATUS.md). Build /
+debug workflow: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Ahead-of-time
+overlays: [`docs/AOT.md`](docs/AOT.md).
+
+## Playing
+
+1. Build (see below) or unpack a release, then run **`Play.bat`**
+   (`PlaySmooth.bat` adds the OpenGL render thread and frame generation).
+2. The launcher opens: disc check and Disc 1 / Disc 2 choice, controller and
+   its mode (Analog / D-Pad), memory cards, video and audio settings, mods.
+3. **Play.** On the first screen Start skips the intro movie.
+
+Xbox / PlayStation / Switch pads work out of the box; the game reads the
+analog stick. Memory cards live in `saves/`.
+
+| PlayStation | Keyboard | | PlayStation | Keyboard |
+|---|---|---|---|---|
+| D-pad | Arrow keys | | L1 / R1 | `Q` / `W` |
+| Cross | `X` | | L2 / R2 | `E` / `R` |
+| Circle | `S` | | L3 / R3 | `T` / `Y` |
+| Square | `Z` | | Start | `Enter` |
+| Triangle | `A` | | Select | `Right Shift` |
+
+| Key | Action |
+|---|---|
+| `F` | FPS readout |
+| `F7` / `F8` | Save state / Rewind |
+| `Tab` (hold) / `F9` | Turbo |
+| `Alt`+`Enter` | Fullscreen |
 
 <!-- retcomm-readme-launcher -->
 ## Retro Launcher
