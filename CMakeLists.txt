@@ -41,6 +41,12 @@ psxrecomp_add_game_runtime(psx-runtime
     # The generic loading detector is deprecated by its own manifest; CD Speed
     # is the supported accelerator (psxrecomp/docs/MOD_PACKAGES.md).
     EXCLUDE_BUILTIN_MODS psx.enhancement.fast-loading
+    # PGXP hook flavour: the one runtime tracks GTE precision through every
+    # vertex path, so the psx.enhancement.pgxp mod actually corrects this 3D
+    # title (the base flavour only shadows swc2 and corrects almost nothing).
+    # PGXP stays off unless the mod arms it; save states are flavour-specific
+    # (tests/states was re-taken on this flavour). psxrecomp/docs/ENHANCEMENTS.md G1.11.
+    PGXP
     # ENABLE_NETPLAY_IF_PRESENT
     # NETPLAY_LOBBY_URL ws://netplay.retcomm.net:8765
     # ENABLE_SETUP_WIZARD
