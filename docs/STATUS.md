@@ -98,6 +98,9 @@ the **in-game menu** (Escape / Select+Start; `mods/plugins/dragonvalor_menu.cpp`
 on psxrecomp's menu host + recomp-ui's runtime UI) can switch them live; the
 menu also pauses, changes texture filtering / scanlines / fullscreen /
 volume, saves and loads states, changes disc and returns to the launcher.
-The Namco logo stays: shortening it breaks the title's loads. The
+The Namco logo stays: shortening it breaks the title's loads. Title defaults
+measured the same day: mipmapped 3D textures with 4 anisotropic taps and a
+90 ms audio buffer ship in `game.toml`; FXAA and CD Speed do not help here
+(see `DEVELOPMENT.md`, *Video and audio defaults*). The
 framework's HD texture dumper works on this game once a stage reloads
 (563 PNGs from a session from the title into Brize Forest). See [`DEVELOPMENT.md`](DEVELOPMENT.md#modding-what-the-framework-offers).

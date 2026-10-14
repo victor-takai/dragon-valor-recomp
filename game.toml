@@ -67,6 +67,17 @@ aspect_ratio = "4:3"
 # Per-title default (the player's settings.toml outranks it): a fresh install
 # renders at 1080p instead of the native 240 lines. 3D title, OpenGL.
 internal_resolution = "1080p"
+# Mip-level emulation for minified 3D world textures (far ground, walls) at
+# high internal scale, with 4 anisotropic taps; sprites, HUD and magnified
+# textures keep their exact texels. 60 fps held on the test machine; no change
+# visible in a static Brize Forest shot, it acts against shimmer in motion.
+texture_lod = "mipmap"
+anisotropic_filtering = 4
+
+[audio]
+# Input-to-sound delay. Default is 180 ms; 90 ms showed no pump underruns in
+# a muted 90 s run (gameplay + a stage reload). Raise it if sound crackles.
+buffer_ms = 90
 
 [controller]
 # "analog" pins a DualShock in analog mode (the game reads the stick; "digital"

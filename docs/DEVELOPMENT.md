@@ -399,6 +399,29 @@ pad struct) there. Details that cost a day:
 checks that the title animation starts within 14 s and that the title then
 moves on; `--off` checks the movie keeps playing.
 
+#### Video and audio defaults (measured 2026-10-14)
+
+`game.toml` ships `texture_lod = "mipmap"` with `anisotropic_filtering = 4`
+and `[audio] buffer_ms = 90`; `antialiasing_mode` stays off and the CD Speed
+mod stays off. How that was decided, on build-debug from slot 0:
+
+- **Mipmap + anisotropic** (live `texture_lod mode=1 aniso=8` at 1440p):
+  60.0 fps kept; the far-ground edge energy in a static Brize Forest shot
+  was unchanged (27.4 → 27.5), i.e. this side-on stage barely minifies its
+  textures. The option only touches proven 3D world primitives and acts
+  against shimmer in motion, so it ships on; `PSX_TEXTURE_LOD=0` turns it
+  off for one run.
+- **FXAA** (`post_aa mode=1`): 60.0 fps, edge energy 27.4 → 25.2, but it
+  also softens the HUD and the window already downsamples a 1440p image, so
+  it stays off. Try `PSX_AA_MODE=fxaa`.
+- **Audio buffer**: `audio_stats` reported 0 pump underruns and 0 output
+  underruns at 180, 90 and 60 ms over ~90 s of gameplay plus a stage reload,
+  muted (SDL dummy driver, which still consumes at the nominal rate). 90 ms
+  keeps a margin; raise it if the human session hears crackle.
+- **CD Speed**: CONTINUE → gameplay after GAME OVER takes 3.5 s with the
+  mod off and at 2×, 4× and 8× (0 unknown dispatches each time): the reload
+  is paced by the game's own fades, not by the drive. No reason to ship it on.
+
 #### HD texture packs on this game
 
 `psx.enhancement.hd-textures` (bundled) works here, OpenGL only. Dumping
