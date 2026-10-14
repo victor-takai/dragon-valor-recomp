@@ -1,0 +1,29 @@
+{
+  "cue_path": "F:\\dragon-valor-recomp\\Dragon Valor (Disc 1)\\Dragon Valor (Disc 1).cue",
+  "cue_name": "Dragon Valor (Disc 1).cue",
+  "bin_name": "Dragon Valor (Disc 1) (Track 1).bin",
+  "track_count": 2,
+  "data_track_size": 590288496,
+  "data_track_md5": "2c9782f6009ac474217dc748337078a8",
+  "data_track_sha1": "110e7239892f1b7fe0848eea46fa75325cf16111",
+  "data_track_crc32": "16aae053",
+  "boot_exe": "SLUS_010.92",
+  "serial": "SLUS-01092",
+  "serial_exe": "SLUS_010.92",
+  "volume_id": "DRAGONVALOR1",
+  "display_name": "DragonValorUS",
+  "load_address": "0x80010000",
+  "entry_pc": "0x80012EA0",
+  "text_size": "0x00067800",
+  "stack_base": "0x801FFFF0",
+  "require_cue": true,
+  "required_disc_fp": "6608a91715cda8396af139845bfe2e6d461dd18b49c519dce529ecfd7110161b",
+  "boot_exe_sha256": "ab40d44b15e309472953fe987ba247f0d569661a059bda81a57c71e88859e8f8",
+  "seed_count": 572,
+  "warnings": [],
+  "notes": [
+    "entry_pc/load_address/text_size/stack_base taken from PS-X EXE header.",
+    "seeds are first-pass boot-EXE JAL targets (+ entry); expect to grow as overlays / runtime paths are discovered.",
+    "required_disc_fp is psxrecomp-toc-v1 (matches runtime DiscIdentity)."
+  ]
+}
