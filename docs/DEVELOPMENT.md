@@ -81,7 +81,7 @@ Files the runtime writes, all gitignored:
 
 | What | Where |
 |---|---|
-| Memory cards | `saves/card1.mcd`, `saves/card2.mcd` (project root, `[runtime] memcard_dir`) |
+| Memory cards | `saves/card1.mcd`, `saves/card2.mcd` (project root, `[runtime] memcard_dir`); raw 128 KB images, a DexDrive `.gme` minus its 3904-byte header. The game's Load Game reads card 1 only. |
 | Launcher/user settings | `settings.toml` next to the exe (overrides `game.toml` defaults) |
 | Keyboard binds | `keybinds.ini` next to the exe (generated on first run) |
 | Host hotkeys / pad mapping | `config.ini` next to the exe (`[KeyMap]`, `[controller]`, `[mapping]`) |
@@ -161,8 +161,10 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x8008A5B4` | u16 | MP max | `func_80034908` |
 | `0x8008A5B6` | u16 | STR | |
 | `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
+| `0x800A2D9C` | u32 | Play time in frames (Load list shows it as h:mm; the GameFAQs save holds 5,594,735 = 25:54) | |
 | `0x800A2DD0` | u16 | Val (gold; Status shows 4 digits, 10000 reads 0000) | `func_8004BF84` |
 | `0x800A2E06`‥`0D` | u8 ×8 | Magic levels: Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex (0 = not learned, 1‥3 = LEVEL) | |
+| `0x800A2E18`‥`1A` | u8 ×3 | Three flags that are 0 in slot 0 and 1 in the post-clear GameFAQs save (gallery / cleared-path candidates, unconfirmed) | |
 
 | `0x800A2DD2`‥ | u16 ×N | Inventory counts, one per item type: Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key, … (accessories, trade goods, keys; **no weapons**) | |
 | `0x800A2F18` / `0x800A2F1A` | u16 ×2 | Area and stage id of the stage to load (DEMO.BIN writes 0/6‥9 and 7/31‥34 before calling `func_8003A9B0`); slot 0 is 0/2 | `func_80025264` (W), `func_80038094`, … |
@@ -197,16 +199,38 @@ takes:
 1. A second reference point: a save (memory card or save state) in a later
    chapter with another hero, then a RAM diff against slot 0 around
    `0x800A2Dxx`‥`0x800A31xx` and `0x80086xxx` to find the hero/chapter field.
-   One public candidate: GameFAQs hosts a single USA DexDrive card at
+   The only public save, the GameFAQs DexDrive card at
    <https://gamefaqs.gamespot.com/ps/197154-dragon-valor/saves> ("All Gallery
-   Mode Images Unlocked", 131 KB, uploaded by RPGer800; the download link is
-   `/saves/23784` on that page). Its directory holds one 1-block save,
-   `BASLUS-0109214`, titled "Dragon Valor 14", so it is at least a cleared
-   game. A `.gme` is a 3904-byte DexDrive header followed by the raw 128 KB
-   card: strip the header (or export with MemcardRex) and drop the result in
-   as `saves/card2.mcd` (both project cards are formatted and empty), boot
-   without `--state`, use Load Game and dump RAM. Not loaded or diffed yet;
-   the human play session is the other source.
+   Mode Images Unlocked", 131 KB, uploaded by RPGer800, download link
+   `/saves/23784`), was loaded on 2026-10-14 and does **not** help: its one
+   1-block save (`BASLUS-0109214`, Load list entry 14 "Prolog Clovis 25:54")
+   is a post-clear prologue. Loading it replays the prologue text and the
+   opening cutscene (Start skips both) and lands in Brize Forest with the
+   same Clovis, HP 30/30, MP 20/20, STR 60, DEF 1, Val 0. A RAM diff against
+   slot 0 over `0x800A2D00`‥`0x800A3200` differs only in the play-time
+   counter and three flag bytes (table above). So a later-chapter save still
+   has to come from the human play session, or from a GameShark-style search
+   while playing.
+
+   Memory-card notes from that test: the `.gme` is a 3904-byte DexDrive
+   header followed by the raw 128 KB card, which is exactly the runtime's
+   `saves/cardN.mcd` format (strip the header, or export with MemcardRex).
+   **Load Game only scans memory card 1**: with the card in `card2.mcd` the
+   screen says "Dragon Valor data not found"; in `card1.mcd` it lists the
+   save. The Load list has 15 numbered entries, one per card block; the
+   entry number is the two digits after the product code in the file name
+   (`BASLUS-01092` + `14`). The save block (8 KB, `SC` + 3 icon frames) is
+   laid out as: `+0x200`‥`+0x380` three 128-byte records with an identical
+   48-byte head; `+0x380` a 16-byte hash, then play time as hours/minutes
+   u16 (`+0x394`, `+0x396`); `+0x3A0` onward a byte copy of RAM
+   `0x800A2D98`‥`0x800A2EF8` (play time, Val, inventory, magic, flags);
+   `+0x500` a short record (`06 09 0C 0F 12`, `0100`) and at `+0x524` the
+   persistent stats HP/HPmax/MP/MPmax/STR/DEF as u16; `+0x560` to the end a
+   table of u32 values `0x000806BA`, `+1`, `+2`, … (1704 entries). No
+   readable "Clovis"/"Prolog" string exists in the EXE, the BINs or the
+   disc, so the hero and chapter names are drawn from ids through an
+   encoded font; the id is somewhere in the head records or the `+0x500`
+   record, and a second save with another hero is what settles it.
 2. Confirm by writing the field and reloading through GAME OVER → CONTINUE.
 3. For a cosmetic weapon/hero change without game logic: HD texture
    replacement (OpenGL, `psx.enhancement.hd-textures` dumps the originals) or
