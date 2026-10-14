@@ -1,5 +1,8 @@
-/* Title config for psxrecomp/host/psxrecomp_codegen_host.
- * Wired only when the build opts into -DPSX_SETUP_WIZARD=ON. */
+/* Title config for psxrecomp/host/psxrecomp_codegen_host (the launcher's
+ * codegen/setup host). Compiled whenever PSX_RECOMP_UI is on
+ * (CODEGEN_SETUP_SOURCES in CMakeLists.txt); the setup wizard only adds the
+ * first-run modal. gen_marker_relpath below must match GEN_MARKER in
+ * CMakeLists.txt. */
 
 #include "codegen_setup.h"
 

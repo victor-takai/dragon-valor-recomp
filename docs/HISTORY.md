@@ -39,6 +39,10 @@ Start press are offset by a constant frame count):
 
 Cosmetic; gameplay rendering is identical in both renderers. Evidence:
 `assets/dissolve-gl1x-sw-glab0.png`, `assets/dissolve-gl6x-vs-sw.png`.
+
+  ![GL 1x + accurate blending vs software](assets/dissolve-gl1x-sw-glab0.png)
+
+  ![GL 6x vs software](assets/dissolve-gl6x-vs-sw.png)
 Candidate upstream report (feedback effects at internal scale > 1x).
 
 ## First play session (PAL, 22 min, human on the pad)
@@ -56,20 +60,10 @@ static shard, which removed it (and the ~12k dirty-RAM interpreted blocks).
   dies and the `SLUS_01234` placeholder survives in CMake/codegen/symbols.
   When run with output redirected it also prints a false "Generate failed"
   (stderr from `git commit` inside its try block); `generated/` ends up staged.
-- `psxrecomp_cli.py rebuild` forces `-DPSX_DEBUG_TOOLS=OFF`; the debug server
-  needs `--cmake-extra=-DPSX_DEBUG_TOOLS=ON` (separate `build-debug`).
-- `PSX_HOST_MUTE=1` is documented but not read by the runtime; mute with
-  `SDL_AUDIO_DRIVER=dummy`.
-- Every launch writes a ~35 MB `psx_freeze_dump_*.json` into the build dir
-  5–7 s after boot (frame ~256–358, kernel code, dispatch_count 0): the EXE is
-  still loading from disc and the freeze watchdog misreads the stalled frame
-  counter. Delete them; keep one as evidence for an upstream report.
-- `GAME_OVERLAY_STATIC_C` must precede `GEN_FULL_GLOB` in
-  `psxrecomp_add_game_runtime(...)`, or the multi-value argument swallows it.
-- `debug_key` only reaches toggles 0-9 / F10-F12; the F key (FPS readout) is
-  keyboard-only (`PSX_FPS_TELEMETRY=1` turns it on at start). `ping` is
-  answered by the io-thread variant; use `frame`, `unknown_dispatch_log`,
-  `segment_misses`, `pad_status`.
+- The pitfalls that still apply were moved to the live docs: the `rebuild`
+  debug flag, muting (`SDL_AUDIO_DRIVER=dummy`), the freeze dumps, the
+  `debug_key` / `ping` quirks (`DEVELOPMENT.md`) and the
+  `GAME_OVERLAY_STATIC_C` argument order (`AOT.md`).
 - Frame generation (`PlaySmooth.bat`, removed from the USA project on
   2026-10-14) and dynamic resolution compete for GPU
   time; with dynamic resolution on, the generation breaker trips

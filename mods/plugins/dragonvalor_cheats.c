@@ -12,6 +12,7 @@
  * behave like a GameShark "every frame" code and are part of save states and
  * replays like any other guest-side change.
  */
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -50,22 +51,40 @@ static void dv_infinite_mp(void)
 }
 
 /* Keeps Val at or above the feature's "amount" option: shopping still works,
- * the purse just never drops below the floor the player chose. */
-static void dv_val_floor(void)
+ * the purse just never drops below the floor the player chose. The option is
+ * read once per session, at activation (the plan is committed by then), not
+ * on every VBlank. */
+static uint16_t g_val_floor = DV_VAL_CAP;
+
+static void dv_val_floor_activate(void)
 {
     char text[16];
-    unsigned long floor;
+    unsigned long floor = DV_VAL_CAP;
 
-    if (!dv_hero_loaded()) return;
-    if (!psx_mod_current_option_value("amount", text, sizeof text)) return;
-    floor = strtoul(text, NULL, 10);
+    if (psx_mod_current_option_value("amount", text, sizeof text))
+        floor = strtoul(text, NULL, 10);
     if (floor > DV_VAL_CAP) floor = DV_VAL_CAP;
-    if (psx_mod_read_half(DV_VAL) < floor) psx_mod_write_half(DV_VAL, (uint16_t)floor);
+    g_val_floor = (uint16_t)floor;
+}
+
+static void dv_val_floor(void)
+{
+    if (!dv_hero_loaded()) return;
+    if (psx_mod_read_half(DV_VAL) < g_val_floor) psx_mod_write_half(DV_VAL, g_val_floor);
+}
+
+static void dv_register(const char* id, int ok)
+{
+    if (!ok) fprintf(stderr, "dragonvalor.cheats: plugin %s failed to register\n", id);
 }
 
 PSX_MOD_CONSTRUCTOR(dv_register_cheat_plugins)
 {
-    (void)psx_mod_register_vblank_plugin("dragonvalor.infinite-hp", dv_infinite_hp);
-    (void)psx_mod_register_vblank_plugin("dragonvalor.infinite-mp", dv_infinite_mp);
-    (void)psx_mod_register_vblank_plugin("dragonvalor.val-floor", dv_val_floor);
+    dv_register("dragonvalor.infinite-hp",
+                psx_mod_register_vblank_plugin("dragonvalor.infinite-hp", dv_infinite_hp));
+    dv_register("dragonvalor.infinite-mp",
+                psx_mod_register_vblank_plugin("dragonvalor.infinite-mp", dv_infinite_mp));
+    dv_register("dragonvalor.val-floor",
+                psx_mod_register_activation_plugin("dragonvalor.val-floor", dv_val_floor_activate)
+                && psx_mod_register_vblank_plugin("dragonvalor.val-floor", dv_val_floor));
 }

@@ -10,6 +10,8 @@ author = "DragonValorUSRecomp"
 description = "Infinite HP, infinite MP and a Val floor for the USA release. All off by default."
 license = "MIT"
 resolver = "declarative"
+# Cheats change RAM only; saves stay interchangeable with a stock session.
+save_compatibility = "shared"
 
 [[target]]
 game_id = "SLUS-01092"

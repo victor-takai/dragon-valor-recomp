@@ -7,3 +7,35 @@
 /* guessed: SYSTEM.CNF / EXE entry PC (probe seed) */
 #define PSX_FN_BootEntry 0x80012EA0u
 #define func_80012EA0 BootEntry  /* alias */
+
+/* guessed: writes mode byte 0x8008634C/4D and the area/stage pair 0x800A2F18/1A */
+#define PSX_FN_ModeTransition 0x80025264u
+#define func_80025264 ModeTransition  /* alias */
+
+/* guessed: reads MP max 0x8008A5B4 (pc 0x80034FBC) */
+#define PSX_FN_MpMaxReader 0x80034908u
+#define func_80034908 MpMaxReader  /* alias */
+
+/* guessed: reads DEF 0x8008A5B8 and the area id 0x800A2F18 */
+#define PSX_FN_DefReader 0x80038094u
+#define func_80038094 DefReader  /* alias */
+
+/* guessed: writes DEF 0x8008A5B8 (pc 0x800382F8) */
+#define PSX_FN_DefWriter 0x80038274u
+#define func_80038274 DefWriter  /* alias */
+
+/* guessed: reads current HP 0x8008A5AE (pc 0x800389F8) */
+#define PSX_FN_HpReaderA 0x800389F4u
+#define func_800389F4 HpReaderA  /* alias */
+
+/* guessed: reads current HP 0x8008A5AE (pc 0x80038F10) */
+#define PSX_FN_HpReaderB 0x80038F0Cu
+#define func_80038F0C HpReaderB  /* alias */
+
+/* confirmed: DEMO.BIN sets area/stage then jal here; loads a stage's data from DATA.CDR */
+#define PSX_FN_LoadStage 0x8003A9B0u
+#define func_8003A9B0 LoadStage  /* alias */
+
+/* guessed: largest flow function: 88 RAM refs, reads/writes Val 0x800A2DD0, writes 0x80086322 / 0x8008634D */
+#define PSX_FN_GameFlowMain 0x8004BF84u
+#define func_8004BF84 GameFlowMain  /* alias */

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Thin wrapper around the shared psxrecomp bundled-release packager.
-# Autofilled by tools/new_project_layout/setup_project.{sh,ps1}.
+# Autofilled by psxrecomp/tools/new_project_layout/setup_project.{sh,ps1}.
 #
 # Ships the COMPILED game built from this repo's committed generated/ C:
 # executable, runtime data, bundled OpenBIOS, mod catalog, overlay toolchain.
@@ -8,8 +8,11 @@
 #
 # Usage:
 #   scripts/package_release.sh <build-dir> <artifact-tag> [recompiler-build-dir]
+#   e.g. scripts/package_release.sh build-release windows-x64
 #
-# Writes: dist/dvus-<VERSION>-<artifact-tag>.zip
+# Writes: dist/dvus-<VERSION>-<artifact-tag>.zip. Side effect: the packager
+# rewrites the tracked VERSION file with the stamp embedded in the binary.
+# On this machine it also needs PSX_RELEASE_STAGE_PYTHON=<python.exe>.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -27,8 +30,6 @@ if [[ ! -f "${PACKAGER}" ]]; then
   echo "error: missing ${PACKAGER} (psxrecomp submodule predates bundled releases -- bump it)" >&2
   exit 1
 fi
-chmod +x "${PACKAGER}" 2>/dev/null || true
-
 EXTRA=()
 # Overlay shard cache. It is compiled FROM THE DISC, so CI (no disc) cannot
 # build one: the committed static AOT shard is linked into the executable and
@@ -55,8 +56,8 @@ exec bash "${PACKAGER}" \
   --artifact "${ARTIFACT_TAG}" \
   --zip-prefix dvus \
   --exe-name DragonValorUS_Recompiled \
-  --display-name "DragonValorUS Recompiled" \
+  --display-name "Dragon Valor (USA) Recompiled" \
   --recompiler-build "${RECOMPILER_BUILD}" \
   --version-env RELEASE_VERSION \
-  --disc-hint "your legally owned DragonValorUS disc" \
+  --disc-hint "your legally owned Dragon Valor (USA) discs" \
   "${EXTRA[@]}"

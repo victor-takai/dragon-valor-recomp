@@ -373,6 +373,11 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
   story movie → main menu → gameplay demo (dungeon, dragon arena), looping.
   A second Start on the title goes to the menu; a Start on the menu starts a
   New Game.
+- **Committed tests.** `python tests/test_manifests.py` checks every mod
+  manifest statically (ids, default-off features, option bounds, plugin ids
+  registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
+  exercises the cheat plugins on a running debug build from slot 0 (see *This
+  project's package* for the `state.toml` setup).
 
 ## Project layout (what is ours)
 
@@ -393,7 +398,7 @@ mods/preloaded/       bundled mod packages (dragonvalor.cheats manifest)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync
-tests/states/         committed save state slot 0 (+ README)
+tests/states/         committed save state slot 0 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)
 Play.bat, PlayDebug.bat     player / debug launch
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)

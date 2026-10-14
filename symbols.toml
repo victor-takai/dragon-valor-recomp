@@ -9,3 +9,62 @@ name = "BootEntry"
 emit = false
 status = "guessed"
 note = "SYSTEM.CNF / EXE entry PC (probe seed)"
+
+# Identified 2026-10-14 from EXE data xrefs and live probes (docs/DEVELOPMENT.md,
+# "Known RAM addresses"). Roles, not decompiled names; keep emit = false.
+
+[[func]]
+pc = 0x8004BF84
+name = "GameFlowMain"
+emit = false
+status = "guessed"
+note = "largest flow function: 88 RAM refs, reads/writes Val 0x800A2DD0, writes 0x80086322 / 0x8008634D"
+
+[[func]]
+pc = 0x80025264
+name = "ModeTransition"
+emit = false
+status = "guessed"
+note = "writes mode byte 0x8008634C/4D and the area/stage pair 0x800A2F18/1A"
+
+[[func]]
+pc = 0x8003A9B0
+name = "LoadStage"
+emit = false
+status = "confirmed"
+note = "DEMO.BIN sets area/stage then jal here; loads a stage's data from DATA.CDR"
+
+[[func]]
+pc = 0x800389F4
+name = "HpReaderA"
+emit = false
+status = "guessed"
+note = "reads current HP 0x8008A5AE (pc 0x800389F8)"
+
+[[func]]
+pc = 0x80038F0C
+name = "HpReaderB"
+emit = false
+status = "guessed"
+note = "reads current HP 0x8008A5AE (pc 0x80038F10)"
+
+[[func]]
+pc = 0x80034908
+name = "MpMaxReader"
+emit = false
+status = "guessed"
+note = "reads MP max 0x8008A5B4 (pc 0x80034FBC)"
+
+[[func]]
+pc = 0x80038094
+name = "DefReader"
+emit = false
+status = "guessed"
+note = "reads DEF 0x8008A5B8 and the area id 0x800A2F18"
+
+[[func]]
+pc = 0x80038274
+name = "DefWriter"
+emit = false
+status = "guessed"
+note = "writes DEF 0x8008A5B8 (pc 0x800382F8)"

@@ -1,6 +1,6 @@
 # Which disc images work
 
-Dragon Valor Recompiled runs from **your own dumps** of the two USA discs.
+Dragon Valor (USA) Recompiled runs from **your own dumps** of the two USA discs.
 Nothing from the game is included in this download.
 
 | Disc | Serial | Redump name | Data track (Track 1) |
