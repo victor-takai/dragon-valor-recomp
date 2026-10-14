@@ -62,7 +62,9 @@ the native 60 Hz version.
    high internal scale (see [`HISTORY.md`](HISTORY.md)).
 4. Hero/weapon swap: the hero-selecting field is not identified; needs a
    later-chapter save to diff against (see `DEVELOPMENT.md`, *Character and
-   weapon*). Inventory, stats, Val, magic, area/stage ids are mapped.
+   weapon*). Inventory, stats, Val, magic, area/stage ids are mapped. The
+   GameFAQs DexDrive save (cleared game, gallery unlocked) is the candidate
+   reference; it has not been loaded yet.
 5. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
    beside the exe on every boot (false positive during the disc load) — a
    player install accumulates them. Upstream issue to file; until then a note

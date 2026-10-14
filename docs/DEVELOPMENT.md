@@ -197,8 +197,16 @@ takes:
 1. A second reference point: a save (memory card or save state) in a later
    chapter with another hero, then a RAM diff against slot 0 around
    `0x800A2Dxx`‥`0x800A31xx` and `0x80086xxx` to find the hero/chapter field.
-   Nothing public was found (GameFAQs blocks fetches); the human play session
-   will produce one.
+   One public candidate: GameFAQs hosts a single USA DexDrive card at
+   <https://gamefaqs.gamespot.com/ps/197154-dragon-valor/saves> ("All Gallery
+   Mode Images Unlocked", 131 KB, uploaded by RPGer800; the download link is
+   `/saves/23784` on that page). Its directory holds one 1-block save,
+   `BASLUS-0109214`, titled "Dragon Valor 14", so it is at least a cleared
+   game. A `.gme` is a 3904-byte DexDrive header followed by the raw 128 KB
+   card: strip the header (or export with MemcardRex) and drop the result in
+   as `saves/card2.mcd` (both project cards are formatted and empty), boot
+   without `--state`, use Load Game and dump RAM. Not loaded or diffed yet;
+   the human play session is the other source.
 2. Confirm by writing the field and reloading through GAME OVER → CONTINUE.
 3. For a cosmetic weapon/hero change without game logic: HD texture
    replacement (OpenGL, `psx.enhancement.hd-textures` dumps the originals) or
