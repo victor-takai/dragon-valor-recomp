@@ -32,10 +32,13 @@ the native 60 Hz version.
 - Pad: Xbox 360 opens as player 1 in DualShock mode (analog).
 - Release build: window LIVE, title bar `[Game 60 fps 1.00x]`, NTSC-U detected
   (59.94 Hz pacing).
+- **Disc 2** (`--disc` override, SLUS-01164): boots, 59.9 fps, 0 unknown
+  dispatches at 80 s; its five `BIN/*.BIN` are byte-identical to disc 1's, so
+  the static shard serves both discs (only `SYSTEM.CNF` and the EXE name differ).
 
 ## Open items
 
-1. Human play session (menus, saves, Load Game, disc 2) — not done yet.
+1. Human play session (menus, saves, Load Game, reaching disc 2 in-game) — not done yet.
 2. `game.toml` points at absolute local disc paths (development only).
 3. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale, boot-time freeze dumps (see [`HISTORY.md`](HISTORY.md)).

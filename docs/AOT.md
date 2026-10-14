@@ -90,5 +90,6 @@ dispatches / segment misses, no runtime compiles, 4217 static entries / 4630
 variants registered; the dungeon demo renders from the static shard. Release
 build with the shard: LIVE at `[Game 60 fps 1.00x]`.
 
-Disc 2 of the USA set carries the same EXE; its `BIN/*.BIN` files have not yet
-been hashed against disc 1's (the PAL pair was byte-identical).
+Disc 2 of the USA set carries the same EXE and byte-identical `BIN/*.BIN`
+files (verified 2026-10-14), so the one shard serves both discs; booting with
+`--disc` on disc 2 ran at 59.9 fps with 0 unknown dispatches.
