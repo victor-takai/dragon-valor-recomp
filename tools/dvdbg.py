@@ -5,9 +5,10 @@ The runtime in build-debug/ (PSX_DEBUG_TOOLS=ON) listens on 127.0.0.1:4370.
 This wraps the handful of commands a test session needs; anything else goes
 through `raw`. All waits are in-process, so it is safe from any shell.
 
-  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--build DIR] [--disc CUE]
+  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--build DIR] [--disc CUE] [--state N]
         start the runtime detached, wait for the server, print pid and the
         controller line. Muted (SDL dummy audio driver) unless --sound.
+        --state N then loads save state slot N: the way gameplay tests start.
   python tools/dvdbg.py press start cross down:8 ...
         tap buttons in order (NAME[:frames]); PS1 pad words are active-low,
         the complement is computed here.
@@ -15,9 +16,10 @@ through `raw`. All waits are in-process, so it is safe from any shell.
   python tools/dvdbg.py frame             guest frame counter
   python tools/dvdbg.py pad               SIO pad status (connected/analog/type)
   python tools/dvdbg.py health            unknown dispatches + segment misses
-  python tools/dvdbg.py state save|load [N]
-        runtime save state in slot N (files under saves/openbios/); slot 0 is
-        kept at the start of gameplay so tests can skip the 5 min intro
+  python tools/dvdbg.py state save|load|keep [N]
+        runtime save state in slot N (saves/openbios/, restored from the
+        committed tests/states/ copy when missing); keep copies the slot into
+        tests/states/. Slot 0 = first screen of gameplay (skips the 5 min intro).
   python tools/dvdbg.py raw <cmd> [k=v ...]
   python tools/dvdbg.py kill              stop every DragonValorUS_Recompiled.exe
 
@@ -26,6 +28,8 @@ started on 4371 by `launch --sw`).
 """
 import json
 import os
+import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -34,6 +38,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EXE_NAME = "DragonValorUS_Recompiled.exe"
+ENTRY_PC = "80012EA0"                             # the runtime keys slot files by entry PC
+STATES_DIR = ROOT / "tests" / "states"            # committed test states
+SAVES_STATES_DIR = ROOT / "saves" / "openbios"    # where the runtime reads/writes slots
+DEFAULT_DISC = str(ROOT.parent / "Dragon Valor (USA) (Disc 1)" / "Dragon Valor (USA) (Disc 1).cue")
 BUTTONS = {
     "select": 0x0001, "l3": 0x0002, "r3": 0x0004, "start": 0x0008,
     "up": 0x0010, "right": 0x0020, "down": 0x0040, "left": 0x0080,
@@ -74,7 +82,7 @@ def cmd_launch(args):
     # --no-launcher: skip the recomp-ui launcher window and boot the game directly.
     # --disc: game.toml names the discs by Redump file name only (players point
     # the launcher at their dumps), so scripted runs pass the local path.
-    disc = os.environ.get("DVDBG_DISC") or str(ROOT.parent / "Dragon Valor (USA) (Disc 1)" / "Dragon Valor (USA) (Disc 1).cue")
+    disc = os.environ.get("DVDBG_DISC") or DEFAULT_DISC
     if "--disc" in args:
         disc = args[args.index("--disc") + 1]
     exe_args = ["--debug-port", str(port), "--no-launcher", "--disc", disc]
@@ -110,6 +118,59 @@ def cmd_launch(args):
             break
     else:
         print("no gamepad opened (check [controller] p1_device in game.toml)")
+    if "--state" in args:
+        cmd_state(port, ["load", args[args.index("--state") + 1]], disc)
+
+
+def slot_file(slot, disc_path):
+    """File name the runtime uses for a slot: entry PC, disc token, slot number."""
+    m = re.search(r"\(Disc (\d+)\)", str(disc_path))
+    disc = int(m.group(1)) if m else 1
+    return f"state_{ENTRY_PC}_disc{disc}_slot{slot:02d}.pst"
+
+
+def wait_savestate(port, generation, timeout=30):
+    """Block until the staged save/load has run: the status generation advances
+    once savestate_poll applied or rejected the request (the ack comes earlier)."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        st = rpc(port, "savestate_status")
+        if st.get("generation", 0) > generation and not st.get("pending"):
+            return st
+        time.sleep(0.2)
+    return {}
+
+
+def cmd_state(port, args, disc_path):
+    """state save|load|keep [slot]: the runtime's save states are the fast way
+    to start a test at a known point instead of replaying the intro."""
+    op = args[0] if args else "load"
+    slot = int(args[1]) if len(args) > 1 else 0
+    name = slot_file(slot, disc_path)
+    local, kept = SAVES_STATES_DIR / name, STATES_DIR / name
+    if op == "keep":
+        if not local.exists():
+            sys.exit(f"no local slot {slot}: {local}")
+        STATES_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(local, kept)
+        print(f"kept {kept} ({kept.stat().st_size} bytes); commit tests/states/")
+        return
+    if op not in ("save", "load"):
+        sys.exit("state save|load|keep [slot]")
+    if op == "load" and not local.exists() and kept.exists():
+        SAVES_STATES_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(kept, local)
+        print(f"restored slot {slot} from {kept}")
+    gen = rpc(port, "savestate_status").get("generation", 0)
+    ack = rpc(port, "savestate", op=op, slot=slot)
+    if not ack.get("ok"):
+        sys.exit(f"savestate {op} {slot} refused: {ack}")
+    st = wait_savestate(port, gen)
+    if not st or not st.get("last_ok"):
+        sys.exit(f"savestate {op} {slot} did not complete: {st or 'timeout'}")
+    if op == "load":
+        time.sleep(1)   # let the restored frame reach the display before the caller shoots
+    print(f"{op} slot {slot} ok (frame {rpc(port, 'frame').get('frame')}, {local})")
 
 
 def cmd_press(port, specs):
@@ -150,10 +211,7 @@ def main(argv):
             r = rpc(port, c)
             print(f"{c}: total={r.get('total')} unique={r.get('unique')}")
     elif cmd == "state":
-        # state save|load <slot>: the runtime's save states (persist under saves/),
-        # the fast way to start a test at a known point instead of replaying the intro
-        op, slot = args[0], int(args[1]) if len(args) > 1 else 0
-        print(rpc(port, "savestate", op=op, slot=slot))
+        cmd_state(port, args, os.environ.get("DVDBG_DISC") or DEFAULT_DISC)
     elif cmd == "raw":
         params = {}
         for kv in args[1:]:

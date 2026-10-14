@@ -125,20 +125,26 @@ Useful facts:
 
 ### Save states
 
-The runtime's save states (`savestate op=save|load slot=N`, files under
-`saves/openbios/`, gitignored) are the shortcut around the ~5 min intro:
+The runtime's save states (`savestate op=save|load slot=N`) are the shortcut
+around the ~5 min intro, and **every automated test that is not about the
+boot or the menus starts from slot 0**:
 
 ```bash
-python tools/dvdbg.py launch
-python tools/dvdbg.py state load 0      # Brize Forest, first screen of gameplay
-python tools/dvdbg.py raw savestate_status
+python tools/dvdbg.py launch --state 0  # boot, then load slot 0 and wait for it
+python tools/dvdbg.py state load 0      # same thing on a running instance
+python tools/dvdbg.py state save 0      # overwrite the slot from the running game
+python tools/dvdbg.py state keep 0      # copy the slot into tests/states/ (committed)
 ```
 
-Slot 0 is kept at the start of gameplay (New Game → prologue → opening
-cutscene → first enemy; HP 030/030, MP 020/020). It loads on a fresh boot
-about 3 s after the server comes up (verified 2026-10-14) — the state carries
-the loaded `ACTION.BIN`, so nothing of the menu route has to be replayed.
-Re-create it with `state save 0` if a runtime update changes the format.
+Slot 0 is the first screen of gameplay (New Game → prologue → opening
+cutscene → first enemy in Brize Forest; HP 030/030, MP 020/020). The runtime
+reads slots from `saves/openbios/` (gitignored); the committed copy lives in
+[`tests/states/`](../tests/states/README.md) and `state load` restores it
+from there when the local slot is missing, so a fresh clone needs nothing
+else. The state carries the loaded `ACTION.BIN`, so no part of the menu
+route is replayed. States are whole-machine state: same BIOS (OpenBIOS),
+same disc, and a runtime update that changes the format means re-taking
+them (`state save`, then `state keep`).
 
 ### Known RAM addresses (USA EXE)
 
@@ -166,6 +172,8 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
 
 ## Test conventions
 
+- **Start from slot 0.** `python tools/dvdbg.py launch --state 0` (see *Save
+  states* above). Replaying the intro is only for boot/menu tests.
 - **Run muted.** `SDL_AUDIO_DRIVER=dummy` (+ `SDL_AUDIODRIVER=dummy`) — the
   SPU still runs. `PSX_HOST_MUTE=1` is documented but not read by this runtime.
 - **One instance per port.** Several instances are fine with `--debug-port N`;

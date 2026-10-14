@@ -70,8 +70,7 @@ the native 60 Hz version.
 Same as the PAL project: `Play.bat`, `PlayDebug.bat`, `PlaySmooth.bat`,
 `tools/dvdbg.py`, `tools/session_monitor.py`. See [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
-Save state slot 0 (`saves/openbios/`, not committed) sits at the first screen
-of gameplay; `python tools/dvdbg.py state load 0` reaches it from a fresh
-boot in seconds. HP/MP RAM addresses and the save-state workflow are in
-[`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
-
+Automated tests start from save state slot 0 (first screen of gameplay;
+committed copy in `tests/states/`, restored into `saves/openbios/` by
+`python tools/dvdbg.py launch --state 0`). HP/MP RAM addresses and the
+save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
