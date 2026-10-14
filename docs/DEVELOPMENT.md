@@ -303,6 +303,16 @@ names, enlarged by an integer factor. No Dragon Valor pack exists publicly;
 the first one would be drawn from these dumps. Reference:
 `psxrecomp/docs/HD_TEXTURE_PACKS.md`.
 
+Enabling the mod with an empty `replacements/` changes nothing on screen:
+the package ships no artwork and does no upscaling of its own. Replacement
+verified 2026-10-14 with a demo set (the 67 dumps at 2x, tinted magenta,
+left in `build-release/.../replacements/` with a README): after a stage
+reload the `hd_textures` command reported 46,107 of 46,314 matched draws
+applied, and `present_shot` (the composed OpenGL window) showed the tinted
+forest while the native `screenshot` kept the original artwork. The
+dump/replacement file names are hashes of the upload data, so dumps taken
+on one build match on the other.
+
 Identification tooling: `tools/dvdbg.py` + `read_ram`/`write_ram` for RAM
 probes, the scratch `refs.json` (EXE data xrefs: address → function, width,
 read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
