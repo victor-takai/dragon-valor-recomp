@@ -1,6 +1,6 @@
 # Dragon Valor (USA) Recompiled — status
 
-Last updated: 2026-10-14. Framework: psxrecomp @ 54abcb70 (submodule), OpenBIOS only.
+Last updated: 2026-10-14. Framework: psxrecomp @ f9c287f5 (submodule, bumped from 54abcb70 the same day; see [`framework_pin_history.md`](framework_pin_history.md)), recomp-ui @ 41c88ff, OpenBIOS only.
 The project started on the PAL release (SCES-01705, 50 Hz) and moved to this
 USA version on 2026-10-14; the PAL tree was deleted. What that bring-up
 established (controller, dissolve rendering, first play session, framework

@@ -91,6 +91,13 @@ Files the runtime writes, all gitignored:
 | Overlay captures + native shards | `overlay_captures.json(.d)` and `cache/` next to the exe |
 | Exit report / watchdog | `psx_last_run_report.json` (unknown dispatches, segment misses, overlay loader counters, CPU state at exit), `psx_freeze_heartbeat.json`, boot-time `psx_freeze_dump_*.json` (false positives, ~35 MB each — delete) |
 
+## Bumping the framework
+
+`docs/framework_pin_history.md` records every bump and the procedure (fetch,
+read the upstream log and the title-facing diffs, check out, nested
+submodules, rebuild both build dirs, boot + state + cheat checks). Regenerate
+`generated/` only when `recompiler/` or the emitters changed upstream.
+
 ## Debugging a running game
 
 The debug build listens on `127.0.0.1:4370` (JSON lines; see
