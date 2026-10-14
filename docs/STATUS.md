@@ -71,6 +71,12 @@ the native 60 Hz version.
    player install accumulates them. Upstream issue to file; until then a note
    in README or a cleanup on launch.
 
+## Backlog
+
+A read-only review on 2026-10-14 (code, docs, config, and a survey of other
+psxrecomp titles) is recorded in [`BACKLOG.md`](BACKLOG.md); nothing in it has
+been applied yet.
+
 ## Tooling
 
 `Play.bat`, `PlayDebug.bat` (`PlaySmooth.bat` was dropped on 2026-10-14: frame
