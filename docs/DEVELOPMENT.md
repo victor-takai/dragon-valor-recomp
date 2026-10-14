@@ -269,34 +269,81 @@ or installed by the player through the launcher's Mods page) can carry:
 
 #### This project's package: `dragonvalor.cheats`
 
-`mods/preloaded/packages/dragonvalor.cheats/1.0.0/manifest.toml` (format 7)
-declares three features, all off by default, each backed by a VBlank
-callback in `mods/plugins/dragonvalor_cheats.c`. That file is linked into the
-exe by the `target_sources` line in `CMakeLists.txt`; the package itself
-carries no native code, only the plugin ids.
+`mods/preloaded/packages/dragonvalor.cheats/1.1.0/manifest.toml` (format 7)
+declares **one feature, `cheats`, on by default with every option off**, backed
+by `mods/plugins/dragonvalor_cheats.c`. The feature stays in the session's
+plan so the in-game menu can switch its options live; with every option off
+the plugin does nothing. The package carries no native code, only the plugin
+id; the C file is linked by the `target_sources` line in `CMakeLists.txt`.
 
-| Feature (launcher group "Cheats") | Plugin id | Each VBlank, while HPmax ≠ 0 |
-|---|---|---|
-| Infinite HP | `dragonvalor.infinite-hp` | HP ← HPmax |
-| Infinite MP | `dragonvalor.infinite-mp` | MP ← MPmax |
-| Val floor | `dragonvalor.val-floor` | Val ← max(Val, `amount`); integer option 0‥9999, default 9999 |
+| Option (launcher group "Cheats") | Each VBlank, while HPmax ≠ 0 |
+|---|---|
+| `infinite_hp` | HP ← HPmax |
+| `infinite_mp` | MP ← MPmax |
+| `val_floor` (0‥9999, step 100, 0 = off) | Val ← max(Val, floor) |
 
-The build stages the package into `<build>/mods/bundled/dragonvalor.cheats`,
-the launcher lists the features, and the player's choice lands in
-`<build>/mods/state.toml`. Verified 2026-10-14 from slot 0 on build-debug:
-with the features on, HP/MP/Val written to 5/3/12 read back 30/20/5000
-within half a second; with them off the written values stayed. Limitation
+The plugin reads the options at activation and again in its option-changed
+callback (`psx_mod_register_option_changed_plugin`), which is what makes a
+change from the in-game menu (`PsxMenuHost.mod_set` →
+`psx_mod_set_option_live`) take effect the same frame. The build stages the
+package into `<build>/mods/bundled/dragonvalor.cheats`; the launcher's Mods
+page and the in-game menu both write `<build>/mods/state.toml`. Verified
+2026-10-14 from slot 0 on build-debug: with the options on, HP/MP/Val written
+to 5/3/12 read back 30/20/5000 within half a second; with them off the
+written values stayed; toggled from the menu, HP refilled at once. Limitation
 shared with GameShark codes: the refill runs once per frame, so a single hit
 of at least HPmax still kills (writing HP = 0 produced GAME OVER).
 
-To add a feature: write the callback in `dragonvalor_cheats.c`, register its
-id in the `PSX_MOD_CONSTRUCTOR` block, add `[[feature]]` + `[[plugin]]` (and
-`[[option]]`s, read with `psx_mod_current_option_value`) to the manifest,
-rebuild both build dirs. Scripted test without the launcher: append the
-package and its features with `enabled = true` to `<build>/mods/state.toml`
-(format 2; option values are strings under `[feature.values]`), then
-`tools/dvdbg.py launch --state 0`, `write_ram` the stat and read it back
-(`tests/test_cheats.py on|off` does exactly that).
+To add an option: read it in `dv_cheats_read_options`, apply it in the VBlank
+callback, declare the `[[option]]` in the manifest (and a row in the menu
+provider if it should be switchable in-game), rebuild both build dirs.
+`tests/test_manifests.py` accepts a default-on feature only while every
+option defaults to off. Scripted test without the launcher: set the option
+values under the `cheats` feature in `<build>/mods/state.toml` (format 2;
+values are strings under `[feature.values]`), then `tools/dvdbg.py launch
+--state 0`, `write_ram` the stat and read it back (`tests/test_cheats.py
+on|off` does exactly that).
+
+#### In-game menu (`mods/plugins/dragonvalor_menu.cpp`)
+
+Escape, or Select+Start on the pad, opens a menu over the game; the guest
+and audio pause while it is up (the "Pause in menu" row turns that off).
+Sections and rows:
+
+| Section | Rows | Applied through |
+|---|---|---|
+| Display | Fullscreen, Game dimming, Menu opacity | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`); the backdrop rows are the menu's own |
+| Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
+| Audio | Volume | `host_volume_set` |
+| System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
+| Cheats | Infinite HP, Infinite MP, Val floor | `mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml` |
+| Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
+
+How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu
+(`psx_menu_host.h`: pause, live video, mod changes, disc tray, exit) and
+calls a `PsxMenuProvider` the title registers with `psx_menu_set_provider`
+before the game window opens; recomp-ui ships the menu model and its Dear
+ImGui presentation (`recomp_runtime_ui.h`: `recomp_runtime_ui_create_standard`
+with the standard rows plus our extras, `recomp_runtime_ui_handle_input`
+with semantic inputs, `recomp_runtime_ui_render_imgui`). The provider is the
+glue: it creates the model and an ImGui context with the OpenGL3 backend
+(`#version 330`, the runtime's context; font `assets/fonts/LatoLatin-Regular.ttf`),
+sees every SDL event first (`event`), maps Escape / arrows / Enter /
+Backspace and the pad's D-pad / Cross / Circle / Start to the model, and
+draws from the runtime's overlay draw callback (GL thread) under one mutex
+with the event path (main thread). No SDL platform backend for ImGui is
+used: the model navigates itself, so ImGui is only ever touched by `draw`.
+Two things cost time: the model closes itself on BACK at the top level, so
+the provider re-syncs its open flag (and the host pause) after every input;
+and the model keeps its rail position between opens, so the provider creates
+a fresh one on every open (the menu always starts on Display).
+
+The file compiles to nothing when the recomp-ui launcher is off
+(`RECOMP_LAUNCHER`). Rows that need a restart (internal resolution,
+renderer) are left out on purpose; the launcher owns them. The game's own
+Start pause still exists. Scripted test: `tests/test_menu.py` (keys through
+the debug server's `host_key`, screenshots through `present_shot`, since
+native screenshots never contain the overlay).
 
 #### This project's package: `dragonvalor.skip-intro`
 
@@ -439,7 +486,8 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
   exercises the cheat plugins on a running debug build from slot 0 (see *This
   project's package* for the `state.toml` setup); `python
-  tests/test_skip_intro.py [--off]` checks the intro skip on a fresh boot.
+  tests/test_skip_intro.py [--off]` checks the intro skip on a fresh boot;
+  `python tests/test_menu.py` drives the in-game menu from slot 0.
 
 ## Project layout (what is ours)
 
@@ -457,7 +505,7 @@ seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
 launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon
 mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro)
-mods/plugins/         C plugins behind those packages' [[plugin]] ids
+mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonvalor_menu.cpp = in-game menu provider
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
 tests/states/         committed save state slot 0 (+ README);  tests/test_*.py  checks

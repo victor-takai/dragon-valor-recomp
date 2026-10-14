@@ -92,8 +92,12 @@ magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPME
 Mods: the project ships `dragonvalor.cheats` (Infinite HP, Infinite MP, Val
 floor) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
 own Start path through a function-entry hook on the pad copy) as bundled
-packages backed by plugins in `mods/plugins/`, all off by default and
-verified on and off (2026-10-14). The Namco logo stays: shortening it breaks
-the title's loads. The
+packages backed by plugins in `mods/plugins/`, verified on and off
+(2026-10-14). The cheats feature is on by default with every option off, so
+the **in-game menu** (Escape / Select+Start; `mods/plugins/dragonvalor_menu.cpp`
+on psxrecomp's menu host + recomp-ui's runtime UI) can switch them live; the
+menu also pauses, changes texture filtering / scanlines / fullscreen /
+volume, saves and loads states, changes disc and returns to the launcher.
+The Namco logo stays: shortening it breaks the title's loads. The
 framework's HD texture dumper works on this game once a stage reloads
 (563 PNGs from a session from the title into Brize Forest). See [`DEVELOPMENT.md`](DEVELOPMENT.md#modding-what-the-framework-offers).

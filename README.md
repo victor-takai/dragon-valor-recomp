@@ -37,6 +37,10 @@ overlays: [`docs/AOT.md`](docs/AOT.md).
    screen has the Disc 1 / Disc 2 choice, controller and its mode (Analog /
    D-Pad), memory cards, video and audio settings and mods.
 3. **Play.** Press Start during the intro movie to skip it.
+4. **Escape** (or **Select+Start** on the pad) opens the in-game menu: pause,
+   cheats, texture filtering, scanlines, fullscreen, volume, save/load state,
+   disc change, back to the launcher. Arrows / D-pad move, Enter / Cross
+   selects, Escape / Circle goes back.
 
 Xbox / PlayStation / Switch pads work out of the box; the game reads the
 analog stick. Memory cards live in `saves/`.
@@ -44,9 +48,9 @@ analog stick. Memory cards live in `saves/`.
 The launcher's **Mods** page lists the bundled features, all off by default:
 the framework's enhancements (HD texture packs, PGXP, CD speed, 8 MB RAM,
 bezel) and this project's packages: **Dragon Valor Cheats** (Infinite HP,
-Infinite MP, Val floor) and **Dragon Valor Skip Intro** (presses Start for
-you as soon as the intro movie starts). Tick a feature, set its options,
-Play. See
+Infinite MP, Val floor; also switchable in-game) and **Dragon Valor Skip
+Intro** (presses Start for you as soon as the intro movie starts). Tick a
+feature, set its options, Play. See
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#modding-what-the-framework-offers).
 
 | PlayStation | Keyboard | | PlayStation | Keyboard |

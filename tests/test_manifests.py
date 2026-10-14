@@ -5,7 +5,7 @@
 
 For every mods/preloaded/packages/<id>/<version>/manifest.toml:
   - the directory names match the manifest's id / version
-  - every feature is default-disabled (bundled cheats must be opt-in)
+  - every feature is default-disabled, or default-on but inert (all options off)
   - every [[option]] / [[plugin]] names a declared feature
   - integer options have min <= default <= max on the step grid
   - every [[plugin]] id is registered in mods/plugins/*.c
@@ -35,7 +35,17 @@ def check(manifest: Path) -> list[str]:
         errors.append("no [[feature]]")
     for fid, f in features.items():
         if f.get("default_enabled", False):
-            errors.append(f"feature {fid}: default_enabled must be false")
+            # A default-on feature is allowed only when it is inert as shipped:
+            # every boolean option off and every integer option at its minimum
+            # (the cheats feature stays in the plan so the in-game menu can
+            # switch its options live).
+            opts = [o for o in m.get("option", []) if o.get("feature") == fid]
+            inert = opts and all(
+                (o.get("type") == "boolean" and str(o.get("default")).lower() == "false") or
+                (o.get("type") == "integer" and int(o.get("default", 0)) == int(o.get("min", 0)))
+                for o in opts)
+            if not inert:
+                errors.append(f"feature {fid}: default_enabled must be false (or every option must default to off)")
     for key in ("option", "plugin", "patch", "overlay"):
         for entry in m.get(key, []):
             if entry.get("feature") not in features:

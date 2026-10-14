@@ -2,16 +2,20 @@
 """Exercise the dragonvalor.cheats plugins on a running debug build.
 
 Setup (see docs/DEVELOPMENT.md, "This project's package"):
-  1. In <build>/mods/state.toml enable the three features (or leave them off
-     for the control run); the launcher writes that file, or append:
+  1. In <build>/mods/state.toml set the cheat options (or leave them off for
+     the control run); the launcher or the in-game menu writes that file, or
+     append:
         [[package]]
         id = "dragonvalor.cheats"
-        version = "1.0.0"
+        version = "1.1.0"
         [[feature]]
         package_id = "dragonvalor.cheats"
-        id = "infinite-hp"
+        id = "cheats"
         enabled = true
-        ... (infinite-mp, val-floor with [feature.values] amount = "5000")
+        [feature.values]
+        infinite_hp = "true"
+        infinite_mp = "true"
+        val_floor = "5000"
   2. python tools/dvdbg.py launch --state 0
   3. python tests/test_cheats.py on      # or: off  (control run)
 
@@ -27,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 from dvdbg import rpc, port_from_args  # noqa: E402
 
 HP, HPMAX, MP, MPMAX, VAL = 0x8008A5AE, 0x8008A5B0, 0x8008A5B2, 0x8008A5B4, 0x800A2DD0
-FLOOR = 5000   # the `amount` option value the setup above writes
+FLOOR = 5000   # the `val_floor` option value the setup above writes
 
 
 def main(argv):
