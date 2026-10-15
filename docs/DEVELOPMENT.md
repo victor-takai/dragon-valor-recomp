@@ -301,9 +301,10 @@ enemies killed with magic stepped `0x800A2DB4` 0 → 1 → 2 (pc `0x800256F0`,
 called from `func_800260FC` right after the HP write; the sword counter
 untouched), the second kill left a scroll, and picking it up ran
 `func_80034908`: counter 2 → 0, scrolls 0 → 1, both 1 → 2, MP max 21 → 29.
-Casting a spell from a script is still open (no pad button cast one from
-slot 0 with only the level bytes written), so `drop_test.py` covers the
-gem only.
+Casting a spell from a script is still open: the player casts with Circle
+(B on an Xbox pad), but `press circle` from slot 0 with only the level
+bytes written did nothing, so some spell-selection state is missing
+(see the backlog); `drop_test.py` covers the gem only.
 
 ### Character and weapon (2026-10-14 status)
 
