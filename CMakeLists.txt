@@ -11,6 +11,26 @@ endif()
 
 project(DragonValorUSRecomp LANGUAGES C CXX)
 
+# Local patches to the submodules (patches/README.md): applied with git apply
+# at configure time when not applied yet, so clones and CI build the same code.
+foreach(_dv_sub recomp-ui)
+    file(GLOB _dv_patches "${CMAKE_CURRENT_SOURCE_DIR}/patches/${_dv_sub}/*.patch")
+    foreach(_dv_patch ${_dv_patches})
+        execute_process(COMMAND git apply --check --reverse "${_dv_patch}"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${_dv_sub}"
+            RESULT_VARIABLE _dv_applied OUTPUT_QUIET ERROR_QUIET)
+        if(NOT _dv_applied EQUAL 0)
+            execute_process(COMMAND git apply "${_dv_patch}"
+                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${_dv_sub}"
+                RESULT_VARIABLE _dv_rc)
+            if(NOT _dv_rc EQUAL 0)
+                message(FATAL_ERROR "patches/${_dv_sub}: ${_dv_patch} does not apply to the pinned ${_dv_sub}")
+            endif()
+            message(STATUS "${_dv_sub}: applied ${_dv_patch}")
+        endif()
+    endforeach()
+endforeach()
+
 # Opt-in product surfaces: PSX_RECOMP_UI is ON (recomp-ui submodule present);
 # netplay (PSX_NETPLAY) and the first-run setup wizard (PSX_SETUP_WIZARD) stay
 # OFF until tested -- see psxrecomp/runtime/runtime.cmake for the options.

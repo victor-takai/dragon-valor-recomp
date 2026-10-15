@@ -75,6 +75,13 @@ Verified-correct things are listed at the end so they are not re-checked.
 | L | ✔ Dissolve pointer, Start wording, Pillow prerequisite, unreferenced images, framework paths without `psxrecomp/` prefix | `docs/DEVELOPMENT.md:366,11`, `README.md:39`, `docs/HISTORY.md:41`, `game.toml:1,46`, `CMakeLists.txt:28` | Point at HISTORY for the dissolve; "press Start during the intro movie"; Pillow is optional; embed or drop `docs/assets/*.png`; prefix the paths. **[done (images embedded in HISTORY)]** |
 | L | ✔ `mods/preloaded/packages/.gitkeep` | repo | Remove, the directory has content now. **[done]** |
 
+## F. Added 2026-10-14
+
+| P | Item | Where | Why / how |
+|---|---|---|---|
+| M | Propose `patches/recomp-ui/0001` upstream | RetroPortingToolKit/recomp-ui, `runtime_ui_imgui.cpp` | Scroll-to-selection and the selected-row frame; drop the local patch once the pin includes it. Needs the user's GitHub account for the PR. |
+| M | Title flow after an early movie skip | game / framework | The title animation sometimes runs > 2 min before the menu, sometimes jumps to the story demo; a Start on the still title can restart the opening. Seen with and without the skip mod. Watch in the human session; if it reproduces by hand, bisect against the pre-bump pin. |
+
 ## E. Ideas from other psxrecomp titles
 
 Survey of 2026-10-14 over ~60 repositories (GitHub, retroportingtoolkit.com,

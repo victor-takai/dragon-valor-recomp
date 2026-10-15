@@ -1,0 +1,58 @@
+diff --git a/src/common/backends/imgui/runtime_ui_imgui.cpp b/src/common/backends/imgui/runtime_ui_imgui.cpp
+index faf17f8..5c7e1ec 100644
+--- a/src/common/backends/imgui/runtime_ui_imgui.cpp
++++ b/src/common/backends/imgui/runtime_ui_imgui.cpp
+@@ -60,6 +60,30 @@ void value_text(RecompRuntimeUi *ui, const RecompRuntimeUiItem *item,
+     }
+ }
+ 
++// Keyboard/pad navigation moves the selection without ImGui's own nav, so
++// nothing scrolls the page on its own: when the selected row sits outside the
++// visible area of its child window, bring it in (just after the row's
++// Selectable, which is then ImGui's "last item").
++void keep_selected_row_visible() {
++    const ImVec2 mn = ImGui::GetItemRectMin();
++    const ImVec2 mx = ImGui::GetItemRectMax();
++    const ImVec2 wmn = ImGui::GetWindowPos();
++    const ImVec2 wsz = ImGui::GetWindowSize();
++    if (mn.y < wmn.y) ImGui::SetScrollHereY(0.0f);
++    else if (mx.y > wmn.y + wsz.y) ImGui::SetScrollHereY(1.0f);
++}
++
++// The selected row's frame: the Selectable's header fill is subtle on
++// purpose (hover and selection share it), so the cursor row also gets an
++// accent outline and a bar on its left edge.
++void draw_selected_row_frame(const LauncherTheme &theme, const ImVec2 &a,
++                             const ImVec2 &b) {
++    ImDrawList *dl = ImGui::GetWindowDrawList();
++    dl->AddRect(a, b, u32(theme.accent2, 0.9f), theme.radius_sm, 0, 1.5f);
++    dl->AddRectFilled(a, ImVec2(a.x + 3.0f, b.y), u32(theme.accent2),
++                      theme.radius_sm);
++}
++
+ void draw_sections(RecompRuntimeUi *ui, const LauncherTheme &theme,
+                    bool enter_on_click) {
+     for (size_t index = 0; index < ui->section_count; ++index) {
+@@ -106,6 +130,11 @@ void draw_items(RecompRuntimeUi *ui, const LauncherTheme &theme,
+                 ui->row_index = index;
+                 ui->in_section = 1;
+             }
++            if (selected) {
++                keep_selected_row_visible();
++                draw_selected_row_frame(theme, ImGui::GetItemRectMin(),
++                                        ImGui::GetItemRectMax());
++            }
+             ImGui::PopID();
+             continue;
+         }
+@@ -150,6 +179,10 @@ void draw_items(RecompRuntimeUi *ui, const LauncherTheme &theme,
+         ImDrawList *draw = ImGui::GetWindowDrawList();
+         const ImVec2 end = ImGui::GetItemRectMax();
+         const ImVec2 next = ImGui::GetCursorScreenPos();
++        if (selected) {
++            keep_selected_row_visible();
++            draw_selected_row_frame(theme, start, end);
++        }
+         const ImU32 label_color = u32(enabled ? theme.text : theme.text_muted,
+                                       enabled ? 1.0f : 0.65f);
+         draw->AddText(ImVec2(start.x + theme.spacing_md,

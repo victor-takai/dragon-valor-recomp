@@ -345,6 +345,16 @@ the provider re-syncs its open flag (and the host pause) after every input;
 and the model keeps its rail position between opens, so the provider creates
 a fresh one on every open (the menu always starts on Display).
 
+The look is recomp-ui's shared design system (the `psx` theme tokens:
+accent colours, row height, radius), drawn by its `runtime_ui_imgui.cpp`;
+the provider draws nothing itself. Two things that drawer lacked at pin
+41c88ff are patched locally (`patches/recomp-ui/0001-…`, applied by
+`CMakeLists.txt` at configure time, see `patches/README.md`): the page did
+not scroll to follow keyboard/pad navigation, so rows past the eighth of the
+Items page were unreachable by eye, and the selected row only had the subtle
+header fill; the patch scrolls the selected row into view and frames it with
+an accent outline plus a left bar. It is meant to go upstream as a PR.
+
 The file compiles to nothing when the recomp-ui launcher is off
 (`RECOMP_LAUNCHER`). Rows that need a restart (internal resolution,
 renderer) are left out on purpose; the launcher owns them. The game's own
@@ -572,5 +582,6 @@ DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, 
 docs/STATUS.md        state, open items;  docs/DEVELOPMENT.md (this file);
 docs/AOT.md, docs/HISTORY.md, docs/BACKLOG.md
 .github/workflows/release.yml  bundled release CI (framework template)
+patches/              local submodule patches applied at configure time (README inside)
 psxrecomp/, recomp-ui/  framework and launcher submodules (pinned gitlinks)
 ```
