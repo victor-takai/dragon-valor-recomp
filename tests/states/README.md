@@ -9,7 +9,7 @@ here so it can be committed.
 | File | Slot | Where | Notes |
 |---|---|---|---|
 | `state_80012EA0_disc1_slot00.pst` | 0 | Brize Forest, first screen of gameplay after the opening cutscene (HP 030/030, MP 020/020, first enemy on screen) | Re-taken 2026-10-14 on psxrecomp f9c287f5, **PGXP hook flavour** (`PGXP` in `CMakeLists.txt`; the base-flavour state of the same day was refused), OpenBIOS, disc 1 (`SLUS-01092`), by `tests/retake_state0.py`'s route. Saves ~5 min of New Game intro per test. |
-| `state_80012EA0_disc1_slot10.pst` | 10 | Cave stage, area 1 / stage 11 (`0x800A2F18`), play time 30:27; Fire selected at level 3 and every spell at level 3 (`0x800A2E06`‥`0D` = 3), HP 32/39, MP 37/37, STR 89, Earrings 1, Val 270, gems 3 / scrolls 2, no enemy on screen | Taken by the player on 2026-10-15 (menu slot 11) on the same PGXP build, disc 1; the start point for spell tests (`press circle` casts Fire). |
+| `state_80012EA0_disc1_slot10.pst` | 10 | Town stage, area 1 / stage 7 (`0x800A2F18`); Fire selected (level 1; Mine level 1 is the other spell), HP 38/38, MP 38/38, Val 1014, Earrings 0, gems 2 / scrolls 2, magic-kill counter 0; two enemies of 15 HP in object slots 5 and 7, the nearer one in front of the hero so one or two Fire casts kill it; 15 pickups already on the floor (coins and the like, no gem or scroll) | Taken by the player on 2026-10-15 (menu slot 11, re-taken the same day in front of an enemy) on the PGXP build, disc 1. Start point for spell tests: `tests/test_scroll_cheat.py`, `press circle` casts Fire. |
 
 The file name is the runtime's own key: entry PC `80012EA0`, disc token,
 slot number. A state is whole-machine state and is only valid for the same

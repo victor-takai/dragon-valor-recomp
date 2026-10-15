@@ -157,9 +157,10 @@ same disc, and a runtime update that changes the format means re-taking
 them (`state save`, then `state keep`).
 
 A second committed state, **slot 10** (menu slot 11; `launch --state 10`),
-is a cave stage of area 1 / stage 11 with Fire selected and every spell at
-level 3 (play time 30:27, HP 32/39, MP 37/37, Earrings 1, Val 270): the
-start point for anything that needs a spell. Slots the tools write: menu
+is a town stage of area 1 / stage 7 with Fire selected (level 1) and an
+enemy of 15 HP in front of the hero (HP 38/38, MP 38/38, Earrings 0, Val
+1014): the start point for anything that needs a spell or a magic kill
+(`tests/test_scroll_cheat.py`). Slots the tools write: menu
 slot 1 (`slot00`) and menu slot 11 (`slot10`), both restored from
 `tests/states/` by `launch --state N` when missing or older, and menu slot
 12 (`slot11`, `tests/test_menu.py`, restored afterwards). Keep personal
@@ -337,11 +338,13 @@ untouched), the second kill left a scroll, and picking it up ran
 `func_80034908`: counter 2 → 0, scrolls 0 → 1, both 1 → 2, MP max 21 → 29.
 Casting a spell from a script works from the second test state (solved
 2026-10-15 with the player's save, `tests/states/` slot 10 = menu slot 11,
-`launch --state 10`): a cave stage of area 1 / stage 11, Fire selected at
-level 3, every spell at level 3, HP 32/39, MP 37/37, Earrings 1, out of
-the tutorial. There `press circle:8` (action bit `0x08`, the game's
-default Magic button) casts at once: the cost field `0x8008633E` takes the
-spell's cost minus the Earrings count and MP drops by it within 0.3 s. Why
+`launch --state 10`): a town stage of area 1 / stage 7, Fire selected at
+level 1 (Mine 1 is the only other spell), HP 38/38, MP 38/38, Earrings 0,
+an enemy of 15 HP in front of the hero, out of the tutorial. There `press
+circle:8` (action bit `0x08`, the game's default Magic button) casts at
+once: the cost field `0x8008633E` takes the spell's cost minus the
+Earrings count (Fire I costs 3) and MP drops by it within 0.3 s; one or
+two casts kill the enemy in object slot 5. Why
 slot 0 never cast: its hero knows no spell (`0x800A2D99` = 0xFF, every
 level 0) and it sits inside the first stage's tutorial (mode 8 sub 5),
 where even a forced level + selection + cast state (`0x800A2C0C` = 1,
@@ -350,10 +353,12 @@ Circle. Two things to know when measuring: the cheats package's
 `infinite_mp` tops MP up to the maximum every VBlank, so with it on the
 deduction is invisible (run the measurement with a bare `mods/state.toml`,
 as `scratchpad cast_probe7.py` does), and the top-up never clamps, so an MP
-above the maximum stays. `drop_test.py` still covers the gem only: a
-magic-kill test needs an enemy in Fire's range, and slot 10 has none on
-screen (the one live object besides the hero is slot 2 with 1 HP, not
-touched by a cast). Pad action bits measured on slot 0's configuration:
+above the maximum stays. `tests/test_scroll_cheat.py on|off` is the
+magic-kill counterpart of `test_drop_cheat.py`: from slot 10 it casts Fire
+until the enemy dies and reads the pickup pool (2026-10-15: on, the
+counter `0x800A2DB4` read 6 = scrollTable[2] − 1 before the kill and a
+scroll, id 2, lay on the floor after it; off, 0 → 1 and no scroll; 5/5
+each). Pad action bits measured on slot 0's configuration:
 Square `0x01` attack, Cross `0x82` (`0x02` jump + `0x80` magic-type
 select), Circle `0x08` cast, Triangle `0x120`, L1/L2 `0x10`, R1/R2 `0x04`,
 Start `0x40`; spell-ring struct `0x8009FAF8` (`+0` current, `+1` state,
@@ -387,8 +392,9 @@ live: every spell's script stores its MP cost through native handler 30
 (`func_80029BAC`: cost − Earrings count → `0x8008633E`) and spends it
 through handler 31 (`func_80029BDC`: MP −= that), so each Earring makes
 every cast 1 MP cheaper, as the GameFAQs guide says. The setter does not
-clamp, and the u16 underflow is real (measured 2026-10-15 on test state
-10, Fire level 3, cheats off): Earrings 0 → cost 4, MP 37 → 33; 1 → 3; 3 →
+clamp, and the u16 underflow is real (measured 2026-10-15 on the first
+version of test state 10, a cave stage with Fire at level 3, cheats off):
+Earrings 0 → cost 4, MP 37 → 33; 1 → 3; 3 →
 1; 4 → cost 0, MP unchanged; 5 → cost 65535, MP 37 → **38**; 50 → cost
 65490, MP 37 → **83** and 129 after a second cast, above the 37 maximum
 and never clamped (the HUD bar draws it as full). So with Earrings ≥ a
@@ -509,7 +515,9 @@ page and the in-game menu both write `<build>/mods/state.toml`. Verified
 2026-10-14 from slot 0 on build-debug: with the options on, HP/MP written to
 5/3 read back 30/20 within half a second; with them off the written values
 stayed; toggled from the menu, HP refilled at once. The drop options were
-verified the same way on 2026-10-15 (`tests/test_drop_cheat.py on|off`): with
+verified the same way on 2026-10-15 (`tests/test_drop_cheat.py on|off` for
+the gem from slot 0, `tests/test_scroll_cheat.py on|off` for the scroll from
+slot 10, a Fire kill): with
 `gem_every = 1` the counter read 14 before the first sword kill of slot 0 and a
 gem lay on the floor after it; with 0 the counter read 1 and a Val coin
 dropped. Limitation

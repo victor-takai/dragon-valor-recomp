@@ -98,9 +98,10 @@ has been applied since.
 `Play.bat`, `PlayDebug.bat` (`PlaySmooth.bat` was dropped on 2026-10-14: frame
 generation adds nothing at 60 Hz), `tools/dvdbg.py`, `tools/session_monitor.py`. See [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
-Automated tests start from save state slot 0 (first screen of gameplay;
-committed copy in `tests/states/`, restored into `saves/openbios/` by
-`python tools/dvdbg.py launch --state 0`). RAM addresses for HP/MP/STR/DEF, Val and
+Automated tests start from save state slot 0 (first screen of gameplay) or
+slot 10 (a town stage with Fire selected and an enemy in front, for spell
+and magic-kill tests); both are committed in `tests/states/` and restored
+into `saves/openbios/` by `python tools/dvdbg.py launch --state N`. RAM addresses for HP/MP/STR/DEF, Val and
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
 
 Mods: the project ships `dragonvalor.cheats` 1.3.0 (Infinite HP, Infinite MP,
