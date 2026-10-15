@@ -71,6 +71,14 @@ Notes:
 ## Run
 
 - `Play.bat` — player launch (`build-release`). `Play.bat -dbg` uses `build-debug`.
+  The executable is a Windows-subsystem program (the framework links Release
+  builds with `-mwindows`, `runtime.cmake`), so it opens no console of its
+  own and double-clicking it is enough; the script starts it detached and
+  closes its window at once (2026-10-15). `PLAY_WAIT=1` runs it in the
+  foreground instead (`PlayDebug.bat` does, to keep a window with the exit
+  code). The runtime never attaches to a parent console, so its stdout is
+  only seen when redirected (`tools/dvdbg.py launch` writes `dvdbg_4370.log`);
+  the exit report `psx_last_run_report.json` is the channel otherwise.
 - `PlayDebug.bat` — debug build with the debug server and the FPS readout on.
 - Frame generation (`[video] render_thread` / `frame_generation`, or
   `PSX_RENDER_THREAD=1 PSX_FRAME_GEN=1`) is of no use on this 60 Hz title and
