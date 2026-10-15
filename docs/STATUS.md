@@ -89,8 +89,8 @@ committed copy in `tests/states/`, restored into `saves/openbios/` by
 `python tools/dvdbg.py launch --state 0`). RAM addresses for HP/MP/STR/DEF, Val and
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
 
-Mods: the project ships `dragonvalor.cheats` (Infinite HP, Infinite MP, Val
-floor) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
+Mods: the project ships `dragonvalor.cheats` 1.3.0 (Infinite HP, Infinite MP,
+gem / scroll every N kills, added 2026-10-15) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
 own Start path through a function-entry hook on the pad copy) as bundled
 packages backed by plugins in `mods/plugins/`, verified on and off
 (2026-10-14). The cheats feature is on by default with every option off, so

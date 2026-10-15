@@ -7,7 +7,7 @@ Setup (see docs/DEVELOPMENT.md, "This project's package"):
      append:
         [[package]]
         id = "dragonvalor.cheats"
-        version = "1.2.0"
+        version = "1.3.0"
         [[feature]]
         package_id = "dragonvalor.cheats"
         id = "cheats"

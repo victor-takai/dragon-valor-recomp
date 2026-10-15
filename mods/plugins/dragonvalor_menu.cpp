@@ -45,6 +45,8 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_DYNRES      "dv.graphics.dynamic_resolution"
 #define DV_KEY_CHEAT_HP    "dv.cheats.infinite_hp"
 #define DV_KEY_CHEAT_MP    "dv.cheats.infinite_mp"
+#define DV_KEY_GEM_EVERY   "dv.cheats.gem_every"
+#define DV_KEY_SCROLL_EVERY "dv.cheats.scroll_every"
 #define DV_KEY_SKIP_INTRO  "dv.game.skip_intro"
 #define DV_KEY_DISC1       "dv.disc.1"
 #define DV_KEY_DISC2       "dv.disc.2"
@@ -96,6 +98,12 @@ const RecompRuntimeUiItem kExtraItems[] = {
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
     {DV_KEY_CHEAT_MP, "Cheats", "Infinite MP", "MP refills every frame. Applies at once.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
+    {DV_KEY_GEM_EVERY, "Cheats", "Gem every N sword kills",
+     "0 = game rule (15, 22, 28, ... sword kills). N = next gem after N sword kills; 1 = every kill.",
+     RECOMP_RUNTIME_UI_INT, 0, 15, 1, nullptr, 0, nullptr},
+    {DV_KEY_SCROLL_EVERY, "Cheats", "Scroll every N magic kills",
+     "0 = game rule (2, 4, 7, 12, 20 magic kills). N = next scroll after N magic kills; 1 = every kill.",
+     RECOMP_RUNTIME_UI_INT, 0, 5, 1, nullptr, 0, nullptr},
     DV_ROW_INT(DV_RAM_VAL, "Cheats", "Val", "Your gold, written at once (the HUD shows four digits).", 0, 9999, 100),
     DV_ROW_INT("dv.ram.hpmax", "Cheats", "Max HP", "Maximum HP, written at once.", 1, 999, 10),
     DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP, written at once.", 1, 999, 10),
@@ -140,6 +148,7 @@ struct Menu {
     int slot = 1;                  /* 1-based state slot shown; runtime slot = slot - 1 */
     /* mirrors of the mod selection (the catalogue is the host's) */
     int cheat_hp = 0, cheat_mp = 0, skip_intro = 0;
+    int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
 };
@@ -214,6 +223,8 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { *out = m.slot; return 1; }
     if (is(item, DV_KEY_CHEAT_HP)) { *out = m.cheat_hp; return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { *out = m.cheat_mp; return 1; }
+    if (is(item, DV_KEY_GEM_EVERY)) { *out = m.gem_every; return 1; }
+    if (is(item, DV_KEY_SCROLL_EVERY)) { *out = m.scroll_every; return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { *out = m.skip_intro; return 1; }
     if (const RamRow* r = ram_row(item)) {
         const int v = hero_loaded() ? ram_read(*r) : 0;
@@ -256,6 +267,8 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { m.slot = value; return 1; }
     if (is(item, DV_KEY_CHEAT_HP)) { m.cheat_hp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { m.cheat_mp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_mp", value ? "true" : "false"); return 1; }
+    if (is(item, DV_KEY_GEM_EVERY)) { m.gem_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", text); return 1; }
+    if (is(item, DV_KEY_SCROLL_EVERY)) { m.scroll_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", text); return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
     if (const RamRow* r = ram_row(item)) {
         if (!hero_loaded()) { recomp_runtime_ui_set_status(m.ui, "No hero loaded yet"); return 0; }
@@ -383,6 +396,8 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
     /* the committed selection is what the launcher left; mirror it */
     m.cheat_hp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", 0);
     m.cheat_mp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_mp", 0);
+    m.gem_every = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", 0);
+    m.scroll_every = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", 0);
     m.skip_intro = opt_int(DV_SKIP_PKG, DV_SKIP_FEAT, "movie", 0) ? 1 : 0;   /* 0 unless the feature is in the plan */
     if (!m.imgui) {
         IMGUI_CHECKVERSION();

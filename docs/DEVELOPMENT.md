@@ -306,6 +306,32 @@ Casting a spell from a script is still open: the player casts with Circle
 bytes written did nothing, so some spell-selection state is missing
 (see the backlog); `drop_test.py` covers the gem only.
 
+**Cheat.** `dragonvalor.cheats` 1.3.0 has `gem_every` / `scroll_every`
+(launcher Mods page and the in-game Cheats page): each VBlank the plugin
+keeps the matching kill counter at least `threshold − N`, so the game's own
+code drops on the N-th kill of that kind; 0 leaves the rule alone and the
+8 / 5 / 10 caps and the one-on-the-floor rule stay (previous section,
+*This project's package*).
+
+**Pickup ids and what they do** (the two effect routines; amounts read from
+the code, not timed in play): 0 gem, 2 scroll, 3 / 4 / 5 HP +10 / +30 /
+full, 6 / 7 / 8 MP +10 / +30 / full, 9 a 1200-frame timer at `0x80086332`
+(effect unidentified), 10 queues 5 HP of damage and gives 2 MP, 11
+nothing, 12 Val +1, 13 Val +10, 13‥29 also step the inventory count
+(`0x800A2DB8 + 2 × id`: Pendant 13 … Copper Key 29), 20‥27 raise the
+matching spell level by one (Heal … Vortex, max 3). Some inventory items
+carry a permanent bonus applied **when they are obtained** through
+`func_80028940` (reached through the function pointer at `0x8006FFF4`,
+presumably from the field module MAP.BIN): Lithograph (14) HP max +1 (cap
+100), Ring (15) MP max +1 (cap 100), Talisman (16) one row of
+`0x800115A4` (0,0,0,1,1 / 0,1,1,0,0, alternating) on the attack entries,
+Wine (17) DEF +1 (cap 999), Pepper (18) +20 to `0x80086336`
+(unidentified). The action-stage pickup handler `func_80034908` gives its
+HP max / MP max pickups +8 (cap 100) instead. Earrings (19) are the one
+count read live: `func_80029BAC` subtracts their number from a value it
+stores at `0x8008633E`. Editing a count on the menu's Items page therefore
+changes the count and nothing else (Earrings aside).
+
 ### Character and weapon (2026-10-14 status)
 
 Not swappable by a RAM poke yet. Chapter 1's hero (Clovis) is decided by the
@@ -379,7 +405,7 @@ or installed by the player through the launcher's Mods page) can carry:
 
 #### This project's package: `dragonvalor.cheats`
 
-`mods/preloaded/packages/dragonvalor.cheats/1.2.0/manifest.toml` (format 7)
+`mods/preloaded/packages/dragonvalor.cheats/1.3.0/manifest.toml` (format 7)
 declares **one feature, `cheats`, on by default with every option off**, backed
 by `mods/plugins/dragonvalor_cheats.c`. The feature stays in the session's
 plan so the in-game menu can switch its options live; with every option off
@@ -390,6 +416,8 @@ id; the C file is linked by the `target_sources` line in `CMakeLists.txt`.
 |---|---|
 | `infinite_hp` | HP ← HPmax |
 | `infinite_mp` | MP ← MPmax |
+| `gem_every` (0‥15, 0 = off) | while gems < 8 and gems + scrolls < 10: sword-kill counter `0x800A2DB0` ← max(itself, `gemTable[gems]` − N), so the game's own drop code (*How drops are decided*) leaves a gem on the N-th sword kill; after the pickup subtracts the threshold the floor is raised again |
+| `scroll_every` (0‥5, 0 = off) | the same for the magic-kill counter `0x800A2DB4`, `scrollTable[scrolls]` and scrolls < 5 |
 
 One-shot edits are not options: the in-game menu writes Val, max HP/MP,
 STR, DEF, the eight spell levels and the seventeen inventory counts straight
@@ -405,7 +433,11 @@ package into `<build>/mods/bundled/dragonvalor.cheats`; the launcher's Mods
 page and the in-game menu both write `<build>/mods/state.toml`. Verified
 2026-10-14 from slot 0 on build-debug: with the options on, HP/MP written to
 5/3 read back 30/20 within half a second; with them off the written values
-stayed; toggled from the menu, HP refilled at once. Limitation
+stayed; toggled from the menu, HP refilled at once. The drop options were
+verified the same way on 2026-10-15 (`tests/test_drop_cheat.py on|off`): with
+`gem_every = 1` the counter read 14 before the first sword kill of slot 0 and a
+gem lay on the floor after it; with 0 the counter read 1 and a Val coin
+dropped. Limitation
 shared with GameShark codes: the refill runs once per frame, so a single hit
 of at least HPmax still kills (writing HP = 0 produced GAME OVER).
 
@@ -417,7 +449,8 @@ option defaults to off. Scripted test without the launcher: set the option
 values under the `cheats` feature in `<build>/mods/state.toml` (format 2;
 values are strings under `[feature.values]`), then `tools/dvdbg.py launch
 --state 0`, `write_ram` the stat and read it back (`tests/test_cheats.py
-on|off` does exactly that).
+on|off` does exactly that; `tests/test_drop_cheat.py on|off` kills the first
+enemy of slot 0 and looks for the gem).
 
 #### In-game menu (`mods/plugins/dragonvalor_menu.cpp`)
 
@@ -431,7 +464,7 @@ Sections and rows:
 | Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
 | Audio | Volume | `host_volume_set` |
 | System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
-| Cheats | Infinite HP, Infinite MP (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
+| Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3 | bytes `0x800A2E06`‥`0D`, written at once |
 | Items | Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key: 0‥99 | u16 counts from `0x800A2DD2`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |

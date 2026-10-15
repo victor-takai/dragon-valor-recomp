@@ -5,13 +5,14 @@
 # a start. Each option is a GameShark-style "every frame" write. One-shot
 # edits (Val, max HP/MP, STR, DEF, spell levels, items) live in the in-game
 # menu's Cheats / Magic / Items pages, not here.
-# RAM addresses: docs/DEVELOPMENT.md, "Known RAM addresses".
+# RAM addresses: docs/DEVELOPMENT.md, "Known RAM addresses" and "How drops
+# are decided".
 format_version = 7
 id = "dragonvalor.cheats"
-version = "1.2.0"
+version = "1.3.0"
 name = "Dragon Valor Cheats"
 author = "DragonValorUSRecomp"
-description = "Infinite HP and infinite MP for the USA release, switchable in-game (the in-game menu also edits Val, stats, spells and items). Both off until you turn them on."
+description = "Infinite HP, infinite MP and faster gem / scroll drops for the USA release, switchable in-game (the in-game menu also edits Val, stats, spells and items). Everything off until you turn it on."
 license = "MIT"
 resolver = "declarative"
 # Cheats change RAM only; saves stay interchangeable with a stock session.
@@ -42,6 +43,28 @@ label = "Infinite MP"
 description = "Refills MP to its maximum every frame while a hero is loaded, so magic is free."
 type = "boolean"
 default = "false"
+
+[[option]]
+feature = "cheats"
+id = "gem_every"
+label = "Gem every N sword kills"
+description = "The game drops a gem after 15, 22, 28, 36, 48, 70, 105 and 200 sword kills. With N the next gem comes after N sword kills instead (1 = every kill); 0 keeps the game's rule. The game's limits stay: 8 gems, 10 gems and scrolls together, one lying on the floor at a time."
+type = "integer"
+min = 0
+max = 15
+step = 1
+default = 0
+
+[[option]]
+feature = "cheats"
+id = "scroll_every"
+label = "Scroll every N magic kills"
+description = "The game drops a scroll after 2, 4, 7, 12 and 20 magic kills. With N the next scroll comes after N magic kills instead (1 = every kill); 0 keeps the game's rule. The game's limits stay: 5 scrolls, 10 gems and scrolls together, one lying on the floor at a time."
+type = "integer"
+min = 0
+max = 5
+step = 1
+default = 0
 
 [[plugin]]
 feature = "cheats"
