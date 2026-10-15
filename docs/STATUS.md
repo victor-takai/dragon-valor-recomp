@@ -101,7 +101,9 @@ volume, saves and loads states, changes disc and returns to the launcher.
 The Namco logo stays: shortening it breaks the title's loads. Title defaults
 measured the same day: mipmapped 3D textures with 4 anisotropic taps ship in `game.toml` (a
 90 ms audio buffer was tried and reverted: choppy sound on the title screen); FXAA and CD Speed do not help here
-(see `DEVELOPMENT.md`, *Video and audio defaults*). The runtime is the PGXP
+(see `DEVELOPMENT.md`, *Video and audio defaults*); linear filtering of the
+final image and nearest texture filtering are the written-out defaults (the
+player's choice; `Play.bat` no longer forces xBR). The runtime is the PGXP
 hook flavour and PGXP ships on by default (66 % of vertices corrected, 60
 fps kept; `DEVELOPMENT.md`, *PGXP*). The
 framework's HD texture dumper works on this game once a stage reloads

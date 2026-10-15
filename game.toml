@@ -73,6 +73,13 @@ internal_resolution = "1080p"
 # visible in a static Brize Forest shot, it acts against shimmer in motion.
 texture_lod = "mipmap"
 anisotropic_filtering = 4
+# Shipped filters (player's request, 2026-10-14): the final image is scaled
+# with linear filtering (the in-game menu's "Linear filter" row, on), and the
+# game's own textures stay nearest, the native look. Bilinear and xBR remain
+# one row away in the in-game menu (Graphics > Texture filtering) for the run.
+# Both match the framework defaults; written out so the choice is visible.
+antialiasing = true
+texture_filtering = "nearest"
 # PGXP ships on by default through the overriding psx.enhancement.pgxp manifest
 # in mods/preloaded (the runtime is the PGXP hook flavour); the mod is the one
 # switch, so the [video] geometry keys and the launcher's own row stay out.

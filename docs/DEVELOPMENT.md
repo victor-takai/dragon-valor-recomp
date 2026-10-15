@@ -420,7 +420,13 @@ moves on; `--off` checks the movie keeps playing.
 
 `game.toml` ships `texture_lod = "mipmap"` with `anisotropic_filtering = 4`
 and keeps `[audio] buffer_ms` at the 180 ms default; `antialiasing_mode`
-stays off and the CD Speed mod stays off. How that was decided, on build-debug from slot 0:
+stays off and the CD Speed mod stays off. The picture filters are written
+out too (the player's choice, 2026-10-14): `antialiasing = true`, linear
+filtering of the final image (the in-game menu's *Linear filter* row), and
+`texture_filtering = "nearest"`, the game's own textures keep their texels
+(bilinear and xBR are one row away in the menu, Graphics > Texture filtering,
+for the run). Both are the framework defaults; `Play.bat` no longer forces
+xBR. How the rest was decided, on build-debug from slot 0:
 
 - **Mipmap + anisotropic** (live `texture_lod mode=1 aniso=8` at 1440p):
   60.0 fps kept; the far-ground edge energy in a static Brize Forest shot
@@ -505,12 +511,14 @@ mod is a texture replacement, not a string patch.
 Without any pack, the renderer's own options already sharpen the picture:
 `game.toml` now ships `internal_resolution = "1080p"` as the per-title
 default (the launcher's Settings → Display row and the player's
-`settings.toml` outrank it), and `Play.bat` sets `PSX_TEXTURE_FILTER=3` for
-xBR texture filtering. xBR cannot be chosen in the launcher: recomp-ui clamps
-the filter to nearest/bilinear on every start and the runtime persists that
-to `settings.toml`, so a hand-edit lasts one Play; the env override is read
-after the launcher and wins for the run (OpenGL only; it acts wherever a
-texel covers two or more output pixels). Compared 2026-10-14 at 1080p with
+`settings.toml` outrank it). Texture filtering ships as nearest (the
+player's choice, `game.toml`); xBR is a per-run choice: the in-game menu's
+Graphics > Texture filtering row, or `PSX_TEXTURE_FILTER=3` in the
+environment (read after the launcher). It cannot be made to stick through
+the launcher, which clamps the filter to nearest/bilinear on every start and
+persists that to `settings.toml` (`Play.bat` forced the env override until
+2026-10-14). OpenGL only; it acts wherever a texel covers two or more output
+pixels. Compared 2026-10-14 at 1080p with
 the live `texture_filter` command (modes 0/1/3) and `present_shot`: nearest
 keeps the blocky texels, bilinear blurs them, xBR keeps flat areas crisp and
 removes the staircase on diagonals. Dumps keep accumulating across normal
