@@ -7,8 +7,9 @@
  * model and its Dear ImGui presentation (recomp_runtime_ui.h): sections, rows,
  * navigation, status line. This file is the glue: it registers the provider
  * (static initializer, before the game window opens), opens on Escape or
- * Select+Start, routes keyboard/gamepad input into the model, and maps the
- * rows to the host.
+ * Select+Start, routes keyboard/gamepad input into the model, feeds the mouse
+ * to ImGui (hover selects, click activates, right button = back, wheel
+ * scrolls) and maps the rows to the host.
  *
  * Threads: attach/event/is_open/set_open run on the main thread, draw on the
  * thread that owns the GL context (the main thread unless the render thread
@@ -66,24 +67,24 @@ const RamRow kRamRows[] = {
     {"dv.ram.magic2", 0x800A2E08u, 1}, {"dv.ram.magic3", 0x800A2E09u, 1},
     {"dv.ram.magic4", 0x800A2E0Au, 1}, {"dv.ram.magic5", 0x800A2E0Bu, 1},
     {"dv.ram.magic6", 0x800A2E0Cu, 1}, {"dv.ram.magic7", 0x800A2E0Du, 1},
-    {"dv.ram.item0", 0x800A2DD2u, 2},  {"dv.ram.item1", 0x800A2DD4u, 2},
-    {"dv.ram.item2", 0x800A2DD6u, 2},  {"dv.ram.item3", 0x800A2DD8u, 2},
-    {"dv.ram.item4", 0x800A2DDAu, 2},  {"dv.ram.item5", 0x800A2DDCu, 2},
-    {"dv.ram.item6", 0x800A2DDEu, 2},  {"dv.ram.item7", 0x800A2DE0u, 2},
-    {"dv.ram.item8", 0x800A2DE2u, 2},  {"dv.ram.item9", 0x800A2DE4u, 2},
-    {"dv.ram.item10", 0x800A2DE6u, 2}, {"dv.ram.item11", 0x800A2DE8u, 2},
-    {"dv.ram.item12", 0x800A2DEAu, 2}, {"dv.ram.item13", 0x800A2DECu, 2},
-    {"dv.ram.item14", 0x800A2DEEu, 2}, {"dv.ram.item15", 0x800A2DF0u, 2},
-    {"dv.ram.item16", 0x800A2DF2u, 2},
+    {"dv.ram.item0", 0x800A2DD4u, 2},  {"dv.ram.item1", 0x800A2DD6u, 2},
+    {"dv.ram.item2", 0x800A2DD8u, 2},  {"dv.ram.item3", 0x800A2DDAu, 2},
+    {"dv.ram.item4", 0x800A2DDCu, 2},  {"dv.ram.item5", 0x800A2DDEu, 2},
+    {"dv.ram.item6", 0x800A2DF0u, 2},  {"dv.ram.item7", 0x800A2DF2u, 2},
+    {"dv.ram.item8", 0x800A2DF4u, 2},  {"dv.ram.item9", 0x800A2DF6u, 2},
+    {"dv.ram.item10", 0x800A2DF8u, 2}, {"dv.ram.item11", 0x800A2DFAu, 2},
+    {"dv.ram.item12", 0x800A2DFCu, 2}, {"dv.ram.item13", 0x800A2DFEu, 2},
+    {"dv.ram.item14", 0x800A2E00u, 2}, {"dv.ram.item15", 0x800A2E02u, 2},
+    {"dv.ram.item16", 0x800A2E04u, 2},
 };
 const char* const kMagicChoices[] = {"Not learned", "Level 1", "Level 2", "Level 3"};
 
 #define DV_ROW_INT(key, section, label, desc, lo, hi, step) \
     {key, section, label, desc, RECOMP_RUNTIME_UI_INT, lo, hi, step, nullptr, 0, nullptr}
-#define DV_ROW_MAGIC(key, label) \
-    {key, "Magic", label, "Spell level, written to the game at once.", RECOMP_RUNTIME_UI_CHOICE, 0, 3, 1, kMagicChoices, 4, nullptr}
-#define DV_ROW_ITEM(key, label) \
-    DV_ROW_INT(key, "Items", label, "How many you carry, written at once.", 0, 99, 1)
+#define DV_ROW_MAGIC(key, label, desc) \
+    {key, "Magic", label, desc, RECOMP_RUNTIME_UI_CHOICE, 0, 3, 1, kMagicChoices, 4, nullptr}
+#define DV_ROW_ITEM(key, label, desc) \
+    DV_ROW_INT(key, "Items", label, desc, 0, 99, 1)
 
 const RecompRuntimeUiItem kExtraItems[] = {
     {DV_KEY_TEXFILTER, "Graphics", "Texture filtering",
@@ -94,34 +95,46 @@ const RecompRuntimeUiItem kExtraItems[] = {
     {DV_KEY_DYNRES, "Graphics", "Dynamic resolution",
      "Lower the internal resolution when a frame runs late.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_CHEAT_HP, "Cheats", "Infinite HP", "HP refills every frame. Applies at once.",
+    {DV_KEY_CHEAT_HP, "Cheats", "Infinite HP", "HP never drops.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_CHEAT_MP, "Cheats", "Infinite MP", "MP refills every frame. Applies at once.",
+    {DV_KEY_CHEAT_MP, "Cheats", "Infinite MP", "MP never drops.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
     {DV_KEY_GEM_EVERY, "Cheats", "Gem every N sword kills",
-     "0 = game rule (15, 22, 28, ... sword kills). N = next gem after N sword kills; 1 = every kill.",
+     "0 = game rule; N = one every N kills.",
      RECOMP_RUNTIME_UI_INT, 0, 15, 1, nullptr, 0, nullptr},
     {DV_KEY_SCROLL_EVERY, "Cheats", "Scroll every N magic kills",
-     "0 = game rule (2, 4, 7, 12, 20 magic kills). N = next scroll after N magic kills; 1 = every kill.",
+     "0 = game rule; N = one every N kills.",
      RECOMP_RUNTIME_UI_INT, 0, 5, 1, nullptr, 0, nullptr},
-    DV_ROW_INT(DV_RAM_VAL, "Cheats", "Val", "Your gold, written at once (the HUD shows four digits).", 0, 9999, 100),
-    DV_ROW_INT("dv.ram.hpmax", "Cheats", "Max HP", "Maximum HP, written at once.", 1, 999, 10),
-    DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP, written at once.", 1, 999, 10),
-    DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power, spread over the game's five hidden hit values so damage really changes.", 0, 999, 5),
-    DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense shown on the Status screen, written at once.", 0, 999, 5),
-    DV_ROW_MAGIC("dv.ram.magic0", "Heal"),    DV_ROW_MAGIC("dv.ram.magic1", "Defense"),
-    DV_ROW_MAGIC("dv.ram.magic2", "Fire"),    DV_ROW_MAGIC("dv.ram.magic3", "Ice"),
-    DV_ROW_MAGIC("dv.ram.magic4", "Thunder"), DV_ROW_MAGIC("dv.ram.magic5", "Mine"),
-    DV_ROW_MAGIC("dv.ram.magic6", "Stealth"), DV_ROW_MAGIC("dv.ram.magic7", "Vortex"),
-    DV_ROW_ITEM("dv.ram.item0", "Pendant"),     DV_ROW_ITEM("dv.ram.item1", "Lithograph"),
-    DV_ROW_ITEM("dv.ram.item2", "Ring"),        DV_ROW_ITEM("dv.ram.item3", "Talisman"),
-    DV_ROW_ITEM("dv.ram.item4", "Wine"),        DV_ROW_ITEM("dv.ram.item5", "Pepper"),
-    DV_ROW_ITEM("dv.ram.item6", "Earrings"),    DV_ROW_ITEM("dv.ram.item7", "Bracelet"),
-    DV_ROW_ITEM("dv.ram.item8", "Horn"),        DV_ROW_ITEM("dv.ram.item9", "Perfume"),
-    DV_ROW_ITEM("dv.ram.item10", "Tea"),        DV_ROW_ITEM("dv.ram.item11", "Mask"),
-    DV_ROW_ITEM("dv.ram.item12", "Silver Key"), DV_ROW_ITEM("dv.ram.item13", "Gold Key"),
-    DV_ROW_ITEM("dv.ram.item14", "Harp"),       DV_ROW_ITEM("dv.ram.item15", "Tiara"),
-    DV_ROW_ITEM("dv.ram.item16", "Copper Key"),
+    DV_ROW_INT(DV_RAM_VAL, "Cheats", "Val", "Your gold.", 0, 9999, 100),
+    DV_ROW_INT("dv.ram.hpmax", "Cheats", "Max HP", "Maximum HP.", 1, 999, 10),
+    DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP.", 1, 999, 10),
+    DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power.", 0, 999, 5),
+    DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense.", 0, 999, 5),
+    DV_ROW_MAGIC("dv.ram.magic0", "Heal", "Recovers HP and damages undead."),
+    DV_ROW_MAGIC("dv.ram.magic1", "Defense", "Raises defense and weapon range."),
+    DV_ROW_MAGIC("dv.ram.magic2", "Fire", "Fireball; also ignites devices."),
+    DV_ROW_MAGIC("dv.ram.magic3", "Ice", "Ice attack; also freezes flame platforms."),
+    DV_ROW_MAGIC("dv.ram.magic4", "Thunder", "Four thunder strikes; also electrifies devices."),
+    DV_ROW_MAGIC("dv.ram.magic5", "Mine", "Three controlled mines."),
+    DV_ROW_MAGIC("dv.ram.magic6", "Stealth", "Invisibility; enemies stop attacking."),
+    DV_ROW_MAGIC("dv.ram.magic7", "Vortex", "Traps enemies in a controlled vortex."),
+    DV_ROW_ITEM("dv.ram.item0", "Pendant", "Max HP +1 each, applied when found."),
+    DV_ROW_ITEM("dv.ram.item1", "Lithograph", "Max MP +1 each, applied when found."),
+    DV_ROW_ITEM("dv.ram.item2", "Ring", "Attack power up, applied when found."),
+    DV_ROW_ITEM("dv.ram.item3", "Talisman", "Defense +1 each, applied when found."),
+    DV_ROW_ITEM("dv.ram.item4", "Bracelet", "Reduces fatigue, applied when found."),
+    DV_ROW_ITEM("dv.ram.item5", "Earrings", "Each one makes every spell cost 1 MP less."),
+    DV_ROW_ITEM("dv.ram.item6", "Pepper", "Spice, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item7", "Wine", "Drink, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item8", "Horn", "Handmade item, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item9", "Perfume", "Scented herb, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item10", "Tea", "Special item, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item11", "Mask", "Handmade item, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item12", "Tiara", "Jeweled item, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item13", "Harp", "Royal instrument, traded at shops."),
+    DV_ROW_ITEM("dv.ram.item14", "Gold Key", "Opens locked doors."),
+    DV_ROW_ITEM("dv.ram.item15", "Silver Key", "Opens locked doors."),
+    DV_ROW_ITEM("dv.ram.item16", "Copper Key", "Opens locked doors."),
     {DV_KEY_SKIP_INTRO, "Game", "Skip intro movie",
      "Press Start for you when the intro movie starts. Takes effect at the next start.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
@@ -151,6 +164,9 @@ struct Menu {
     int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
+    /* mouse: window coordinates are scaled to the framebuffer ImGui draws in */
+    SDL_Window* window = nullptr;
+    int fb_w = 0, fb_h = 0;
 };
 
 Menu g_menu;
@@ -481,10 +497,11 @@ bool create_ui(Menu& m) {
 /* ---- provider -------------------------------------------------------------- */
 int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* host) {
     Menu& m = *static_cast<Menu*>(ctx);
-    (void)sdl_window; (void)gl_context;
+    (void)gl_context;
     std::lock_guard<std::mutex> lk(m.mu);
     if (!host || host->abi_version != PSX_MENU_ABI_VERSION) return 0;
     m.host = host;
+    m.window = static_cast<SDL_Window*>(sdl_window);
     dv_settings_sync(m);               /* the launcher's volume stepper may have moved it */
     if (!m.ui && !create_ui(m)) return 0;
     /* the committed selection is what the launcher left; mirror it */
@@ -617,6 +634,55 @@ int p_event(void* ctx, const void* sdl_event) {
         return 1;   /* the game never sees keys while the menu is up */
     }
 #if defined(PSX_SDL3)
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL: {
+        const bool motion = ev->type == SDL_EVENT_MOUSE_MOTION;
+        const bool wheel = ev->type == SDL_EVENT_MOUSE_WHEEL;
+        const bool button = ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev->type == SDL_EVENT_MOUSE_BUTTON_UP;
+        const bool down = ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+        const float mx = motion ? ev->motion.x : button ? ev->button.x : ev->wheel.mouse_x;
+        const float my = motion ? ev->motion.y : button ? ev->button.y : ev->wheel.mouse_y;
+        const int which = button ? ev->button.button : 0;
+        const float wx = wheel ? ev->wheel.x : 0.0f, wy = wheel ? ev->wheel.y : 0.0f;
+#else
+    case SDL_MOUSEMOTION:
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+    case SDL_MOUSEWHEEL: {
+        const bool motion = ev->type == SDL_MOUSEMOTION;
+        const bool wheel = ev->type == SDL_MOUSEWHEEL;
+        const bool button = ev->type == SDL_MOUSEBUTTONDOWN || ev->type == SDL_MOUSEBUTTONUP;
+        const bool down = ev->type == SDL_MOUSEBUTTONDOWN;
+        int ix = 0, iy = 0;
+        if (wheel) SDL_GetMouseState(&ix, &iy);
+        const float mx = motion ? (float)ev->motion.x : button ? (float)ev->button.x : (float)ix;
+        const float my = motion ? (float)ev->motion.y : button ? (float)ev->button.y : (float)iy;
+        const int which = button ? ev->button.button : 0;
+        const float wx = wheel ? (float)ev->wheel.x : 0.0f, wy = wheel ? (float)ev->wheel.y : 0.0f;
+#endif
+        /* The game never sees the mouse while the menu is up; closed, it is
+         * not ours (the runtime's own mouse policy applies). */
+        if (!m.open || !m.imgui) return 0;
+        ImGuiIO& io = ImGui::GetIO();
+        int ww = 0, wh = 0;
+        if (m.window) SDL_GetWindowSize(m.window, &ww, &wh);
+        const float sx = (ww > 0 && m.fb_w > 0) ? (float)m.fb_w / (float)ww : 1.0f;
+        const float sy = (wh > 0 && m.fb_h > 0) ? (float)m.fb_h / (float)wh : 1.0f;
+        io.AddMousePosEvent(mx * sx, my * sy);
+        if (button) {
+            if (which == SDL_BUTTON_LEFT) io.AddMouseButtonEvent(0, down);
+            else if (which == SDL_BUTTON_RIGHT && down) {
+                /* right button = Back, like Escape / Circle */
+                (void)recomp_runtime_ui_handle_input(m.ui, RECOMP_RUNTIME_UI_INPUT_BACK, 1, 0);
+                sync_open_locked(m);
+            } else if (which == SDL_BUTTON_MIDDLE) io.AddMouseButtonEvent(2, down);
+        }
+        if (wheel) io.AddMouseWheelEvent(wx, wy);
+        return 1;
+    }
+#if defined(PSX_SDL3)
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
     case SDL_EVENT_GAMEPAD_BUTTON_UP: {
         const bool down = ev->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
@@ -666,6 +732,7 @@ void p_draw(void* ctx, int width, int height) {
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2((float)width, (float)height);
     io.DeltaTime = 1.0f / 60.0f;
+    m.fb_w = width; m.fb_h = height;
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
     recomp_runtime_ui_render_imgui(m.ui);

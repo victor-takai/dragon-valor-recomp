@@ -44,6 +44,8 @@ Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
    spell levels, items), texture
    filtering, scanlines, fullscreen, volume, save/load state, disc change,
    back to the launcher. Arrows / D-pad move, Enter / Cross
+   selects, Escape / Circle goes back; the mouse works too (hover, click,
+   wheel, right button = back). Arrows / D-pad move, Enter / Cross
    selects, Escape / Circle goes back. Every row is remembered between
 runs (video rows in `settings.toml`, mods in `mods/state.toml`, volume and
 the menu's own look in `dragonvalor_settings.toml`, all next to the exe).

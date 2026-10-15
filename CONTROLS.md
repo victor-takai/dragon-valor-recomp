@@ -54,7 +54,7 @@ jump) are the game's; the first stage's tutorial boxes introduce them.
 
 | Key / pad | Action |
 |---|---|
-| `Escape`, or **Select + Start** on the pad | In-game menu: pause, cheats, texture filtering, scanlines, fullscreen, volume, save/load state, disc change, back to the launcher. Arrows / D-pad move, `Enter` / Cross selects, `Escape` / Circle goes back. |
+| `Escape`, or **Select + Start** on the pad | In-game menu: pause, cheats, texture filtering, scanlines, fullscreen, volume, save/load state, disc change, back to the launcher. Arrows / D-pad move, `Enter` / Cross selects, `Escape` / Circle goes back; the mouse works too (hover selects, click activates, wheel scrolls, right button goes back). |
 | `F7` / `F8` | Save state / rewind |
 | `Tab` (hold), `F9` | Turbo |
 | `Alt` + `Enter` | Fullscreen |

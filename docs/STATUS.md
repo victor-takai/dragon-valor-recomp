@@ -60,6 +60,10 @@ the native 60 Hz version.
   regenerated code). `tests/test_widescreen.py on|off` 5/5 and 4/4; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
+- **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
+  wheel, right button = back. Shorter row texts; Magic and Items rows carry
+  the game's own descriptions; the Items page now edits the right slots
+  (the table was one off for everything but Earrings).
 - **Every menu row is remembered** (2026-10-15): video rows through the
   launcher's `settings.toml`, mods through `mods/state.toml`; the volume
   (which the framework never saved) and the menu's own rows (Pause in menu,
@@ -125,8 +129,7 @@ after 15 sword kills (then 22, 28, …), a scroll after 2 magic kills (then
 4, 7, 12, 20), both confirmed live on 2026-10-15, the gem by script and
 the scroll by the player on the pad (`DEVELOPMENT.md`, *How drops
 are decided*). Items (code reading, 2026-10-15): Earrings take 1 MP off
-every cast each, Pepper feeds a counter nothing reads, and Lithograph /
-Ring / Wine / Talisman give their bonus when obtained, not while carried
+every cast each, the Bracelet feeds a fatigue counter nothing in the action module reads, and Pendant / Lithograph / Ring / Talisman give their bonus when obtained, not while carried
 (`DEVELOPMENT.md`, *Pickup ids and what they do*).
 The Namco logo stays: shortening it breaks the title's loads. Title defaults
 measured the same day: mipmapped 3D textures with 4 anisotropic taps ship in `game.toml` (a

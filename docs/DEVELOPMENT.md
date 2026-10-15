@@ -197,20 +197,20 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x800A2DA0` / `0x800A2DA4` | u32 ×2 | Lifetime sword / magic kills of the hero (stepped with the above, read by nothing) | `func_80025650` |
 | `0x8008633C` | u8 | Non-zero suppresses every drop | `func_800187D4` (R), pc `0x800377C8` (W) |
 | `0x8008633E` | u16 | MP cost of the spell being cast: the spell's script stores it through native handler 30 (`func_80029BAC`: cost − Earrings count) and spends it through handler 31 (`func_80029BDC`: MP −= it). The setter does not clamp at 0 | `func_80029BAC` (W), `func_80029BDC` (R) |
-| `0x80086336` | u16 | "Pepper points": +20 per Pepper obtained, −20 on the undo. Read by nothing in the EXE or the five BIN modules, and no data on disc 1 holds the address: a trade good, as the guides say | `func_80028940`, `func_80034908`, `func_80029098` (W) |
-| `0x80086318` | struct | Stage / HUD state block the rows above belong to: `+0x06` / `+0x08` HP / MP mirrors, `+0x0C`‥`+0x14` attack table, `+0x1A` the 1200-frame timer of pickup 9, `+0x1E` Pepper points, `+0x22` a mode byte (0 in play, 1 once the HUD's enemy counter is up), `+0x24` drop flag, `+0x26` spell cost | |
+| `0x80086336` | u16 | +20 per **Bracelet** obtained (−20 on the undo, `func_80029098`); the game's own text for the Bracelet is "Reduces fatigue". Read by nothing in the EXE or the five BIN modules, and no data on disc 1 holds the address, so whatever fatigue is, the action module does not drive it from here. (Attributed to Pepper until 2026-10-15 through the one-slot-off item table below.) | `func_80028940` pc `0x80028F88`, `FloorPickup` pc `0x80035434` |
+| `0x80086318` | struct | Stage / HUD state block the rows above belong to: `+0x06` / `+0x08` HP / MP mirrors, `+0x0C`‥`+0x14` attack table, `+0x1A` the 1200-frame timer of pickup 9, `+0x1E` the Bracelet (fatigue) counter, `+0x22` a mode byte (0 in play, 1 once the HUD's enemy counter is up), `+0x24` drop flag, `+0x26` spell cost | |
 | `0x800A2D99` | u8 | Selected spell of the hero (0xFF = none; slot 0 has none and every level 0). `func_80037D94` SetCurrentSpell copies it into the HUD icon state (`0x800A2C0C` = 1, `0x800A2C10` = (3 × spell + level) × 2 + 15) | `func_80037D94`, ACTION.BIN `0x800BFFE4` |
 | `0x8009FAF8` | struct | Spell ring of the action HUD (ACTION.BIN `0x800BFFE4`, pointer at `0x800C5E48`): `+0` current spell, `+1` state, `+2` ring index (u16; the D-pad moves it, action `0x100` confirms, action `0x80` selects), `+0xC` countdown | ACTION.BIN |
 | `0x800A2F64` / `0x800A2F68` / `0x800A2F80` | u32 ×3 | Pad words: held / newly pressed / repeat. High half = raw pad bits (D-pad 0x10 Up, 0x20 Right, 0x40 Down, 0x80 Left; 0x1000 Triangle … 0x8000 Square), low half = game actions after the button configuration. Slot 0's configuration, measured with `press` on 2026-10-15: Square 0x01 (attack), Circle 0x08, Cross 0x82 (0x80 = magic), Triangle 0x120, L1 / L2 0x10, R1 / R2 0x04, Start 0x40, Select nothing | ACTION.BIN, MAP.BIN |
 | `0x800A6A98` | struct ×32 | Pickup objects lying on the floor, 0x250 bytes each: `+0x238` counts down to 0 (0 = free slot, the drop vanishes), `+0x244` pickup id | `func_80034024` (spawn), `func_80034908` (pickup), `func_80035A5C` |
-| `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 12 one Val, 13 ten Val, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up; index 12 is the Val field itself); ids from 13 on are the inventory list below | `func_80034908`, `func_80028940` |
+| `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 12 one Val, 13 ten Val, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up; index 12 is the Val field itself); ids from 14 on are the inventory list below, 13 is the ten-Val coin and 20‥27 count the spell books | `func_80034908`, `func_80028940` |
 | `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
 | `0x800A2D9C` | u32 | Play time in frames (Load list shows it as h:mm; the GameFAQs save holds 5,594,735 = 25:54) | |
 | `0x800A2DD0` | u16 | Val (gold; Status shows 4 digits, 10000 reads 0000) | `func_8004BF84` |
 | `0x800A2E06`‥`0D` | u8 ×8 | Magic levels: Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex (0 = not learned, 1‥3 = LEVEL) | |
 | `0x800A2E18`‥`1A` | u8 ×3 | Three flags that are 0 in slot 0 and 1 in the post-clear GameFAQs save (gallery / cleared-path candidates, unconfirmed) | |
 
-| `0x800A2DD2`‥ | u16 ×N | Inventory counts, one per item type: Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key, … (accessories, trade goods, keys; **no weapons**) | |
+| `0x800A2DD4`‥`0x800A2DDE`, `0x800A2DF0`‥`0x800A2E04` | u16 ×17 | Inventory counts in the Status screen's grid order: Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings (`0x800A2DD4`‥`DE`), then Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key (`0x800A2DF0`‥`0x800A2E04`); `0x800A2DE0`‥`EE` between them count the eight spell books (ids 20‥27). Verified 2026-10-15 by setting each slot to 1 and reading the Status screen, which also gave the item texts the in-game menu shows (accessories, trade goods, keys; **no weapons**). Until that day the table started at `0x800A2DD2` and named the slots one off, so the menu's Items page edited the wrong count for everything but Earrings; Almar's CodeBreaker list had it right. | |
 | `0x800A2F18` / `0x800A2F1A` | u16 ×2 | Area and stage id of the stage to load (DEMO.BIN writes 0/6‥9 and 7/31‥34 before calling `func_8003A9B0`); slot 0 is 0/2 | `func_80025264` (W), `func_80038094`, … |
 | `0x8008634C` / `0x8008634D` | u8 ×2 | Game mode and sub-state: 8 = action stage, 10 = loading, 17 = attract demo | `func_8004BF84`, `func_80025264`, … |
 | `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields. Objects are 0x250 bytes apart: slot 0 is the hero, enemies sit in later slots with the same layout (slot 0's first screen: the enemy is slot 5, `0x8008B070`, HP 15/15 at `+0xCE`). Enemy fields of the drop rule: `+0x7F` drop class (0 = never drops), `+0xBC` kind of the hit that last touched it (0‥4 sword, 5‥27 magic, copied from the hit object's `+0xC0`; 255 before any hit), `+0xC` kill credit (2 sword, 1 magic, 3 none) | |
@@ -232,10 +232,10 @@ declarative patches had no source. The CodeBreaker list on Almar's Guides
 table above for HP/HPmax/MP/MPmax (`8008A5AE`‥`B4`), STR/DEF
 (`8008A5B6`/`B8`), Val (`800A2DD0`), the gem/scroll counters (`800A2DB8`,
 `800A2DBC`; it calls id 1 at `800A2DBA` the Chalice, a pickup not seen yet),
-the spell levels (`300A2E06`‥`0D`) and Earrings (`800A2DDE`). Its other
-item addresses are shifted by one or more slots against the pickup-id
-mapping the code uses (`0x800A2DB8 + 2 × id`, *Pickup ids and what they
-do*), so the table above wins. "Kill bosses in one hit" writes 0 to
+the spell levels (`300A2E06`‥`0D`) and **every item** (`800A2DD4`‥`DE`,
+`800A2DF0`‥`800A2E04`): the Status screen confirmed its item layout on
+2026-10-15 and corrected ours, which had started one slot early (*Pickup
+ids and what they do*). "Kill bosses in one hit" writes 0 to
 `8008B13E`, object slot 5's HP (`0x8008B070 + 0xCE`): the code assumes the
 boss sits in that slot. Every one of them is a per-frame RAM write
 (GameShark types 80/30), which a package `[[patch]]` cannot express (it
@@ -384,18 +384,25 @@ code drops on the N-th kill of that kind; 0 leaves the rule alone and the
 the code, not timed in play): 0 gem, 2 scroll, 3 / 4 / 5 HP +10 / +30 /
 full, 6 / 7 / 8 MP +10 / +30 / full, 9 a 1200-frame timer at `0x80086332`
 (effect unidentified), 10 queues 5 HP of damage and gives 2 MP, 11
-nothing, 12 Val +1, 13 Val +10, 13‥29 also step the inventory count
-(`0x800A2DB8 + 2 × id`: Pendant 13 … Copper Key 29), 20‥27 raise the
-matching spell level by one (Heal … Vortex, max 3). Some inventory items
+nothing, 12 Val +1, 13 Val +10, 13‥38 also step a counter at
+`0x800A2DB8 + 2 × id` (13 the ten-Val coin, 14 Pendant, 15 Lithograph, 16
+Ring, 17 Talisman, 18 Bracelet, 19 Earrings, 20‥27 the spell books, 28
+Pepper, 29 Wine, 30 Horn, 31 Perfume, 32 Tea, 33 Mask, 34 Tiara, 35 Harp,
+36 Gold Key, 37 Silver Key, 38 Copper Key: the Status screen's grid order,
+confirmed 2026-10-15), 20‥27 raise the matching spell level by one (Heal …
+Vortex, max 3). Some inventory items
 carry a permanent bonus applied **when they are obtained** through
 `func_80028940` (reached through the function pointer at `0x8006FFF4`,
-presumably from the field module MAP.BIN): Lithograph (14) HP max +1 (cap
-100), Ring (15) MP max +1 (cap 100), Talisman (16) one row of
+presumably from the field module MAP.BIN): Pendant (14) HP max +1 (cap
+100), Lithograph (15) MP max +1 (cap 100), Ring (16) one row of
 `0x800115A4` (0,0,0,1,1 / 0,1,1,0,0, alternating) on the attack entries,
-Wine (17) DEF +1 (cap 999), Pepper (18) +20 to `0x80086336`, a counter
-nothing reads (the guides call Pepper a trade good; the code agrees: no
-reader in the EXE or the five BIN modules, no data on the disc holds the
-address). The action-stage pickup handler `func_80034908` gives its HP max
+Talisman (17) DEF +1 (cap 999), Bracelet (18) +20 to `0x80086336` (the
+game calls it "Reduces fatigue"; no reader in the EXE or the five BIN
+modules, no data on the disc holds the address). The four bonuses match
+the Status screen's own texts word for word (Increases H.P. by 1,
+Increases M.P. by 1, Increases attack power, Increases defense by 1); the
+trade goods (Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp) and the
+keys carry no bonus. The action-stage pickup handler `func_80034908` gives its HP max
 / MP max pickups +8 (cap 100) instead. Earrings (19) are the one count read
 live: every spell's script stores its MP cost through native handler 30
 (`func_80029BAC`: cost − Earrings count → `0x8008633E`) and spends it
@@ -548,7 +555,18 @@ enemy of slot 0 and looks for the gem).
 
 Escape, or Select+Start on the pad, opens a menu over the game; the guest
 and audio pause while it is up (the "Pause in menu" row turns that off).
-Sections and rows:
+Keyboard: arrows, Enter / Space, Backspace, Escape. Pad: D-pad, Cross,
+Circle, Start closes. **Mouse (2026-10-15):** the provider feeds SDL mouse
+events to ImGui while the menu is open (coordinates scaled from window to
+framebuffer), so hovering selects, a click activates a row or a section, the
+-/+ buttons step, the wheel scrolls and the right button goes back; closed,
+the mouse is not touched. Checked with the debug server's `host_mouse x= y=`
+(`scratchpad mouse_probe.py`): a click on System entered the page, two
+clicks on the State slot `+` stepped 1 → 3, clicks on Audio and Display
+switched pages. Row descriptions were shortened the same day on the
+player's request, and the Magic and Items rows carry the game's own texts
+(read off the Status screen with every spell at level 3 and every item at
+1, `scratchpad status_all.py` / `status_items2.py`). Sections and rows:
 
 | Section | Rows | Applied through |
 |---|---|---|
@@ -557,8 +575,8 @@ Sections and rows:
 | Audio | Volume | `host_volume_set` |
 | System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
 | Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
-| Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3 | bytes `0x800A2E06`‥`0D`, written at once |
-| Items | Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key: 0‥99 | u16 counts from `0x800A2DD2`, written at once |
+| Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |
+| Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu
