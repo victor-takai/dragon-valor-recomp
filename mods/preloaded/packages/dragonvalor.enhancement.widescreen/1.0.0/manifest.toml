@@ -1,0 +1,52 @@
+# Dragon Valor (USA) "Widescreen". The plugin (mods/plugins/dragonvalor_widescreen.c)
+# selects the view for psxrecomp's native-wide renderer; game.toml carries the
+# [widescreen] keys. Nothing is patched on disc or in RAM. Off by default.
+format_version = 7
+id = "dragonvalor.enhancement.widescreen"
+version = "1.0.0"
+name = "Dragon Valor Widescreen"
+author = "DragonValorUSRecomp"
+description = "Renders the stages wider than 4:3 with real extra scenery at the sides (native-wide, not a stretch). Title, menus and movies stay 4:3. Off by default."
+license = "MIT"
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "SLUS-01092"
+
+[[feature]]
+id = "widescreen"
+name = "Widescreen"
+description = "Stages render at the chosen aspect with real scenery in the extra columns; the HUD keeps its 4:3 positions. The title screen, menus, the status screen's panel and movies stay 4:3 with side bars. Experimental: tested on the first chapter only; objects may appear late at the far edges."
+group = "Display"
+channel = "experimental"
+default_enabled = false
+
+[[option]]
+feature = "widescreen"
+id = "aspect"
+label = "View"
+description = "16:9 and the wider fixed ratios keep their aspect whatever the window shape. Fit to Window opens at 16:9 and then follows the window as you resize it, with no upper limit. Applied at the next start."
+group = "Display"
+type = "choice"
+default = "16:9"
+
+[[option.choice]]
+value = "16:9"
+label = "16:9"
+
+[[option.choice]]
+value = "21:9"
+label = "21:9"
+
+[[option.choice]]
+value = "32:9"
+label = "32:9"
+
+[[option.choice]]
+value = "Fit"
+label = "Fit to Window"
+
+[[plugin]]
+feature = "widescreen"
+id = "dragonvalor.widescreen"

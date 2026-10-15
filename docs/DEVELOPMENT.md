@@ -205,6 +205,25 @@ has no button-sequence table in the EXE or the BIN modules and did nothing
 when tried from slot 0; its precondition (first boss beaten) was not met, so
 it stays unverified rather than disproved.
 
+**Public cheat codes (checked 2026-10-15).** DuckStation's cheat database
+(`duckstation/chtdb`, the source of its `cheats.zip`) has no file for
+SLUS-01092 or SLUS-01164, so the backlog idea of shipping its codes as
+declarative patches had no source. The CodeBreaker list on Almar's Guides
+(NTSC-U) and the three GameShark codes on PSX Data Center agree with the
+table above for HP/HPmax/MP/MPmax (`8008A5AE`‥`B4`), STR/DEF
+(`8008A5B6`/`B8`), Val (`800A2DD0`), the gem/scroll counters (`800A2DB8`,
+`800A2DBC`; it calls id 1 at `800A2DBA` the Chalice, a pickup not seen yet),
+the spell levels (`300A2E06`‥`0D`) and Earrings (`800A2DDE`). Its other
+item addresses are shifted by one or more slots against the pickup-id
+mapping the code uses (`0x800A2DB8 + 2 × id`, *Pickup ids and what they
+do*), so the table above wins. "Kill bosses in one hit" writes 0 to
+`8008B13E`, object slot 5's HP (`0x8008B070 + 0xCE`): the code assumes the
+boss sits in that slot. Every one of them is a per-frame RAM write
+(GameShark types 80/30), which a package `[[patch]]` cannot express (it
+patches EXE bytes before boot); all are already in-game menu rows except
+the one-hit kill, the *attack ×N / one-hit* idea in `BACKLOG.md`. No code
+list is reproduced in the repository.
+
 #### How damage is computed (2026-10-14)
 
 The player reported that a very high STR changed nothing in play, while a
@@ -595,6 +614,68 @@ pad struct) there. Details that cost a day:
 checks that the title animation starts within 14 s and that the title then
 moves on; `--off` checks the movie keeps playing.
 
+#### This project's package: `dragonvalor.enhancement.widescreen` (2026-10-15)
+
+Native-wide widescreen for the stages, **off by default**, feature
+`channel = "experimental"` (the launcher shows the EXP tag). On PSX the
+framework offers no widescreen switch of its own: `psxrecomp/docs/WIDESCREEN.md`
+(*Config reference*) says a title's package selects the view at activation,
+and `tomba.enhancement.widescreen` / `r4.enhancement.widescreen` are the
+worked examples this one follows.
+
+- **Renderer.** Native-wide (`[widescreen] native_wide = true`, the default):
+  the game's projection is untouched and the GPU rasterises the columns past
+  the 4:3 frame into a wider surface, so the extra width is real scenery.
+  `[video] aspect_ratio` stays `"4:3"`; with the package off every build is
+  the stock picture (`tests/test_widescreen.py off`: ws mode 0, window 4:3).
+- **Plugin** `mods/plugins/dragonvalor_widescreen.c`, id
+  `dragonvalor.widescreen`: at activation it reads the `aspect` option
+  (`16:9` default, `21:9`, `32:9`, `Fit` = 16:9 then follow the window,
+  no upper limit) and calls `psx_mod_set_fixed_display_aspect` (+
+  `psx_mod_set_adaptive_display_aspect(0, 0)` for Fit). The window opens at
+  that aspect (960×540 for 16:9 against the 4:3 960×720). Changing the
+  option takes effect at the next start (the view changes culling and
+  projection mid-session, as R4 notes).
+- **Scene classification.** `[widescreen] gte_game_mode = true`: a frame
+  that projects vertices through the GTE is gameplay (wide); the Namco logo,
+  the intro movie, the title, its menus and story movies project nothing and
+  stay 4:3 pillarboxed. The pause screen also projects nothing (the stage is
+  frozen), so 0.75 s after Start the picture snapped to 4:3; the plugin's
+  world-scene predicate (`psx_mod_set_world_scene_predicate`) therefore
+  reports gameplay for every frame with the mode byte `0x8008634C == 8` (the
+  action module; sub-state 5 in play, 7 paused), sampled once per VBlank and
+  re-read after a save-state load. The status screen (Triangle) keeps its
+  panel 4:3-centred with the wide stage behind it. FMV detection is separate
+  (`mdec_recently_active`) and unaffected.
+- **Numbers.** The stage is 384 pixels wide (`0x180`, `video_info
+  display_w`): 16:9 reveals 128 extra columns (64 per side, `ws_nw
+  nw_extra`), 21:9 reveals 288. Debug-server knobs used for the A/B without
+  the package: `display_aspect num= den= [adaptive=1]`, `window_size w= h=`,
+  `ws_nw` (mode 2 = native-wide engaged), `gpu_state` → `ws.*`
+  (`game_mode`, `present_native_43`, `x_margin`), `present_shot path=` for
+  the window image (`shot` is the canonical 4:3 VRAM only).
+- **HUD** stays at its 4:3 positions (HP/MP bars 64 columns in from the
+  left edge at 16:9, enemy counter the same from the right). The
+  framework's `nw_hud_corners` thirds shift is left off: ENHANCEMENTS.md
+  records composite tears (dialogue boxes split) on the title that tried it,
+  and this game's tutorial boxes span the full width.
+- **Culling.** `psxrecomp-analyze --scan-widescreen --emit-ws-sites`
+  (`cmake --build build-recompiler --target psxrecomp-analyze`) on the EXE:
+  screen extents `0x180/0x181` × `0xF1/0x102/0x103`, 2 functions carry the
+  width+height signature and are covered by `[widescreen.cull] auto_screen_x
+  = true`, 0 bias/range pairs, 16 `a1` nop candidates at 50 % (several are
+  object-script natives, so noise). `auto_screen_x` is a code-generator
+  substitution (identity at 4:3) and needs a regen of `generated/`, which
+  has not been done: objects that sit entirely in the revealed columns may
+  still be dropped by the game's own 4:3 reject. Not observed in the first
+  forest (rock, trees and the enemy drew to the edges in every capture), but
+  no capture caught an object crossing the far edge either. Backlog row.
+- **Checked** on build-debug, OpenGL, 1080p, PGXP on, from save state 0:
+  `tests/test_widescreen.py on` 5/5 (mode 2, 128 columns, still wide with
+  the pause up, window 16:9) and `off` 4/4; 0 unknown dispatches. Not
+  checked: later chapters, the field module (`MAP.BIN`) scenes, in-stage
+  movies, the software renderer, a real resize with Fit.
+
 #### Video and audio defaults (measured 2026-10-14)
 
 `game.toml` ships `texture_lod = "mipmap"` with `anisotropic_filtering = 4`
@@ -761,7 +842,7 @@ aot/overlays.json     AOT profile for the five BIN/*.BIN modules (docs/AOT.md)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
 launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon
-mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro)
+mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen; the psx.enhancement.pgxp override)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonvalor_menu.cpp = in-game menu provider
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
@@ -770,9 +851,12 @@ tests/states/         committed save state slot 0 (+ README);  tests/test_*.py  
 scripts/package_release.sh  local release zip (wraps the framework packager)
 Play.bat, PlayDebug.bat     player / debug launch
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
+CONTROLS.md           pads, keyboard binds, the game's default buttons, host hotkeys
+THIRD_PARTY_NOTICES.md  what ships and under which licence (framework, launcher, toolchain, art)
 docs/STATUS.md        state, open items;  docs/DEVELOPMENT.md (this file);
-docs/AOT.md, docs/HISTORY.md, docs/BACKLOG.md
+docs/AOT.md, docs/HISTORY.md, docs/BACKLOG.md, docs/PLAYTESTING.md (tester guide)
 .github/workflows/release.yml  bundled release CI (framework template)
+.github/ISSUE_TEMPLATE/  bug-report form (asks for psx_last_run_report.json) + links
 patches/              local submodule patches applied at configure time (README inside)
 psxrecomp/, recomp-ui/  framework and launcher submodules (pinned gitlinks)
 ```

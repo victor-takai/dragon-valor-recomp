@@ -100,6 +100,19 @@ default_mode = "analog"
 # "keyboard".
 p1_device = "auto"
 
+# Widescreen (docs/DEVELOPMENT.md, *This project's package:
+# dragonvalor.enhancement.widescreen*): the framework's native-wide renderer
+# keeps the projection and rasterises the extra columns into a wider surface.
+# The view is selected by that package's plugin (psx_mod_set_fixed_display_
+# aspect), so [video] aspect_ratio stays 4:3 and these keys change nothing
+# while the package is off. The game's own 4:3 reject is not widened yet
+# ([widescreen.cull] auto_screen_x needs a regen; BACKLOG.md section F).
+[widescreen]
+native_wide = true        # the framework default, stated for clarity
+# 3D title with no per-sprite tag helper: classify a frame as gameplay when it
+# projects vertices through the GTE, so menus, FMV and the title stay 4:3.
+gte_game_mode = true
+
 # Online mount gate: digests + track count + optional TOC fingerprint
 # (see psxrecomp/docs/NETPLAY.md).
 [netplay]

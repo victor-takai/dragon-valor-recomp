@@ -95,6 +95,7 @@ psxrecomp_add_game_runtime(psx-runtime
 target_sources(psx-runtime PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_cheats.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_skip_intro.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_widescreen.c"
     # In-game menu provider (psx_menu_host.h + recomp-ui's runtime UI); it
     # compiles to nothing when the recomp-ui launcher is off.
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_menu.cpp")

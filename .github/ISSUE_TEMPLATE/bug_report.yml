@@ -1,0 +1,82 @@
+name: Bug report
+description: Something in the recompiled game misbehaves (crash, freeze, wrong picture or sound, a mod that does not work).
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. `docs/PLAYTESTING.md` says where every file below lives.
+        Do not attach disc images, BIOS dumps or anything from `disc/`.
+  - type: input
+    id: version
+    attributes:
+      label: Release
+      description: The zip name or tag, or the contents of `psx_game_version.txt` next to the executable. For a local build, `git rev-parse --short HEAD`.
+      placeholder: dvus-0.1.0-windows-x64.zip
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows x64
+        - Linux x64
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Other (say which below)
+    validations:
+      required: true
+  - type: dropdown
+    id: disc
+    attributes:
+      label: Disc
+      options:
+        - Disc 1 (SLUS-01092)
+        - Disc 2 (SLUS-01164)
+        - Both / disc change
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw. Chapter, stage and the moment (after a cutscene, at a boss, when opening the status screen...). A screenshot or a short clip helps most.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Steps from the title screen, or a save state / Memory Card save that lands just before the problem (save states live in `saves/openbios/`, cards in `saves/`).
+      placeholder: |
+        1. Load Game, slot 1 (chapter 2)
+        2. Walk right past the bridge
+        3. The screen freezes with the music playing
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings and mods
+      description: Renderer, internal resolution, PGXP, and every mod that was on (paste `settings.toml` and `mods/state.toml`, both next to the executable). Say whether it also happens with every mod off.
+      render: toml
+  - type: textarea
+    id: report
+    attributes:
+      label: psx_last_run_report.json
+      description: Written next to the executable when the game exits (also after a crash). Paste it, or attach it if it is long. If the game froze instead of exiting, say so; `psx_freeze_heartbeat.json` from the same folder helps too.
+      render: json
+  - type: input
+    id: controller
+    attributes:
+      label: Controller
+      description: Pad model (or keyboard) and the mode chosen in the launcher (Analog / D-pad).
+      placeholder: Xbox Series pad, Analog
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before posting
+      options:
+        - label: My disc is one of the dumps listed in `DISC.md` (the launcher accepted it).
+          required: true
+        - label: I tried it once more from a fresh boot (or said above that it happens every time).

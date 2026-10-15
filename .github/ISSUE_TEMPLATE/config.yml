@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Playtest notes
+    url: https://github.com/victor-takai/dragon-valor-recomp/blob/master/docs/PLAYTESTING.md
+    about: What to test, where the logs and saves live, and how to take a save state before reporting.
+  - name: Which disc dumps work
+    url: https://github.com/victor-takai/dragon-valor-recomp/blob/master/DISC.md
+    about: Redump names and digests of the two USA discs the launcher accepts.
+  - name: Framework issues (psxrecomp)
+    url: https://github.com/RetroPortingToolKit/psxrecomp/issues
+    about: Launcher, renderer or netplay problems shared by every psxrecomp title belong upstream; mention this title and the framework pin from docs/framework_pin_history.md.

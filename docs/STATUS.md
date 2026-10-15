@@ -51,6 +51,16 @@ the native 60 Hz version.
   elsewhere it boots at 60 fps with the bundled OpenBIOS and the tcc-based
   overlay autocompile (no compiler on the player's machine). `game.toml` names
   the discs by Redump file name only and `DISC.md` ships at the zip root.
+- **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
+  default, experimental. Native-wide: the 384-pixel stage gains 128 real
+  columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
+  predicate), title / menus / movies stay 4:3, the HUD keeps its 4:3
+  positions. `tests/test_widescreen.py on|off` 5/5 and 4/4. The game's own
+  4:3 reject is not widened yet (needs a regen), so far-edge pop-in is
+  possible; see `DEVELOPMENT.md`, *This project's package:
+  dragonvalor.enhancement.widescreen*.
+- Tester material: [`PLAYTESTING.md`](PLAYTESTING.md), the GitHub bug-report
+  form, [`CONTROLS.md`](../CONTROLS.md), [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 
 ## Open items
 
@@ -72,6 +82,9 @@ the native 60 Hz version.
    beside the exe on every boot (false positive on statically compiled code).
    Upstream PR #646 fixes it; until the pin includes it, delete the dumps
    before timing runs (no config switch exists).
+5. Widescreen follow-ups: `[widescreen.cull] auto_screen_x` regen (far-edge
+   pop-in), HUD anchored to the window edges, a check of later chapters and
+   the field module; see `BACKLOG.md`, section F.
 
 ## Backlog
 

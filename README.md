@@ -26,7 +26,8 @@ the native 60 Hz version; the PAL bring-up that preceded it is recorded in
 
 State, open issues and pitfalls: [`docs/STATUS.md`](docs/STATUS.md). Build /
 debug workflow: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Ahead-of-time
-overlays: [`docs/AOT.md`](docs/AOT.md).
+overlays: [`docs/AOT.md`](docs/AOT.md). Controls: [`CONTROLS.md`](CONTROLS.md).
+Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
 
 ## Playing
 
@@ -52,8 +53,10 @@ the framework's enhancements (HD texture packs, PGXP, CD speed, 8 MB RAM,
 bezel) and this project's packages: **Dragon Valor Cheats** (Infinite HP,
 Infinite MP, a gem or scroll every N kills; also switchable in-game, where
 Val, stats, spells and items can be edited too) and **Dragon Valor Skip
-Intro** (presses Start for you as soon as the intro movie starts). Tick a
-feature, set its options, Play. See
+Intro** (presses Start for you as soon as the intro movie starts) and
+**Dragon Valor Widescreen** (experimental: the stages render at 16:9 or
+wider with real scenery at the sides; title, menus and movies stay 4:3).
+Tick a feature, set its options, Play. See
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#modding-what-the-framework-offers).
 
 | PlayStation | Keyboard | | PlayStation | Keyboard |
@@ -118,7 +121,8 @@ the CMake and config files) are MIT, see [`LICENSE`](LICENSE). The committed
 no licence grant from us. The framework (`psxrecomp/`) is PolyForm
 Noncommercial 1.0.0 and the launcher (`recomp-ui/`) is MIT, so a built
 executable inherits the framework's noncommercial terms. No game data is
-included.
+included. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists every
+component that ships and its licence.
 
 ## Quick start (dev)
 
