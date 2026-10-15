@@ -155,6 +155,68 @@ struct Menu {
 
 Menu g_menu;
 
+/* ---- persisted host volume ----------------------------------------------- */
+/* psxrecomp keeps the host master volume in host_osd.c and the launcher's
+ * settings.toml has no key for it (config_loader.cpp writes [audio]
+ * frequency / spu_hq only), so every start came back at 100 whatever the
+ * player set in the launcher or in this menu. Until upstream persists it,
+ * the title keeps it in dragonvalor_settings.toml next to the executable:
+ * read and applied by the static initializer at the end of this file (before
+ * main, so the launcher's Settings page is seeded with it and re-applies it
+ * when it returns), and written whenever the value is seen to differ: this
+ * menu's Volume row, attach (the launcher stepper), detach (the numpad
+ * hotkeys). Missing or unreadable file = the framework default. */
+int g_saved_volume = -1;
+
+/* Resolved once, at the first call (the static initializer below, before any
+ * other SDL_GetBasePath user): under SDL3 the returned string is owned by
+ * SDL and must not be freed, under SDL2 the caller frees it. */
+const std::string& dv_settings_path() {
+    static std::string path;
+    if (!path.empty()) return path;
+    std::string dir;
+    if (const char* base = SDL_GetBasePath()) {
+        dir = base;
+#if !defined(PSX_SDL3)
+        SDL_free((void*)base);
+#endif
+    }
+    path = dir + "dragonvalor_settings.toml";
+    return path;
+}
+
+int dv_volume_load() {
+    FILE* f = std::fopen(dv_settings_path().c_str(), "rb");
+    if (!f) return -1;
+    char line[256];
+    int value = -1;
+    while (std::fgets(line, sizeof line, f)) {
+        const char* p = line;
+        while (*p == ' ' || *p == '\t') ++p;
+        if (std::strncmp(p, "volume", 6) != 0) continue;
+        p += 6;
+        while (*p == ' ' || *p == '\t') ++p;
+        if (*p != '=') continue;
+        value = std::atoi(p + 1);
+    }
+    std::fclose(f);
+    if (value < 0 || value > 100) return -1;
+    return value;
+}
+
+void dv_volume_sync() {
+    const int v = host_volume_get();
+    if (v == g_saved_volume) return;
+    FILE* f = std::fopen(dv_settings_path().c_str(), "wb");
+    if (!f) return;
+    std::fprintf(f,
+                 "# Dragon Valor (USA) Recompiled: title settings the launcher does not keep.\n"
+                 "# Written by the in-game menu provider (mods/plugins/dragonvalor_menu.cpp).\n"
+                 "[audio]\nvolume = %d\n", v);
+    std::fclose(f);
+    g_saved_volume = v;
+}
+
 int opt_int(const char* pkg, const char* feat, const char* opt, int dflt) {
     char text[32];
     if (!psx_mod_option_value(pkg, feat, opt, text, sizeof text)) return dflt;
@@ -256,7 +318,7 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_TEXFILTER)) { m.host->video_get(&v); v.texture_filter = value; apply_video(m, v); return 1; }
     if (is(item, DV_KEY_SCANLINES)) { m.host->video_get(&v); v.scanlines = value ? 1 : 0; apply_video(m, v); return 1; }
     if (is(item, DV_KEY_DYNRES)) { m.host->video_get(&v); v.dynamic_resolution = value ? 1 : 0; apply_video(m, v); return 1; }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_VOLUME)) { host_volume_set(value); return 1; }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_VOLUME)) { host_volume_set(value); dv_volume_sync(); return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_DIM)) { m.dim = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_OPACITY)) { m.opacity = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU)) {
@@ -392,6 +454,7 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
     std::lock_guard<std::mutex> lk(m.mu);
     if (!host || host->abi_version != PSX_MENU_ABI_VERSION) return 0;
     m.host = host;
+    dv_volume_sync();                  /* the launcher's stepper may have moved it */
     if (!m.ui && !create_ui(m)) return 0;
     /* the committed selection is what the launcher left; mirror it */
     m.cheat_hp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", 0);
@@ -424,6 +487,7 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
 void p_detach(void* ctx) {
     Menu& m = *static_cast<Menu*>(ctx);
     std::lock_guard<std::mutex> lk(m.mu);
+    dv_volume_sync();                  /* numpad +/- changes since attach */
     if (m.open) { recomp_runtime_ui_close(m.ui); m.open = false; }
     if (m.imgui) {
         ImGui_ImplOpenGL3_Shutdown();
@@ -584,7 +648,12 @@ const PsxMenuProvider g_provider = {
 };
 
 struct Registrar {
-    Registrar() { (void)psx_menu_set_provider(&g_provider); }
+    Registrar() {
+        (void)psx_menu_set_provider(&g_provider);
+        const int v = dv_volume_load();
+        if (v >= 0) { host_volume_set(v); g_saved_volume = v; }
+        else g_saved_volume = host_volume_get();   /* no file: write one only once the volume moves */
+    }
 } g_registrar;
 
 }  // namespace

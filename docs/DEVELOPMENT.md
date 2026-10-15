@@ -86,6 +86,7 @@ Files the runtime writes, all gitignored:
 |---|---|
 | Memory cards | `saves/card1.mcd`, `saves/card2.mcd` (project root, `[runtime] memcard_dir`); raw 128 KB images, a DexDrive `.gme` minus its 3904-byte header. The game's Load Game reads card 1 only. |
 | Launcher/user settings | `settings.toml` next to the exe (overrides `game.toml` defaults) |
+| Title settings the launcher does not keep | `dragonvalor_settings.toml` next to the exe: `[audio] volume`, written by the in-game menu provider (see *In-game menu*) |
 | Keyboard binds | `keybinds.ini` next to the exe (generated on first run) |
 | Host hotkeys / pad mapping | `config.ini` next to the exe (`[KeyMap]`, `[controller]`, `[mapping]`) |
 | Overlay captures + native shards | `overlay_captures.json(.d)` and `cache/` next to the exe |
@@ -590,6 +591,26 @@ renderer) are left out on purpose; the launcher owns them. The game's own
 Start pause still exists. Scripted test: `tests/test_menu.py` (keys through
 the debug server's `host_key`, screenshots through `present_shot`, since
 native screenshots never contain the overlay).
+
+**Volume persists through the title (2026-10-15).** The runtime keeps the
+host master volume in `host_osd.c` (`host_volume_get/set`); the launcher
+seeds its Settings stepper from it and re-applies it when it returns, but
+`settings.toml` has no key for it (`config_loader.cpp` writes `[audio]
+frequency` / `spu_hq` only), so every start came back at 100 whatever the
+player had set in the launcher or in this menu. The menu provider now keeps
+it in `dragonvalor_settings.toml` next to the executable (`[audio] volume =
+N`): the file is read and applied by the provider's static initializer,
+before `main`, so the launcher's stepper is seeded with it; it is written
+whenever the value is seen to differ, by the menu's Volume row, at attach
+(the launcher stepper) and at detach (the numpad hotkeys). No file = the
+framework default, and nothing is written until the volume moves. The path
+comes from `SDL_GetBasePath()`, resolved once and copied: under SDL3 (this
+build) the string is SDL's and must not be freed; the first version freed
+it and the heap damage surfaced as a guest `DISPATCH FATAL: misaligned
+target` a second later. Round trip checked on build-debug (`scratchpad
+volume_probe.py`): file 37 → the row shows 37 at the next start; two steps
+right → the file reads 47; relaunch → 47. The proper fix is an upstream
+`[audio] volume` key in the settings file (`BACKLOG.md`).
 
 #### This project's package: `dragonvalor.skip-intro`
 

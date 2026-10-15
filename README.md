@@ -41,7 +41,7 @@ Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
 4. **Escape** (or **Select+Start** on the pad) opens the in-game menu: pause,
    cheats (infinite HP/MP, a gem or scroll every N kills, Val, stats,
    spell levels, items), texture
-   filtering, scanlines, fullscreen, volume, save/load state, disc change,
+   filtering, scanlines, fullscreen, volume (remembered between runs), save/load state, disc change,
    back to the launcher. Arrows / D-pad move, Enter / Cross
    selects, Escape / Circle goes back.
 
