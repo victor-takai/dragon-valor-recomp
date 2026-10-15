@@ -99,7 +99,7 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_INT(DV_RAM_VAL, "Cheats", "Val", "Your gold, written at once (the HUD shows four digits).", 0, 9999, 100),
     DV_ROW_INT("dv.ram.hpmax", "Cheats", "Max HP", "Maximum HP, written at once.", 1, 999, 10),
     DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP, written at once.", 1, 999, 10),
-    DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power shown on the Status screen, written at once.", 0, 999, 5),
+    DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power, spread over the game's five hidden hit values so damage really changes.", 0, 999, 5),
     DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense shown on the Status screen, written at once.", 0, 999, 5),
     DV_ROW_MAGIC("dv.ram.magic0", "Heal"),    DV_ROW_MAGIC("dv.ram.magic1", "Defense"),
     DV_ROW_MAGIC("dv.ram.magic2", "Fire"),    DV_ROW_MAGIC("dv.ram.magic3", "Ice"),
@@ -164,7 +164,31 @@ const RamRow* ram_row(const RecompRuntimeUiItem* item) {
 }
 bool hero_loaded() { return psx_mod_game_started() && psx_mod_read_half(0x8008A5B0u) != 0; }
 int ram_read(const RamRow& r) { return r.width == 1 ? psx_mod_read_byte(r.addr) : psx_mod_read_half(r.addr); }
+
+/* STR is only a display value: the game recomputes 0x8008A5B6 as the sum of
+ * the five attack-power entries at 0x80086324 (func_800358A8) and a hit takes
+ * its power from that table (func_80040DCC, pc 0x80041798), never from the
+ * STR field, so a plain STR write changed the number and not the damage.
+ * The editor therefore spreads the new value over the five entries in the
+ * game's own 1 : 1.5 : 2 : 2.5 : 3 proportion (a new game starts at
+ * 6/9/12/15/18 = 60; every gem adds one such unit) and writes the sum to
+ * STR as well, so the Status screen agrees until the game recomputes it to
+ * the same total. docs/DEVELOPMENT.md, "How damage is computed". */
+#define DV_ATTACK_TABLE 0x80086324u
+#define DV_STR          0x8008A5B6u
+void write_str(int v) {
+    static const int twice_weight[5] = {2, 3, 4, 5, 6};   /* sum 20 */
+    int sum = 0;
+    for (int i = 0; i < 5; ++i) {
+        int part = (i == 4) ? v - sum : (v * twice_weight[i] + 10) / 20;
+        if (part < 0) part = 0;
+        psx_mod_write_half(DV_ATTACK_TABLE + 2u * (uint32_t)i, (uint16_t)part);
+        sum += part;
+    }
+    psx_mod_write_half(DV_STR, (uint16_t)v);
+}
 void ram_write(const RamRow& r, int v) {
+    if (r.addr == DV_STR) { write_str(v); return; }
     if (r.width == 1) psx_mod_write_byte(r.addr, (uint8_t)v);
     else psx_mod_write_half(r.addr, (uint16_t)v);
 }

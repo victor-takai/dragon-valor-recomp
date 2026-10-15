@@ -121,6 +121,7 @@ in no catalog (Retro-Catalog, recomp.board) and has no other recomp.
 | L | pt-BR localization path | ddr-1st-recomp (redrew VRAM text artwork, shipped EN + pt-BR); Tomba HD pack example as a release asset; Tomba2 `mods/preloaded_ita/` | Our text is pre-rendered artwork, so string patches do not apply: an HD texture pack replacing the text textures is the route. |
 | L | PGO profile committed | Simpsons `pgo/windows.profdata` + `tools/pgo_train.py` | Framework: never set `PSX_PGO` in CI. |
 | L | Release-note conventions | Tomba v0.19, Einhander v0.1.3, retroportingtoolkit.com "release a port" | Platforms table, disc serials, "no BIOS needed", what was verified, save-state warnings, "A/B against the previous version" request, test from a clean directory, verify a wrong disc is rejected. |
+| L | Damage follow-ups | `docs/DEVELOPMENT.md`, *How damage is computed* | Which move uses attack entries 1‥4 (`0x8008632E` stays 0 on single swings; a chained combo is the guess); a per-frame "attack ×N" or one-hit-kill option in `dragonvalor.cheats` if wanted (the per-hit power is `attack[index]`, min 1 after the target's resistance shift). |
 | L | Field-tested pitfalls to keep in mind | alexbeavs (paths with spaces break MinGW; exe-name drift), Hellnight (developing on a non-Redump dump rejected real Redump discs), Tomba (states refused after bumps) | Our `known_md5` lists one digest per disc; check #474 (TinyCC licence notice in bundled zips) against our zip's `licenses/`. |
 
 Not found: another Dragon Valor recomp; a reusable standalone in-game menu

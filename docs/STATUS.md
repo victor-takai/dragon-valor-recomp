@@ -98,6 +98,9 @@ the **in-game menu** (Escape / Select+Start; `mods/plugins/dragonvalor_menu.cpp`
 on psxrecomp's menu host + recomp-ui's runtime UI) can switch them live; the
 menu also pauses, changes texture filtering / scanlines / fullscreen /
 volume, saves and loads states, changes disc and returns to the launcher.
+Its STR editor writes the game's real attack table (`0x80086324`, five
+entries; the shown STR is only their sum, found 2026-10-14 after the player
+saw a huge STR change nothing; `DEVELOPMENT.md`, *How damage is computed*).
 The Namco logo stays: shortening it breaks the title's loads. Title defaults
 measured the same day: mipmapped 3D textures with 4 anisotropic taps ship in `game.toml` (a
 90 ms audio buffer was tried and reverted: choppy sound on the title screen); FXAA and CD Speed do not help here

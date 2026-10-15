@@ -169,7 +169,12 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x8008A5B0` | u16 | HP max | |
 | `0x8008A5B2` | u16 | MP current | |
 | `0x8008A5B4` | u16 | MP max | `func_80034908` |
-| `0x8008A5B6` | u16 | STR | |
+| `0x8008A5B6` | u16 | STR as shown on the Status screen: a derived value, recomputed by `func_800358A8` as the sum of the five attack entries below and **never read by combat** (see *How damage is computed*) | `func_800358A8` (W) |
+| `0x80086324`‥`2C` | u16 ×5 | Attack-power table of the current hero (new game: 6, 9, 12, 15, 18). A hit's power is the entry at index `0x8008632E`; a gem adds one unit (1, 1.5, 2, 2.5, 3, as two alternating byte rows at `0x80011598`) | `func_80040DCC` (R, pc `0x80041798`), `func_80028940` (gem), `func_8003A7C4` (new game) |
+| `0x8008632E` | u8 | Index into the attack table for the current hit; written 0 at every attack start (`func_800260FC`, pc `0x80026630`). Which move uses entries 1‥4 is unverified (a chained combo is the guess) | |
+| `0x8008631E` / `0x80086320` | u16 ×2 | HP / MP mirrors kept by the action code (HUD bars) | ACTION.BIN |
+| `0x800A2EDC` / `0x800A2EDE` / `0x800A2EE0` | u16 ×3 | Gems picked up / scrolls picked up / both, stepped by the pickup handler | `func_80028940` |
+| `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up); ids from 13 on are the inventory list below | `func_80028940` |
 | `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
 | `0x800A2D9C` | u32 | Play time in frames (Load list shows it as h:mm; the GameFAQs save holds 5,594,735 = 25:54) | |
 | `0x800A2DD0` | u16 | Val (gold; Status shows 4 digits, 10000 reads 0000) | `func_8004BF84` |
@@ -179,7 +184,7 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x800A2DD2`‥ | u16 ×N | Inventory counts, one per item type: Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key, … (accessories, trade goods, keys; **no weapons**) | |
 | `0x800A2F18` / `0x800A2F1A` | u16 ×2 | Area and stage id of the stage to load (DEMO.BIN writes 0/6‥9 and 7/31‥34 before calling `func_8003A9B0`); slot 0 is 0/2 | `func_80025264` (W), `func_80038094`, … |
 | `0x8008634C` / `0x8008634D` | u8 ×2 | Game mode and sub-state: 8 = action stage, 10 = loading, 17 = attract demo | `func_8004BF84`, `func_80025264`, … |
-| `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields | |
+| `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields. Objects are 0x250 bytes apart: slot 0 is the hero, enemies sit in later slots with the same layout (slot 0's first screen: the enemy is slot 5, `0x8008B070`, HP 15/15 at `+0xCE`) | |
 
 `write_ram` writes one byte per call (`addr=`, `val=`). The GameShark codes
 circulating on GameRevolution are correct for Val (`800A2DD0 2700`) and the
@@ -189,6 +194,43 @@ sell items, pause, press Up Down Left Right Select" cheat from the same page
 has no button-sequence table in the EXE or the BIN modules and did nothing
 when tried from slot 0; its precondition (first boss beaten) was not met, so
 it stays unverified rather than disproved.
+
+#### How damage is computed (2026-10-14)
+
+The player reported that a very high STR changed nothing in play, while a
+gem (dropped after a run of physical kills) raised both the number and the
+damage. The live EXE and ACTION.BIN were dumped from RAM and scanned for
+every access to the hero block, including base-register ones the static
+listing cannot attribute:
+
+- `0x8008A5B6` (STR) is written by exactly one function in the whole EXE,
+  `func_800358A8`, which zeroes it and adds the five u16 at `0x80086324`;
+  the only readers are the Status screen and the HUD digit painter in
+  ACTION.BIN. Nothing in combat reads it.
+- `func_80040DCC` (hero combat) takes a hit's power from
+  `attack[0x8008632E]` at pc `0x80041798` (or, for non-sword hits, from the
+  hit object's own byte). Damage = power `>>` the target's resistance entry
+  (`+0x15F` table of the target object, 0 for the first enemy), plus an
+  optional table term, at least 1; there is no DEF subtraction on that path.
+  `func_800260FC` applies it to the target's HP (pc `0x80026D04`).
+- Pickups go through the jump table at `0x8001131C` (`func_80028940`): id 0
+  (gem) adds a byte row of `0x80011598` to the five entries, alternating
+  `1,2,2,3,3` and `1,1,2,2,3` by gem count, i.e. one unit of the
+  1 : 1.5 : 2 : 2.5 : 3 progression the new-game values (`func_8003A7C4`:
+  6, 9, 12, 15, 18) already follow; id 2 (scroll) raises MP max; ids 14‥17
+  are the HP max / MP max / attack / DEF consumables.
+- Hit test from slot 0 (`tools/ramscan/hit_test.py`; the scans above are
+  `tools/ramscan/scan_fields.py` and `taint_scan.py` over `dump_ram.py` images): with the five
+  entries written to 500 the first connecting swing took the enemy from
+  15 to 0 HP; from a fresh slot 0 the first connecting swing took it from
+  15 to 9, i.e. entry 0 (6) verbatim.
+
+The in-game menu's STR row therefore writes the five entries (spread in the
+game's proportion, the last one absorbing the rounding) and the STR field;
+`func_800358A8` later recomputes the same total. A written STR survives a
+save because the save path copies the entries (`func_80038094` /
+`func_80038274`). DEF is read on the hero-takes-damage path (`lh +0xD8` in
+`func_80042A54` / `func_80042FF0`), so the DEF editor was already real.
 
 Useful test route: writing 0 to HP gives GAME OVER → CONTINUE? in ~5 s, and
 Cross on YES reloads the current stage from disc (stage id restored from the
@@ -321,7 +363,7 @@ Sections and rows:
 | Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
 | Audio | Volume | `host_volume_set` |
 | System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
-| Cheats | Infinite HP, Infinite MP (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded |
+| Cheats | Infinite HP, Infinite MP (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3 | bytes `0x800A2E06`‥`0D`, written at once |
 | Items | Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key: 0‥99 | u16 counts from `0x800A2DD2`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |

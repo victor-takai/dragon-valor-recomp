@@ -68,3 +68,41 @@ name = "DefWriter"
 emit = false
 status = "guessed"
 note = "writes DEF 0x8008A5B8 (pc 0x800382F8)"
+
+# Damage path, identified 2026-10-14 by disassembly of the live EXE plus a
+# write trace and a hit test (docs/DEVELOPMENT.md, "How damage is computed").
+
+[[func]]
+pc = 0x800358A8
+name = "StrRecompute"
+emit = false
+status = "confirmed"
+note = "STR 0x8008A5B6 = sum of the five attack entries 0x80086324..2C; called after every stat change"
+
+[[func]]
+pc = 0x80028940
+name = "PickupEffect"
+emit = false
+status = "confirmed"
+note = "jump table 0x8001131C by pickup id: 0 gem (+table 0x80011598 to the attack entries), 2 scroll (MP max), 14/15/16/17 HP max / MP max / attack / DEF up"
+
+[[func]]
+pc = 0x80040DCC
+name = "HeroCombat"
+emit = false
+status = "confirmed"
+note = "hit power = attack entry [u8 0x8008632E] (pc 0x80041798); damage = power >> target resistance, min 1 (0x80042768..E4)"
+
+[[func]]
+pc = 0x800260FC
+name = "ObjectUpdate"
+emit = false
+status = "guessed"
+note = "object loop: writes the hit index 0x8008632E at attack start (pc 0x80026630) and the target's HP 0x..+0xCE (pc 0x80026D04)"
+
+[[func]]
+pc = 0x8003A7C4
+name = "NewGameStats"
+emit = false
+status = "confirmed"
+note = "new game: attack entries 6/9/12/15/18, HP 30, MP 20, DEF 1, then StrRecompute"

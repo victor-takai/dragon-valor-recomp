@@ -11,7 +11,9 @@ events a keyboard produces) and checks, from slot 0:
      the guest runs again and HP written to 5 refills to HPmax within a frame
      (the option reached the plugin live, through psx_mod_set_option_live).
   3. The same row turns it off again; a written HP stays. The Val row
-     (third on the page) writes RAM at once: one step right = 100.
+     (third on the page) writes RAM at once: one step right = 100. The STR
+     row (sixth) spreads its value over the five attack entries at
+     0x80086324 (the game sums them into the shown STR): one step = +5.
   4. System page: "Save state" on slot 2 (runtime slot 1) writes the slot file.
 The menu always opens on the first section (Display) with nothing selected,
 so a path is Down x N then Enter. Exit code 0 on PASS.
@@ -89,6 +91,14 @@ def main(argv):
     val = rd16(VAL)
     check("Val editor wrote 100 into RAM", val == 100)
     wr16(VAL, 0)
+
+    # 3c. STR editor: sixth row; +5 lands in the five attack entries (sum) and in STR
+    STR, ATK = 0x8008A5B6, 0x80086324
+    before = rd16(STR)
+    key("Escape"); goto_section("Cheats"); key("Down", 5); key("Right"); close()
+    comps = [rd16(ATK + 2 * i) for i in range(5)]
+    check(f"STR editor wrote {before + 5} as attack entries {comps}",
+          rd16(STR) == before + 5 and sum(comps) == before + 5 and min(comps) > 0)
 
     # 4. save state to slot 2 from the System page: Resume, State slot, Save state, ...
     target = SAVES_STATES_DIR / slot_file(1, os.environ.get("DVDBG_DISC") or DEFAULT_DISC)
