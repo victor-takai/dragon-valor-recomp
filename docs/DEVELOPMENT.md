@@ -409,8 +409,8 @@ moves on; `--off` checks the movie keeps playing.
 #### Video and audio defaults (measured 2026-10-14)
 
 `game.toml` ships `texture_lod = "mipmap"` with `anisotropic_filtering = 4`
-and `[audio] buffer_ms = 90`; `antialiasing_mode` stays off and the CD Speed
-mod stays off. How that was decided, on build-debug from slot 0:
+and keeps `[audio] buffer_ms` at the 180 ms default; `antialiasing_mode`
+stays off and the CD Speed mod stays off. How that was decided, on build-debug from slot 0:
 
 - **Mipmap + anisotropic** (live `texture_lod mode=1 aniso=8` at 1440p):
   60.0 fps kept; the far-ground edge energy in a static Brize Forest shot
@@ -423,8 +423,10 @@ mod stays off. How that was decided, on build-debug from slot 0:
   it stays off. Try `PSX_AA_MODE=fxaa`.
 - **Audio buffer**: `audio_stats` reported 0 pump underruns and 0 output
   underruns at 180, 90 and 60 ms over ~90 s of gameplay plus a stage reload,
-  muted (SDL dummy driver, which still consumes at the nominal rate). 90 ms
-  keeps a margin; raise it if the human session hears crackle.
+  muted (SDL dummy driver). That test is worthless for the real device: with
+  90 ms the player heard choppy sound on the title screen the same day, so
+  `buffer_ms` is back at the 180 ms default. Lower it only with the audio
+  device playing and `audio_stats` watched.
 - **CD Speed**: CONTINUE → gameplay after GAME OVER takes 3.5 s with the
   mod off and at 2×, 4× and 8× (0 unknown dispatches each time): the reload
   is paced by the game's own fades, not by the drive. No reason to ship it on.

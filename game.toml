@@ -79,9 +79,11 @@ anisotropic_filtering = 4
 pgxp_mod_only = true
 
 [audio]
-# Input-to-sound delay. Default is 180 ms; 90 ms showed no pump underruns in
-# a muted 90 s run (gameplay + a stage reload). Raise it if sound crackles.
-buffer_ms = 90
+# Input-to-sound delay; the runtime default is 180 ms. 90 ms showed no pump
+# underruns in a muted test, but crackled on the real device at the title
+# screen (2026-10-14), so the default stays. Lower it only with the audio
+# device playing and `audio_stats` watched.
+buffer_ms = 180
 
 [controller]
 # "analog" pins a DualShock in analog mode (the game reads the stick; "digital"

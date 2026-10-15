@@ -99,8 +99,8 @@ on psxrecomp's menu host + recomp-ui's runtime UI) can switch them live; the
 menu also pauses, changes texture filtering / scanlines / fullscreen /
 volume, saves and loads states, changes disc and returns to the launcher.
 The Namco logo stays: shortening it breaks the title's loads. Title defaults
-measured the same day: mipmapped 3D textures with 4 anisotropic taps and a
-90 ms audio buffer ship in `game.toml`; FXAA and CD Speed do not help here
+measured the same day: mipmapped 3D textures with 4 anisotropic taps ship in `game.toml` (a
+90 ms audio buffer was tried and reverted: choppy sound on the title screen); FXAA and CD Speed do not help here
 (see `DEVELOPMENT.md`, *Video and audio defaults*). The runtime is the PGXP
 hook flavour and PGXP ships on by default (66 % of vertices corrected, 60
 fps kept; `DEVELOPMENT.md`, *PGXP*). The
