@@ -103,7 +103,8 @@ entries; the shown STR is only their sum, found 2026-10-14 after the player
 saw a huge STR change nothing; `DEVELOPMENT.md`, *How damage is computed*).
 The gem and scroll drops the player noticed are a rule, not luck: a gem
 after 15 sword kills (then 22, 28, …), a scroll after 2 magic kills (then
-4, 7, 12, 20), confirmed live on 2026-10-15 (`DEVELOPMENT.md`, *How drops
+4, 7, 12, 20), both confirmed live on 2026-10-15, the gem by script and
+the scroll by the player on the pad (`DEVELOPMENT.md`, *How drops
 are decided*).
 The Namco logo stays: shortening it breaks the title's loads. Title defaults
 measured the same day: mipmapped 3D textures with 4 anisotropic taps ship in `game.toml` (a

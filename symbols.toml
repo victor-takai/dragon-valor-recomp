@@ -112,7 +112,7 @@ pc = 0x80025650
 name = "EnemyKillCredit"
 emit = false
 status = "confirmed"
-note = "enemy death: hit kind +0xBC 0..4 -> credit +0xC = 2, sword kills u32 0x800A2DB0 (+lifetime 0x800A2DA0); 5..27 -> credit 1, magic kills 0x800A2DB4 (+0x800A2DA4); else credit 3"
+note = "enemy death: hit kind +0xBC 0..4 -> credit +0xC = 2, sword kills u32 0x800A2DB0 (+lifetime 0x800A2DA0); 5..27 -> credit 1, magic kills 0x800A2DB4 (+0x800A2DA4); else credit 3; called from ObjectUpdate (ra 0x80026D74) just after the HP write; both branches traced live 2026-10-15"
 
 [[func]]
 pc = 0x800187D4
