@@ -156,6 +156,11 @@ route is replayed. States are whole-machine state: same BIOS (OpenBIOS),
 same disc, and a runtime update that changes the format means re-taking
 them (`state save`, then `state keep`).
 
+Slots the tools write: menu slot 1 (`slot00`, restored from `tests/states/`
+by every `launch --state 0`) and menu slot 12 (`slot11`, `tests/test_menu.py`,
+restored afterwards). Keep personal states in slots 2 to 11;
+`tests/states/README.md` has the table.
+
 ### Known RAM addresses (USA EXE)
 
 Found by pattern search over `read_ram` and confirmed by `write_ram` from slot

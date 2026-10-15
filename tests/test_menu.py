@@ -14,7 +14,9 @@ events a keyboard produces) and checks, from slot 0:
      (third on the page) writes RAM at once: one step right = 100. The STR
      row (sixth) spreads its value over the five attack entries at
      0x80086324 (the game sums them into the shown STR): one step = +5.
-  4. System page: "Save state" on slot 2 (runtime slot 1) writes the slot file.
+  4. System page: "Save state" on slot 12 (runtime slot 11) writes the slot
+     file; the slot's previous content is restored afterwards. No other
+     slot is written (slot 0/1 is only ever restored from tests/states/).
 The menu always opens on the first section (Display) with nothing selected,
 so a path is Down x N then Enter. Exit code 0 on PASS.
 """
@@ -101,13 +103,28 @@ def main(argv):
     check(f"STR editor wrote {before + 5} as attack entries {comps}",
           rd16(STR) == before + 5 and sum(comps) == before + 5 and min(comps) > 0)
 
-    # 4. save state to slot 2 from the System page: Resume, State slot, Save state, ...
-    target = SAVES_STATES_DIR / slot_file(1, os.environ.get("DVDBG_DISC") or DEFAULT_DISC)
-    if target.exists():
-        target.unlink()
-    key("Escape"); goto_section("System"); key("Down"); key("Right"); key("Down"); key("Return")
-    time.sleep(1.5); close(); time.sleep(2.5)
-    check(f"Save state from the menu wrote slot 2 ({target.name})", target.exists())
+    # 4. save state from the System page (Resume, State slot, Save state, ...)
+    #    into the LAST slot, menu slot 12 = runtime slot 11, so a player's low
+    #    slots are never touched; whatever was in slot 12 is put back after.
+    target = SAVES_STATES_DIR / slot_file(11, os.environ.get("DVDBG_DISC") or DEFAULT_DISC)
+    thumb = target.with_suffix(".thumb")
+    saved = {}
+    for f in (target, thumb):
+        if f.exists():
+            saved[f] = f.read_bytes()
+            f.unlink()
+    try:
+        key("Escape"); goto_section("System"); key("Down")
+        key("Left", 12); key("Right", 11)          # slot row: 1 -> 12 whatever it showed
+        key("Down"); key("Return")
+        time.sleep(1.5); close(); time.sleep(2.5)
+        check(f"Save state from the menu wrote slot 12 ({target.name})", target.exists())
+    finally:
+        for f in (target, thumb):
+            if f in saved:
+                f.write_bytes(saved[f])
+            elif f.exists():
+                f.unlink()
 
     ok = all(results)
     print("RESULT:", "PASS" if ok else "FAIL", f"({sum(results)}/{len(results)})")

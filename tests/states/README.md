@@ -17,3 +17,16 @@ hook build). When `dvdbg.py state load 0` is refused after a bump, re-take
 it: enable the skip-intro feature in `<build>/mods/state.toml`, launch the
 debug build fresh and run `python tests/retake_state0.py` (menu → New Game →
 Start through the prologue and cutscene → first screen → save + keep).
+
+## Which slots the tools touch
+
+Menu slot numbers are 1-based, file names 0-based (menu slot 1 =
+`slot00`). Keep your own states in menu slots 2 to 11.
+
+| Menu slot | File | Who writes it |
+|---|---|---|
+| 1 | `slot00` | `dvdbg.py launch --state 0` / `state load 0` restore it from this directory when it is missing, a different size or older than the committed copy; `tests/retake_state0.py` re-takes it on purpose. |
+| 12 | `slot11` | `tests/test_menu.py` saves into it through the in-game menu and puts the previous file back afterwards (before 2026-10-15 the test wrote menu slot 2 and left it there). Developer A/B scripts in the scratchpad also use it. |
+
+Nothing else writes a slot. The launcher's own save-state hotkeys (`F7`)
+and the in-game menu write wherever the player points them.
