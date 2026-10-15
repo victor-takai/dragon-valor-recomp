@@ -177,6 +177,12 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x800A2DB0` / `0x800A2DB4` | u32 ×2 | Sword kills / magic kills since the last gem / scroll: stepped by the kill credit, compared with the drop tables, reduced by the met threshold when the gem / scroll is picked up | `func_80025650` (W), `func_800187D4` (R), `func_80034908` (W) |
 | `0x800A2DA0` / `0x800A2DA4` | u32 ×2 | Lifetime sword / magic kills of the hero (stepped with the above, read by nothing) | `func_80025650` |
 | `0x8008633C` | u8 | Non-zero suppresses every drop | `func_800187D4` (R), pc `0x800377C8` (W) |
+| `0x8008633E` | u16 | MP cost of the spell being cast: the spell's script stores it through native handler 30 (`func_80029BAC`: cost − Earrings count) and spends it through handler 31 (`func_80029BDC`: MP −= it). The setter does not clamp at 0 | `func_80029BAC` (W), `func_80029BDC` (R) |
+| `0x80086336` | u16 | "Pepper points": +20 per Pepper obtained, −20 on the undo. Read by nothing in the EXE or the five BIN modules, and no data on disc 1 holds the address: a trade good, as the guides say | `func_80028940`, `func_80034908`, `func_80029098` (W) |
+| `0x80086318` | struct | Stage / HUD state block the rows above belong to: `+0x06` / `+0x08` HP / MP mirrors, `+0x0C`‥`+0x14` attack table, `+0x1A` the 1200-frame timer of pickup 9, `+0x1E` Pepper points, `+0x22` a mode byte (0 in play, 1 once the HUD's enemy counter is up), `+0x24` drop flag, `+0x26` spell cost | |
+| `0x800A2D99` | u8 | Selected spell of the hero (0xFF = none; slot 0 has none and every level 0). `func_80037D94` SetCurrentSpell copies it into the HUD icon state (`0x800A2C0C` = 1, `0x800A2C10` = (3 × spell + level) × 2 + 15) | `func_80037D94`, ACTION.BIN `0x800BFFE4` |
+| `0x8009FAF8` | struct | Spell ring of the action HUD (ACTION.BIN `0x800BFFE4`, pointer at `0x800C5E48`): `+0` current spell, `+1` state, `+2` ring index (u16; the D-pad moves it, action `0x100` confirms, action `0x80` selects), `+0xC` countdown | ACTION.BIN |
+| `0x800A2F64` / `0x800A2F68` / `0x800A2F80` | u32 ×3 | Pad words: held / newly pressed / repeat. High half = raw pad bits (D-pad 0x10 Up, 0x20 Right, 0x40 Down, 0x80 Left; 0x1000 Triangle … 0x8000 Square), low half = game actions after the button configuration. Slot 0's configuration, measured with `press` on 2026-10-15: Square 0x01 (attack), Circle 0x08, Cross 0x82 (0x80 = magic), Triangle 0x120, L1 / L2 0x10, R1 / R2 0x04, Start 0x40, Select nothing | ACTION.BIN, MAP.BIN |
 | `0x800A6A98` | struct ×32 | Pickup objects lying on the floor, 0x250 bytes each: `+0x238` counts down to 0 (0 = free slot, the drop vanishes), `+0x244` pickup id | `func_80034024` (spawn), `func_80034908` (pickup), `func_80035A5C` |
 | `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 12 one Val, 13 ten Val, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up; index 12 is the Val field itself); ids from 13 on are the inventory list below | `func_80034908`, `func_80028940` |
 | `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
@@ -301,10 +307,19 @@ enemies killed with magic stepped `0x800A2DB4` 0 → 1 → 2 (pc `0x800256F0`,
 called from `func_800260FC` right after the HP write; the sword counter
 untouched), the second kill left a scroll, and picking it up ran
 `func_80034908`: counter 2 → 0, scrolls 0 → 1, both 1 → 2, MP max 21 → 29.
-Casting a spell from a script is still open: the player casts with Circle
-(B on an Xbox pad), but `press circle` from slot 0 with only the level
-bytes written did nothing, so some spell-selection state is missing
-(see the backlog); `drop_test.py` covers the gem only.
+Casting a spell from a script is still open, but closer (2026-10-15):
+slot 0's hero has no spell at all (`0x800A2D99` = 0xFF, every level 0),
+which is the first reason `press circle` did nothing; and the action code
+reads the pad through the action words (`0x800A2F68`, *Known RAM
+addresses*), where slot 0's button configuration puts the magic action
+bit `0x80` on Cross, not Circle (B on the Xbox pad lands on whichever
+button the launcher maps it to). Writing a level, the ring index
+`0x8009FAFA` and the selected spell `0x800A2D99` and pressing Cross still
+cast nothing (MP, the cost field `0x8008633E` and the HUD-icon flag
+`0x800A2C0C` unchanged), so the hero state that reacts to the bit
+(ACTION.BIN `0x800C58B8`, or the per-state switch in front of
+`0x800BF1C8`) needs one more precondition (see the backlog);
+`drop_test.py` covers the gem only.
 
 **Cheat.** `dragonvalor.cheats` 1.3.0 has `gem_every` / `scroll_every`
 (launcher Mods page and the in-game Cheats page): each VBlank the plugin
@@ -325,12 +340,30 @@ carry a permanent bonus applied **when they are obtained** through
 presumably from the field module MAP.BIN): Lithograph (14) HP max +1 (cap
 100), Ring (15) MP max +1 (cap 100), Talisman (16) one row of
 `0x800115A4` (0,0,0,1,1 / 0,1,1,0,0, alternating) on the attack entries,
-Wine (17) DEF +1 (cap 999), Pepper (18) +20 to `0x80086336`
-(unidentified). The action-stage pickup handler `func_80034908` gives its
-HP max / MP max pickups +8 (cap 100) instead. Earrings (19) are the one
-count read live: `func_80029BAC` subtracts their number from a value it
-stores at `0x8008633E`. Editing a count on the menu's Items page therefore
-changes the count and nothing else (Earrings aside).
+Wine (17) DEF +1 (cap 999), Pepper (18) +20 to `0x80086336`, a counter
+nothing reads (the guides call Pepper a trade good; the code agrees: no
+reader in the EXE or the five BIN modules, no data on the disc holds the
+address). The action-stage pickup handler `func_80034908` gives its HP max
+/ MP max pickups +8 (cap 100) instead. Earrings (19) are the one count read
+live: every spell's script stores its MP cost through native handler 30
+(`func_80029BAC`: cost − Earrings count → `0x8008633E`) and spends it
+through handler 31 (`func_80029BDC`: MP −= that), so each Earring makes
+every cast 1 MP cheaper, as the GameFAQs guide says. The setter does not
+clamp: with more Earrings than a spell costs, the u16 subtraction would
+*add* MP (unverified; a pad test is in the backlog). Editing a count on the
+menu's Items page therefore changes the count and nothing else (Earrings
+aside).
+
+**Object scripts and native handlers.** Every object runs a bytecode
+script from `func_800260FC` ObjectUpdate; one opcode calls a native handler
+out of the 32-entry table at `0x80011170` (copied to the stack at entry,
+dispatched at pc `0x80026D54` with the object and a pointer to the script's
+arguments): 0 / 1 `func_80024BA4`, 2 `func_80024F18`, 3 `func_80025264`,
+4 `func_80025650` EnemyKillCredit, 5 `func_800250B4`, … 30 `func_80029BAC`
+SpellCostSet, 31 `func_80029BDC` SpellMpDeduct. The scripts live in the
+stage data, so a grep of the modules never shows who uses a handler;
+`func_80028940` / `func_80029098` (pickup apply / undo) are reached through
+the pointers at `0x8006FFF4` / `F8` the same way.
 
 ### Character and weapon (2026-10-14 status)
 
@@ -675,7 +708,10 @@ requiring a dedicated full playthrough; the attract demo (stages 6‥9 and
 Identification tooling: `tools/dvdbg.py` + `read_ram`/`write_ram` for RAM
 probes, a data-xref listing of the EXE (address → function, width,
 read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
-modules, `symbols.toml` to name functions as they are understood.
+modules (the pages the runtime has executed only; `tools/bin_listing.py OUT
+[MAP ACTION …]` reads the whole modules from disc 1 and writes listings at
+`0x800BBEF0`, which is how MAP.BIN was searched on 2026-10-15),
+`symbols.toml` to name functions as they are understood.
 
 
 ### Play sessions
@@ -729,6 +765,7 @@ mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip
 mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonvalor_menu.cpp = in-game menu provider
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
+tools/bin_listing.py  BIN/*.BIN from the disc -> listings at 0x800BBEF0 (whole modules, not only executed pages)
 tests/states/         committed save state slot 0 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)
 Play.bat, PlayDebug.bat     player / debug launch

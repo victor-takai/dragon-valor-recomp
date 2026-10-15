@@ -8,13 +8,57 @@
 #define PSX_FN_BootEntry 0x80012EA0u
 #define func_80012EA0 BootEntry  /* alias */
 
+/* confirmed: death effects + drop choice (from func_800208D8): gem when sword kills >= u16 table 0x8006CAA8[gems] (gems < 8, both < 10), scroll when magic kills >= 0x8006CAB8[scrolls] (scrolls < 5), only if GemOrScrollOnFloor says none; else random table 0x8006CA74[4*class(+0x7F)+roll]; flag 0x8008633C disables; spawns via SpawnPickup */
+#define PSX_FN_EnemyDeathDrops 0x800187D4u
+#define func_800187D4 EnemyDeathDrops  /* alias */
+
 /* guessed: writes mode byte 0x8008634C/4D and the area/stage pair 0x800A2F18/1A */
 #define PSX_FN_ModeTransition 0x80025264u
 #define func_80025264 ModeTransition  /* alias */
 
-/* guessed: reads MP max 0x8008A5B4 (pc 0x80034FBC) */
-#define PSX_FN_MpMaxReader 0x80034908u
-#define func_80034908 MpMaxReader  /* alias */
+/* confirmed: enemy death: hit kind +0xBC 0..4 -> credit +0xC = 2, sword kills u32 0x800A2DB0 (+lifetime 0x800A2DA0); 5..27 -> credit 1, magic kills 0x800A2DB4 (+0x800A2DA4); else credit 3; called from ObjectUpdate (ra 0x80026D74) just after the HP write; both branches traced live 2026-10-15 */
+#define PSX_FN_EnemyKillCredit 0x80025650u
+#define func_80025650 EnemyKillCredit  /* alias */
+
+/* guessed: object loop: runs each object's bytecode script; writes the hit index 0x8008632E at attack start (pc 0x80026630) and the target's HP 0x..+0xCE (pc 0x80026D04); one opcode dispatches the 32 native handlers of the table 0x80011170 (pc 0x80026D54, args: object, pointer to the script arguments) */
+#define PSX_FN_ObjectUpdate 0x800260FCu
+#define func_800260FC ObjectUpdate  /* alias */
+
+/* guessed: zeroes gems / scrolls / both and the two kill counters unless 0x800A2F18 is 0 or 12; also clears 0x800A2EE2..E8, 0x800A2E00..04 */
+#define PSX_FN_ChapterInit 0x80027D58u
+#define func_80027D58 ChapterInit  /* alias */
+
+/* guessed: jump table 0x8001131C by pickup id: 0 gem (+table 0x80011598 to the attack entries), 2 scroll (MP max), 12/13 Val +1/+10, 14/15/16/17 HP max / MP max / attack / DEF up; NOT the floor-pickup path (that is FloorPickup) and without the kill-counter bookkeeping; trigger unknown */
+#define PSX_FN_PickupEffectTable 0x80028940u
+#define func_80028940 PickupEffectTable  /* alias */
+
+/* confirmed: native handler 30 of the object-script table 0x80011170: 0x8008633E = *arg (u16) - Earrings count 0x800A2DDE, no clamp; the spell's script calls it before SpellMpDeduct */
+#define PSX_FN_SpellCostSet 0x80029BACu
+#define func_80029BAC SpellCostSet  /* alias */
+
+/* confirmed: native handler 31: MP 0x8008A5B2 -= 0x8008633E (u16) */
+#define PSX_FN_SpellMpDeduct 0x80029BDCu
+#define func_80029BDC SpellMpDeduct  /* alias */
+
+/* guessed: (x, y, z, enemy +0xE0, pickup id) -> a slot of the pool 0x800A6A98 */
+#define PSX_FN_SpawnPickup 0x80034024u
+#define func_80034024 SpawnPickup  /* alias */
+
+/* confirmed: per frame from ACTION.BIN (0x800C3FEC): touching a pickup applies it (write-traced 2026-10-15); gem / scroll subtract the met threshold from the kill counter, step 0x800A2EDC/DE/E0, gem adds a row of 0x80011598 then StrRecompute, scroll adds 8 to MP max (cap 100) */
+#define PSX_FN_FloorPickup 0x80034908u
+#define func_80034908 FloorPickup  /* alias */
+
+/* confirmed: STR 0x8008A5B6 = sum of the five attack entries 0x80086324..2C; called after every stat change */
+#define PSX_FN_StrRecompute 0x800358A8u
+#define func_800358A8 StrRecompute  /* alias */
+
+/* confirmed: returns 0 while a pickup with id 0 or 2 lies in the pool 0x800A6A98 (32 x 0x250; +0x238 countdown, +0x244 id) */
+#define PSX_FN_GemOrScrollOnFloor 0x80035A5Cu
+#define func_80035A5C GemOrScrollOnFloor  /* alias */
+
+/* guessed: selected spell 0x800A2D99 (0xFF = none) with level != 0: 0x800A2C0C = 1 and the HUD icon id 0x800A2C10 = (3*spell+level)*2+15; called by the spell ring (ACTION.BIN 0x800BFFE4) and by FloorPickup after a spell book; it is not the cast itself */
+#define PSX_FN_SetCurrentSpell 0x80037D94u
+#define func_80037D94 SetCurrentSpell  /* alias */
 
 /* guessed: reads DEF 0x8008A5B8 and the area id 0x800A2F18 */
 #define PSX_FN_DefReader 0x80038094u
@@ -32,9 +76,17 @@
 #define PSX_FN_HpReaderB 0x80038F0Cu
 #define func_80038F0C HpReaderB  /* alias */
 
+/* confirmed: new game: attack entries 6/9/12/15/18, HP 30, MP 20, DEF 1, then StrRecompute */
+#define PSX_FN_NewGameStats 0x8003A7C4u
+#define func_8003A7C4 NewGameStats  /* alias */
+
 /* confirmed: DEMO.BIN sets area/stage then jal here; loads a stage's data from DATA.CDR */
 #define PSX_FN_LoadStage 0x8003A9B0u
 #define func_8003A9B0 LoadStage  /* alias */
+
+/* confirmed: hit power = attack entry [u8 0x8008632E] (pc 0x80041798); damage = power >> target resistance, min 1 (0x80042768..E4) */
+#define PSX_FN_HeroCombat 0x80040DCCu
+#define func_80040DCC HeroCombat  /* alias */
 
 /* guessed: largest flow function: 88 RAM refs, reads/writes Val 0x800A2DD0, writes 0x80086322 / 0x8008634D */
 #define PSX_FN_GameFlowMain 0x8004BF84u

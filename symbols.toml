@@ -49,13 +49,6 @@ status = "guessed"
 note = "reads current HP 0x8008A5AE (pc 0x80038F10)"
 
 [[func]]
-pc = 0x80034908
-name = "MpMaxReader"
-emit = false
-status = "guessed"
-note = "reads MP max 0x8008A5B4 (pc 0x80034FBC)"
-
-[[func]]
 pc = 0x80038094
 name = "DefReader"
 emit = false
@@ -98,7 +91,7 @@ pc = 0x800260FC
 name = "ObjectUpdate"
 emit = false
 status = "guessed"
-note = "object loop: writes the hit index 0x8008632E at attack start (pc 0x80026630) and the target's HP 0x..+0xCE (pc 0x80026D04)"
+note = "object loop: runs each object's bytecode script; writes the hit index 0x8008632E at attack start (pc 0x80026630) and the target's HP 0x..+0xCE (pc 0x80026D04); one opcode dispatches the 32 native handlers of the table 0x80011170 (pc 0x80026D54, args: object, pointer to the script arguments)"
 
 [[func]]
 pc = 0x8003A7C4
@@ -148,3 +141,24 @@ name = "ChapterInit"
 emit = false
 status = "guessed"
 note = "zeroes gems / scrolls / both and the two kill counters unless 0x800A2F18 is 0 or 12; also clears 0x800A2EE2..E8, 0x800A2E00..04"
+
+[[func]]
+pc = 0x80029BAC
+name = "SpellCostSet"
+emit = false
+status = "confirmed"
+note = "native handler 30 of the object-script table 0x80011170: 0x8008633E = *arg (u16) - Earrings count 0x800A2DDE, no clamp; the spell's script calls it before SpellMpDeduct"
+
+[[func]]
+pc = 0x80029BDC
+name = "SpellMpDeduct"
+emit = false
+status = "confirmed"
+note = "native handler 31: MP 0x8008A5B2 -= 0x8008633E (u16)"
+
+[[func]]
+pc = 0x80037D94
+name = "SetCurrentSpell"
+emit = false
+status = "guessed"
+note = "selected spell 0x800A2D99 (0xFF = none) with level != 0: 0x800A2C0C = 1 and the HUD icon id 0x800A2C10 = (3*spell+level)*2+15; called by the spell ring (ACTION.BIN 0x800BFFE4) and by FloorPickup after a spell book; it is not the cast itself"
