@@ -81,10 +81,10 @@ note = "STR 0x8008A5B6 = sum of the five attack entries 0x80086324..2C; called a
 
 [[func]]
 pc = 0x80028940
-name = "PickupEffect"
+name = "PickupEffectTable"
 emit = false
-status = "confirmed"
-note = "jump table 0x8001131C by pickup id: 0 gem (+table 0x80011598 to the attack entries), 2 scroll (MP max), 14/15/16/17 HP max / MP max / attack / DEF up"
+status = "guessed"
+note = "jump table 0x8001131C by pickup id: 0 gem (+table 0x80011598 to the attack entries), 2 scroll (MP max), 12/13 Val +1/+10, 14/15/16/17 HP max / MP max / attack / DEF up; NOT the floor-pickup path (that is FloorPickup) and without the kill-counter bookkeeping; trigger unknown"
 
 [[func]]
 pc = 0x80040DCC
@@ -106,3 +106,45 @@ name = "NewGameStats"
 emit = false
 status = "confirmed"
 note = "new game: attack entries 6/9/12/15/18, HP 30, MP 20, DEF 1, then StrRecompute"
+
+[[func]]
+pc = 0x80025650
+name = "EnemyKillCredit"
+emit = false
+status = "confirmed"
+note = "enemy death: hit kind +0xBC 0..4 -> credit +0xC = 2, sword kills u32 0x800A2DB0 (+lifetime 0x800A2DA0); 5..27 -> credit 1, magic kills 0x800A2DB4 (+0x800A2DA4); else credit 3"
+
+[[func]]
+pc = 0x800187D4
+name = "EnemyDeathDrops"
+emit = false
+status = "confirmed"
+note = "death effects + drop choice (from func_800208D8): gem when sword kills >= u16 table 0x8006CAA8[gems] (gems < 8, both < 10), scroll when magic kills >= 0x8006CAB8[scrolls] (scrolls < 5), only if GemOrScrollOnFloor says none; else random table 0x8006CA74[4*class(+0x7F)+roll]; flag 0x8008633C disables; spawns via SpawnPickup"
+
+[[func]]
+pc = 0x80035A5C
+name = "GemOrScrollOnFloor"
+emit = false
+status = "confirmed"
+note = "returns 0 while a pickup with id 0 or 2 lies in the pool 0x800A6A98 (32 x 0x250; +0x238 countdown, +0x244 id)"
+
+[[func]]
+pc = 0x80034908
+name = "FloorPickup"
+emit = false
+status = "confirmed"
+note = "per frame from ACTION.BIN (0x800C3FEC): touching a pickup applies it (write-traced 2026-10-15); gem / scroll subtract the met threshold from the kill counter, step 0x800A2EDC/DE/E0, gem adds a row of 0x80011598 then StrRecompute, scroll adds 8 to MP max (cap 100)"
+
+[[func]]
+pc = 0x80034024
+name = "SpawnPickup"
+emit = false
+status = "guessed"
+note = "(x, y, z, enemy +0xE0, pickup id) -> a slot of the pool 0x800A6A98"
+
+[[func]]
+pc = 0x80027D58
+name = "ChapterInit"
+emit = false
+status = "guessed"
+note = "zeroes gems / scrolls / both and the two kill counters unless 0x800A2F18 is 0 or 12; also clears 0x800A2EE2..E8, 0x800A2E00..04"

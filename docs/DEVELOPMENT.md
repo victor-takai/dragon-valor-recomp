@@ -170,11 +170,15 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x8008A5B2` | u16 | MP current | |
 | `0x8008A5B4` | u16 | MP max | `func_80034908` |
 | `0x8008A5B6` | u16 | STR as shown on the Status screen: a derived value, recomputed by `func_800358A8` as the sum of the five attack entries below and **never read by combat** (see *How damage is computed*) | `func_800358A8` (W) |
-| `0x80086324`‥`2C` | u16 ×5 | Attack-power table of the current hero (new game: 6, 9, 12, 15, 18). A hit's power is the entry at index `0x8008632E`; a gem adds one unit (1, 1.5, 2, 2.5, 3, as two alternating byte rows at `0x80011598`) | `func_80040DCC` (R, pc `0x80041798`), `func_80028940` (gem), `func_8003A7C4` (new game) |
+| `0x80086324`‥`2C` | u16 ×5 | Attack-power table of the current hero (new game: 6, 9, 12, 15, 18). A hit's power is the entry at index `0x8008632E`; a gem adds one unit (1, 1.5, 2, 2.5, 3, as two alternating byte rows at `0x80011598`) | `func_80040DCC` (R, pc `0x80041798`), `func_80034908` (gem pickup), `func_8003A7C4` (new game) |
 | `0x8008632E` | u8 | Index into the attack table for the current hit; written 0 at every attack start (`func_800260FC`, pc `0x80026630`). Which move uses entries 1‥4 is unverified (a chained combo is the guess) | |
 | `0x8008631E` / `0x80086320` | u16 ×2 | HP / MP mirrors kept by the action code (HUD bars) | ACTION.BIN |
-| `0x800A2EDC` / `0x800A2EDE` / `0x800A2EE0` | u16 ×3 | Gems picked up / scrolls picked up / both, stepped by the pickup handler | `func_80028940` |
-| `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up); ids from 13 on are the inventory list below | `func_80028940` |
+| `0x800A2EDC` / `0x800A2EDE` / `0x800A2EE0` | u16 ×3 | Gems picked up / scrolls picked up / both, stepped by the floor-pickup handler; the drop rule stops at 8 gems, 5 scrolls, 10 of both (see *How drops are decided*) | `func_80034908` (W), `func_800187D4` (R) |
+| `0x800A2DB0` / `0x800A2DB4` | u32 ×2 | Sword kills / magic kills since the last gem / scroll: stepped by the kill credit, compared with the drop tables, reduced by the met threshold when the gem / scroll is picked up | `func_80025650` (W), `func_800187D4` (R), `func_80034908` (W) |
+| `0x800A2DA0` / `0x800A2DA4` | u32 ×2 | Lifetime sword / magic kills of the hero (stepped with the above, read by nothing) | `func_80025650` |
+| `0x8008633C` | u8 | Non-zero suppresses every drop | `func_800187D4` (R), pc `0x800377C8` (W) |
+| `0x800A6A98` | struct ×32 | Pickup objects lying on the floor, 0x250 bytes each: `+0x238` counts down to 0 (0 = free slot, the drop vanishes), `+0x244` pickup id | `func_80034024` (spawn), `func_80034908` (pickup), `func_80035A5C` |
+| `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 12 one Val, 13 ten Val, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up; index 12 is the Val field itself); ids from 13 on are the inventory list below | `func_80034908`, `func_80028940` |
 | `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
 | `0x800A2D9C` | u32 | Play time in frames (Load list shows it as h:mm; the GameFAQs save holds 5,594,735 = 25:54) | |
 | `0x800A2DD0` | u16 | Val (gold; Status shows 4 digits, 10000 reads 0000) | `func_8004BF84` |
@@ -184,7 +188,7 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x800A2DD2`‥ | u16 ×N | Inventory counts, one per item type: Pendant, Lithograph, Ring, Talisman, Wine, Pepper, Earrings, Bracelet, Horn, Perfume, Tea, Mask, Silver Key, Gold Key, Harp, Tiara, Copper Key, … (accessories, trade goods, keys; **no weapons**) | |
 | `0x800A2F18` / `0x800A2F1A` | u16 ×2 | Area and stage id of the stage to load (DEMO.BIN writes 0/6‥9 and 7/31‥34 before calling `func_8003A9B0`); slot 0 is 0/2 | `func_80025264` (W), `func_80038094`, … |
 | `0x8008634C` / `0x8008634D` | u8 ×2 | Game mode and sub-state: 8 = action stage, 10 = loading, 17 = attract demo | `func_8004BF84`, `func_80025264`, … |
-| `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields. Objects are 0x250 bytes apart: slot 0 is the hero, enemies sit in later slots with the same layout (slot 0's first screen: the enemy is slot 5, `0x8008B070`, HP 15/15 at `+0xCE`) | |
+| `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields. Objects are 0x250 bytes apart: slot 0 is the hero, enemies sit in later slots with the same layout (slot 0's first screen: the enemy is slot 5, `0x8008B070`, HP 15/15 at `+0xCE`). Enemy fields of the drop rule: `+0x7F` drop class (0 = never drops), `+0xBC` kind of the hit that last touched it (0‥4 sword, 5‥27 magic, copied from the hit object's `+0xC0`; 255 before any hit), `+0xC` kill credit (2 sword, 1 magic, 3 none) | |
 
 `write_ram` writes one byte per call (`addr=`, `val=`). The GameShark codes
 circulating on GameRevolution are correct for Val (`800A2DD0 2700`) and the
@@ -213,12 +217,15 @@ listing cannot attribute:
   (`+0x15F` table of the target object, 0 for the first enemy), plus an
   optional table term, at least 1; there is no DEF subtraction on that path.
   `func_800260FC` applies it to the target's HP (pc `0x80026D04`).
-- Pickups go through the jump table at `0x8001131C` (`func_80028940`): id 0
-  (gem) adds a byte row of `0x80011598` to the five entries, alternating
-  `1,2,2,3,3` and `1,1,2,2,3` by gem count, i.e. one unit of the
-  1 : 1.5 : 2 : 2.5 : 3 progression the new-game values (`func_8003A7C4`:
-  6, 9, 12, 15, 18) already follow; id 2 (scroll) raises MP max; ids 14‥17
-  are the HP max / MP max / attack / DEF consumables.
+- Floor pickups are applied by `func_80034908` (write-traced on 2026-10-15;
+  see *How drops are decided*): id 0 (gem) adds a byte row of `0x80011598`
+  to the five entries, alternating `1,2,2,3,3` and `1,1,2,2,3` by gem
+  count, i.e. one unit of the 1 : 1.5 : 2 : 2.5 : 3 progression the
+  new-game values (`func_8003A7C4`: 6, 9, 12, 15, 18) already follow; id 2
+  (scroll) adds 8 to MP max (cap 100); ids 14‥17 are the HP max / MP max /
+  attack / DEF consumables. `func_80028940` holds the same per-id effects
+  behind the jump table at `0x8001131C`, but it is not the floor-pickup
+  path and its trigger was not identified.
 - Hit test from slot 0 (`tools/ramscan/hit_test.py`; the scans above are
   `tools/ramscan/scan_fields.py` and `taint_scan.py` over `dump_ram.py` images): with the five
   entries written to 500 the first connecting swing took the enemy from
@@ -237,6 +244,61 @@ Cross on YES reloads the current stage from disc (stage id restored from the
 game's own record, so `0x800A2F1A` is overwritten). Area values 1‥3 written
 before CONTINUE leave the game black in mode 10 (CD-ROM status polling, no
 crash); 0 and 7 reload normally.
+
+#### How drops are decided (2026-10-15)
+
+The player also noticed that a scroll turns up after a run of magic kills
+and a gem after a run of sword kills. That is the game's rule, not luck.
+
+When an enemy dies, `func_80025650` (kill credit) reads the kind of the hit
+that killed it (byte `+0xBC` of the enemy, copied from the hit object's
+`+0xC0` by the hero combat code): kinds 0‥4 are sword moves and set the
+credit `+0xC` = 2 and step the sword-kill counter `0x800A2DB0`; kinds 5‥27
+are spells and set credit 1 and step the magic-kill counter `0x800A2DB4`;
+anything else (28 and up, or the 255 an object starts with) leaves credit 3
+and counts nowhere. `0x800A2DA0` / `0x800A2DA4` are lifetime copies of the
+two counters that nothing reads.
+
+`func_800187D4` (death effects, called from the per-frame object loop
+`func_800208D8`) then chooses the drop of every dying enemy, in this order:
+
+1. Nothing while the flag `0x8008633C` is set, and nothing from an enemy
+   whose drop class (byte `+0x7F`) is 0.
+2. If no gem or scroll is lying on the floor (`func_80035A5C` scans the 32
+   pickup objects at `0x800A6A98` for id 0 or 2):
+   - credit 2, sword kills ≥ `gemTable[gems]`, gems < 8 and gems + scrolls
+     < 10 → **gem** (pickup id 0). `gemTable` at `0x8006CAA8` = 15, 22, 28,
+     36, 48, 70, 105, 200;
+   - else credit 1, magic kills ≥ `scrollTable[scrolls]`, scrolls < 5 and
+     gems + scrolls < 10 → **scroll** (id 2). `scrollTable` at `0x8006CAB8`
+     = 2, 4, 7, 12, 20.
+3. Otherwise the random table: roll 0 with 50 %, 1 with 25 %, 2 and 3 with
+   12.5 % each; item = `dropTable[4 × class + roll]` at `0x8006CA74` (13
+   classes × 4 bytes, value = pickup id + 1, 0 = nothing). The first enemy
+   of slot 0 is class 2 = {nothing, Val coin, Val coin, nothing}. Ids in the
+   table: 3‥8 restores, 12 one Val, 13 ten Val, 9 and 10 unidentified (9
+   starts a 1200-frame timer at `0x80086332`; 10 queues 5 HP of damage and
+   gives 2 MP).
+
+Spawning is `func_80034024(x, y, z, +0xE0 of the enemy, id)`. Picking the
+gem or scroll up (`func_80034908`, the floor-pickup handler ACTION.BIN calls
+every frame) subtracts the threshold that was just met from the counter, so
+the tables are kills *between* drops and the surplus carries over: 15 sword
+kills for the first gem, 22 more for the second, … 200 for the eighth; 2,
+4, 7, 12 and 20 magic kills for the five scrolls; at most ten of both for
+one hero (`func_80027D58` zeroes the counters and the gem / scroll counts
+when a chapter starts). The gem then adds one row of `0x80011598` to the
+attack entries (STR +9 for the first), the scroll adds 8 to MP max.
+
+Verified from slot 0 (`tools/ramscan/drop_test.py`): with `0x800A2DB0`
+written to 15 the first sword kill left a gem on the floor (pool slot 0,
+id 0), the enemy read credit 2 / kind 1, and walking onto the gem took the
+counter 16 → 1, gems 0 → 1 and the entries 6/9/12/15/18 → 7/10/14/17/21
+(STR 60 → 69); with the counter untouched the same enemy left a Val coin
+(id 12) and the counter read 1. The scroll path is read from the code only:
+no pad button cast a spell from slot 0 even with every magic level written
+to 1 (casting needs more than the level bytes), so the live scroll test is
+in the backlog.
 
 ### Character and weapon (2026-10-14 status)
 

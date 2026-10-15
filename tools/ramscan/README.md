@@ -1,7 +1,7 @@
 # tools/ramscan
 
-Small scripts used to find the damage path (docs/DEVELOPMENT.md, "How damage
-is computed"). They work on RAM images dumped from a running debug build, so
+Small scripts used to find the damage path and the drop rule
+(docs/DEVELOPMENT.md, "How damage is computed" and "How drops are decided"). They work on RAM images dumped from a running debug build, so
 they see the EXE and the overlay exactly as loaded.
 
 | Script | Does |
@@ -11,6 +11,7 @@ they see the EXE and the overlay exactly as loaded.
 | `taint_scan.py IMAGE...` | loads through registers derived from the attack table, including indexed ones |
 | `dis_range.py IMAGE LO HI` | MIPS listing of a range (decoder from `tools/mipsdis.py`) |
 | `hit_test.py` | the swing-and-read experiment that confirmed `attack[]` is the real power |
+| `drop_test.py` | the kill-counter experiment that confirmed the gem rule: prime `0x800A2DB0` to 15, kill, walk onto the gem, then a control kill |
 
 Run them from the folder that holds the JSON dumps; they import `tools/dvdbg.py`
 for the TCP debug server (port 4370).

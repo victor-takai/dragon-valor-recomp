@@ -81,6 +81,9 @@ Verified-correct things are listed at the end so they are not re-checked.
 |---|---|---|---|
 | M | Propose `patches/recomp-ui/0001` upstream | RetroPortingToolKit/recomp-ui, `runtime_ui_imgui.cpp` | Scroll-to-selection and the selected-row frame; drop the local patch once the pin includes it. Needs the user's GitHub account for the PR. |
 | M | Title flow after an early movie skip | game / framework | The title animation sometimes runs > 2 min before the menu, sometimes jumps to the story demo; a Start on the still title can restart the opening. Seen with and without the skip mod. Watch in the human session; if it reproduces by hand, bisect against the pre-bump pin. |
+| L | Live scroll-drop test | `tools/ramscan/drop_test.py` | The scroll path (`0x800A2DB4` ≥ 2 / 4 / 7 / 12 / 20 with credit 1) is read from the code only: no pad button cast a spell from slot 0 even with every magic level written to 1. Find how a spell is selected and cast (pause-menu Magic page?), then prime the counter and kill with it. |
+| L | Drop cheat option | `dragonvalor.cheats`, `docs/DEVELOPMENT.md` *How drops are decided* | "Gem / scroll every kill": hold `0x800A2DB0` / `0x800A2DB4` at the current threshold each frame (the 8 / 5 / 10 caps and the one-on-the-floor rule still apply). Only if the player wants it. |
+| L | Pickup ids 9 and 10; the second effect routine | `func_80028940`, jump table `0x8001131C` | Id 9 starts a 1200-frame timer at `0x80086332`, id 10 queues 5 HP of damage and gives 2 MP; `func_80028940` applies effects per id without the kill-counter bookkeeping and its trigger is unknown (not the floor pickup). |
 
 ## E. Ideas from other psxrecomp titles
 
