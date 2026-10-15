@@ -203,6 +203,8 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x8009FAF8` | struct | Spell ring of the action HUD (ACTION.BIN `0x800BFFE4`, pointer at `0x800C5E48`): `+0` current spell, `+1` state, `+2` ring index (u16; the D-pad moves it, action `0x100` confirms, action `0x80` selects), `+0xC` countdown | ACTION.BIN |
 | `0x800A2F64` / `0x800A2F68` / `0x800A2F80` | u32 ×3 | Pad words: held / newly pressed / repeat. High half = raw pad bits (D-pad 0x10 Up, 0x20 Right, 0x40 Down, 0x80 Left; 0x1000 Triangle … 0x8000 Square), low half = game actions after the button configuration. Slot 0's configuration, measured with `press` on 2026-10-15: Square 0x01 (attack), Circle 0x08, Cross 0x82 (0x80 = magic), Triangle 0x120, L1 / L2 0x10, R1 / R2 0x04, Start 0x40, Select nothing | ACTION.BIN, MAP.BIN |
 | `0x800A6A98` | struct ×32 | Pickup objects lying on the floor, 0x250 bytes each: `+0x238` counts down to 0 (0 = free slot, the drop vanishes), `+0x244` pickup id | `func_80034024` (spawn), `func_80034908` (pickup), `func_80035A5C` |
+| `0x800A2D20`‥`0x800A2D5F` | u8 ×64 | **Save event flags**, the head of the save block (`0x800A2D20` is the base the code builds; selected spell is `+0x79`, play time `+0x7C`, Val `+0xB0`). A pickup object whose `+0x24C` is non-zero sets byte `[+0x24C]` to 1 when taken (`func_80034908`, pc `0x80034A94`‥`AB8`, then `+0x238` ← 0 retires the object); door scripts check these flags, not the key counts (2026-10-15, player's castle save: Gold Key object flag 1, a hand-written count opened nothing). Cleared with the save block by the routine at `0x80038B3C`‥`78`. | `func_80034908` (W) |
+| `0x800A6A98` | struct ×46 | Pickup pool, 46 objects of 0x250 bytes: `+0x238` active, `+0x244` pickup id, `+0x24C` save-flag index set on pickup (0 = none) | `func_80033E40` (scan), `func_80034908` |
 | `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 12 one Val, 13 ten Val, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up; index 12 is the Val field itself); ids from 14 on are the inventory list below, 13 is the ten-Val coin and 20‥27 count the spell books | `func_80034908`, `func_80028940` |
 | `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
 | `0x800A2D9C` | u32 | Play time in frames (Load list shows it as h:mm; the GameFAQs save holds 5,594,735 = 25:54) | |
@@ -390,7 +392,12 @@ Ring, 17 Talisman, 18 Bracelet, 19 Earrings, 20‥27 the spell books, 28
 Pepper, 29 Wine, 30 Horn, 31 Perfume, 32 Tea, 33 Mask, 34 Tiara, 35 Harp,
 36 Gold Key, 37 Silver Key, 38 Copper Key: the Status screen's grid order,
 confirmed 2026-10-15), 20‥27 raise the matching spell level by one (Heal …
-Vortex, max 3). Some inventory items
+Vortex, max 3). Any pickup object with a non-zero `+0x24C` also sets save
+flag byte `0x800A2D20 + that index` to 1: keys carry one, and the locked
+door of the stage checks the flag rather than the key count, so a key
+count written by hand opens nothing. The in-game menu's key rows therefore
+"take" the stage's key objects of that kind (flag set, object retired)
+when the count goes up. Some inventory items
 carry a permanent bonus applied **when they are obtained** through
 `func_80028940` (reached through the function pointer at `0x8006FFF4`,
 presumably from the field module MAP.BIN): Pendant (14) HP max +1 (cap
@@ -576,7 +583,7 @@ player's request, and the Magic and Items rows carry the game's own texts
 | System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
 | Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |
-| Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
+| Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu

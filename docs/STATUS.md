@@ -63,7 +63,8 @@ the native 60 Hz version.
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots
-  (the table was one off for everything but Earrings).
+  (the table was one off for everything but Earrings), and raising a key
+  count also takes the stage's key objects, which is what doors check.
 - **Every menu row is remembered** (2026-10-15): video rows through the
   launcher's `settings.toml`, mods through `mods/state.toml`; the volume
   (which the framework never saved) and the menu's own rows (Pause in menu,

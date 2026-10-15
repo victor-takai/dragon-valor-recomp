@@ -132,9 +132,9 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_ITEM("dv.ram.item11", "Mask", "Handmade item, traded at shops."),
     DV_ROW_ITEM("dv.ram.item12", "Tiara", "Jeweled item, traded at shops."),
     DV_ROW_ITEM("dv.ram.item13", "Harp", "Royal instrument, traded at shops."),
-    DV_ROW_ITEM("dv.ram.item14", "Gold Key", "Opens locked doors."),
-    DV_ROW_ITEM("dv.ram.item15", "Silver Key", "Opens locked doors."),
-    DV_ROW_ITEM("dv.ram.item16", "Copper Key", "Opens locked doors."),
+    DV_ROW_ITEM("dv.ram.item14", "Gold Key", "Opens locked doors. Raising it also takes this stage's gold keys, which is what the doors check."),
+    DV_ROW_ITEM("dv.ram.item15", "Silver Key", "Opens locked doors. Raising it also takes this stage's silver keys, which is what the doors check."),
+    DV_ROW_ITEM("dv.ram.item16", "Copper Key", "Opens locked doors. Raising it also takes this stage's copper keys, which is what the doors check."),
     {DV_KEY_SKIP_INTRO, "Game", "Skip intro movie",
      "Press Start for you when the intro movie starts. Takes effect at the next start.",
      RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
@@ -304,6 +304,41 @@ void write_str(int v) {
     }
     psx_mod_write_half(DV_STR, (uint16_t)v);
 }
+/* Keys. A door script does not look at the key count: when the hero walks
+ * over a key the pickup handler (func_80034908, pc 0x80034A94..0x80034AB8)
+ * sets the save event flag byte 0x800A2D20 + obj[+0x24C] to 1 and clears the
+ * object (obj[+0x238] = 0), and the door checks that flag (found 2026-10-15
+ * with the player's save: a hand-written count opened nothing, the real
+ * pickup changed exactly the count and that byte). So a key row that goes up
+ * also "takes" every key object of that kind in the stage's pickup pool
+ * (46 entries of 0x250 bytes at 0x800A6A98: +0x238 active, +0x244 pickup id,
+ * +0x24C flag index), which is what opens this stage's locked doors. Keys of
+ * other stages keep needing their own pickup. */
+#define DV_PICKUP_POOL   0x800A6A98u
+#define DV_PICKUP_COUNT  46u
+#define DV_OBJ_STRIDE    0x250u
+#define DV_SAVE_FLAGS    0x800A2D20u   /* 64 event bytes at the head of the save block */
+int key_pickup_id(uint32_t count_addr) {
+    switch (count_addr) {
+        case 0x800A2E00u: return 36;   /* Gold Key */
+        case 0x800A2E02u: return 37;   /* Silver Key */
+        case 0x800A2E04u: return 38;   /* Copper Key */
+        default: return 0;
+    }
+}
+int take_stage_keys(int pickup_id) {
+    int taken = 0;
+    for (uint32_t i = 0; i < DV_PICKUP_COUNT; ++i) {
+        const uint32_t obj = DV_PICKUP_POOL + i * DV_OBJ_STRIDE;
+        if (psx_mod_read_word(obj + 0x238u) == 0) continue;
+        if ((int)psx_mod_read_word(obj + 0x244u) != pickup_id) continue;
+        const uint32_t flag = psx_mod_read_word(obj + 0x24Cu);
+        if (flag != 0 && flag < 64u) psx_mod_write_byte(DV_SAVE_FLAGS + flag, 1);
+        psx_mod_write_word(obj + 0x238u, 0);
+        ++taken;
+    }
+    return taken;
+}
 void ram_write(const RamRow& r, int v) {
     if (r.addr == DV_STR) { write_str(v); return; }
     if (r.width == 1) psx_mod_write_byte(r.addr, (uint8_t)v);
@@ -381,8 +416,15 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
     if (const RamRow* r = ram_row(item)) {
         if (!hero_loaded()) { recomp_runtime_ui_set_status(m.ui, "No hero loaded yet"); return 0; }
+        const int before = ram_read(*r);
         ram_write(*r, value);
-        std::snprintf(text, sizeof text, "Written: %d", value);
+        const int key_id = key_pickup_id(r->addr);
+        if (key_id && value > before) {
+            const int taken = take_stage_keys(key_id);
+            std::snprintf(text, sizeof text, taken ? "Written: %d; %d key object(s) of this stage taken" : "Written: %d (no such key object in this stage)", value, taken);
+        } else {
+            std::snprintf(text, sizeof text, "Written: %d", value);
+        }
         recomp_runtime_ui_set_status(m.ui, text);
         return 1;
     }
