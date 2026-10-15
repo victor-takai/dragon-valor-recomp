@@ -60,8 +60,10 @@ the native 60 Hz version.
   regenerated code). `tests/test_widescreen.py on|off` 5/5 and 4/4; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
-- **Volume is remembered** (2026-10-15): the framework never saved it, so the
-  menu provider keeps it in `dragonvalor_settings.toml` next to the exe.
+- **Every menu row is remembered** (2026-10-15): video rows through the
+  launcher's `settings.toml`, mods through `mods/state.toml`; the volume
+  (which the framework never saved) and the menu's own rows (Pause in menu,
+  dim, opacity) through `dragonvalor_settings.toml` next to the exe.
 - Tester material: [`PLAYTESTING.md`](PLAYTESTING.md), the GitHub bug-report
   form, [`CONTROLS.md`](../CONTROLS.md), [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 

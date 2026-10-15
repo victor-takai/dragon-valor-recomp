@@ -41,9 +41,11 @@ Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
 4. **Escape** (or **Select+Start** on the pad) opens the in-game menu: pause,
    cheats (infinite HP/MP, a gem or scroll every N kills, Val, stats,
    spell levels, items), texture
-   filtering, scanlines, fullscreen, volume (remembered between runs), save/load state, disc change,
+   filtering, scanlines, fullscreen, volume, save/load state, disc change,
    back to the launcher. Arrows / D-pad move, Enter / Cross
-   selects, Escape / Circle goes back.
+   selects, Escape / Circle goes back. Every row is remembered between
+runs (video rows in `settings.toml`, mods in `mods/state.toml`, volume and
+the menu's own look in `dragonvalor_settings.toml`, all next to the exe).
 
 Xbox / PlayStation / Switch pads work out of the box; the game reads the
 analog stick. Memory cards live in `saves/`.

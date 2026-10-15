@@ -155,18 +155,27 @@ struct Menu {
 
 Menu g_menu;
 
-/* ---- persisted host volume ----------------------------------------------- */
+/* ---- persisted title settings ------------------------------------------ */
 /* psxrecomp keeps the host master volume in host_osd.c and the launcher's
  * settings.toml has no key for it (config_loader.cpp writes [audio]
  * frequency / spu_hq only), so every start came back at 100 whatever the
- * player set in the launcher or in this menu. Until upstream persists it,
- * the title keeps it in dragonvalor_settings.toml next to the executable:
- * read and applied by the static initializer at the end of this file (before
- * main, so the launcher's Settings page is seeded with it and re-applies it
- * when it returns), and written whenever the value is seen to differ: this
- * menu's Volume row, attach (the launcher stepper), detach (the numpad
- * hotkeys). Missing or unreadable file = the framework default. */
-int g_saved_volume = -1;
+ * player set in the launcher or in this menu; the menu's own rows (Pause in
+ * menu, backdrop dim and opacity) lived in this struct only. Until upstream
+ * persists the volume, the title keeps all four in dragonvalor_settings.toml
+ * next to the executable: read by the static initializer at the end of this
+ * file (before main, so the launcher's Settings page is seeded with the
+ * volume and re-applies it when it returns), written whenever a value is
+ * seen to differ: the rows themselves, attach (the launcher stepper), detach
+ * (the numpad hotkeys). Missing or unreadable file = the defaults, and
+ * nothing is written until a value moves. Video rows go through the host
+ * (settings.toml) and mod rows through mods/state.toml, as before. */
+struct DvSettings {
+    int volume = -1, pause_in_menu = -1, dim = -1, opacity = -1;   /* -1 = absent */
+    bool operator==(const DvSettings& o) const {
+        return volume == o.volume && pause_in_menu == o.pause_in_menu && dim == o.dim && opacity == o.opacity;
+    }
+};
+DvSettings g_saved;                 /* what the file holds (or held at start) */
 
 /* Resolved once, at the first call (the static initializer below, before any
  * other SDL_GetBasePath user): under SDL3 the returned string is owned by
@@ -185,36 +194,57 @@ const std::string& dv_settings_path() {
     return path;
 }
 
-int dv_volume_load() {
+int dv_clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+/* `key = value` lines; sections are ignored (the keys are unique). */
+DvSettings dv_settings_load() {
+    DvSettings d;
     FILE* f = std::fopen(dv_settings_path().c_str(), "rb");
-    if (!f) return -1;
+    if (!f) return d;
     char line[256];
-    int value = -1;
     while (std::fgets(line, sizeof line, f)) {
         const char* p = line;
         while (*p == ' ' || *p == '\t') ++p;
-        if (std::strncmp(p, "volume", 6) != 0) continue;
-        p += 6;
+        const char* k = p;
+        while (*p && *p != ' ' && *p != '\t' && *p != '=') ++p;
+        const size_t klen = (size_t)(p - k);
         while (*p == ' ' || *p == '\t') ++p;
         if (*p != '=') continue;
-        value = std::atoi(p + 1);
+        ++p;
+        while (*p == ' ' || *p == '\t') ++p;
+        const int n = std::atoi(p);
+        const int b = (p[0] == 't') ? 1 : (p[0] == 'f') ? 0 : -1;
+        if (klen == 6 && !std::strncmp(k, "volume", 6)) d.volume = dv_clamp(n, 0, 100);
+        else if (klen == 13 && !std::strncmp(k, "pause_in_menu", 13)) d.pause_in_menu = b;
+        else if (klen == 3 && !std::strncmp(k, "dim", 3)) d.dim = dv_clamp(n, 0, 100);
+        else if (klen == 7 && !std::strncmp(k, "opacity", 7)) d.opacity = dv_clamp(n, 0, 100);
     }
     std::fclose(f);
-    if (value < 0 || value > 100) return -1;
-    return value;
+    return d;
 }
 
-void dv_volume_sync() {
-    const int v = host_volume_get();
-    if (v == g_saved_volume) return;
+DvSettings dv_settings_current(const Menu& m) {
+    DvSettings d;
+    d.volume = host_volume_get();
+    d.pause_in_menu = m.pause_in_menu ? 1 : 0;
+    d.dim = m.dim;
+    d.opacity = m.opacity;
+    return d;
+}
+
+void dv_settings_sync(const Menu& m) {
+    const DvSettings d = dv_settings_current(m);
+    if (d == g_saved) return;
     FILE* f = std::fopen(dv_settings_path().c_str(), "wb");
     if (!f) return;
     std::fprintf(f,
                  "# Dragon Valor (USA) Recompiled: title settings the launcher does not keep.\n"
                  "# Written by the in-game menu provider (mods/plugins/dragonvalor_menu.cpp).\n"
-                 "[audio]\nvolume = %d\n", v);
+                 "[audio]\nvolume = %d\n\n"
+                 "[menu]\npause_in_menu = %s\ndim = %d\nopacity = %d\n",
+                 d.volume, d.pause_in_menu ? "true" : "false", d.dim, d.opacity);
     std::fclose(f);
-    g_saved_volume = v;
+    g_saved = d;
 }
 
 int opt_int(const char* pkg, const char* feat, const char* opt, int dflt) {
@@ -318,12 +348,13 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_TEXFILTER)) { m.host->video_get(&v); v.texture_filter = value; apply_video(m, v); return 1; }
     if (is(item, DV_KEY_SCANLINES)) { m.host->video_get(&v); v.scanlines = value ? 1 : 0; apply_video(m, v); return 1; }
     if (is(item, DV_KEY_DYNRES)) { m.host->video_get(&v); v.dynamic_resolution = value ? 1 : 0; apply_video(m, v); return 1; }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_VOLUME)) { host_volume_set(value); dv_volume_sync(); return 1; }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_DIM)) { m.dim = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); return 1; }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_OPACITY)) { m.opacity = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); return 1; }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_VOLUME)) { host_volume_set(value); dv_settings_sync(m); return 1; }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_DIM)) { m.dim = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); dv_settings_sync(m); return 1; }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_OPACITY)) { m.opacity = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); dv_settings_sync(m); return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU)) {
         m.pause_in_menu = value != 0;
         if (m.open) (void)m.host->set_paused(m.pause_in_menu ? 1 : 0);
+        dv_settings_sync(m);
         return 1;
     }
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { m.slot = value; return 1; }
@@ -454,7 +485,7 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
     std::lock_guard<std::mutex> lk(m.mu);
     if (!host || host->abi_version != PSX_MENU_ABI_VERSION) return 0;
     m.host = host;
-    dv_volume_sync();                  /* the launcher's stepper may have moved it */
+    dv_settings_sync(m);               /* the launcher's volume stepper may have moved it */
     if (!m.ui && !create_ui(m)) return 0;
     /* the committed selection is what the launcher left; mirror it */
     m.cheat_hp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", 0);
@@ -487,7 +518,7 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
 void p_detach(void* ctx) {
     Menu& m = *static_cast<Menu*>(ctx);
     std::lock_guard<std::mutex> lk(m.mu);
-    dv_volume_sync();                  /* numpad +/- changes since attach */
+    dv_settings_sync(m);               /* numpad +/- volume changes since attach */
     if (m.open) { recomp_runtime_ui_close(m.ui); m.open = false; }
     if (m.imgui) {
         ImGui_ImplOpenGL3_Shutdown();
@@ -650,9 +681,12 @@ const PsxMenuProvider g_provider = {
 struct Registrar {
     Registrar() {
         (void)psx_menu_set_provider(&g_provider);
-        const int v = dv_volume_load();
-        if (v >= 0) { host_volume_set(v); g_saved_volume = v; }
-        else g_saved_volume = host_volume_get();   /* no file: write one only once the volume moves */
+        const DvSettings d = dv_settings_load();
+        if (d.volume >= 0) host_volume_set(d.volume);
+        if (d.pause_in_menu >= 0) g_menu.pause_in_menu = d.pause_in_menu != 0;
+        if (d.dim >= 0) g_menu.dim = d.dim;
+        if (d.opacity >= 0) g_menu.opacity = d.opacity;
+        g_saved = dv_settings_current(g_menu);   /* no file, or a partial one: write only once a value moves */
     }
 } g_registrar;
 

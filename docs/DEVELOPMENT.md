@@ -86,7 +86,7 @@ Files the runtime writes, all gitignored:
 |---|---|
 | Memory cards | `saves/card1.mcd`, `saves/card2.mcd` (project root, `[runtime] memcard_dir`); raw 128 KB images, a DexDrive `.gme` minus its 3904-byte header. The game's Load Game reads card 1 only. |
 | Launcher/user settings | `settings.toml` next to the exe (overrides `game.toml` defaults) |
-| Title settings the launcher does not keep | `dragonvalor_settings.toml` next to the exe: `[audio] volume`, written by the in-game menu provider (see *In-game menu*) |
+| Title settings the launcher does not keep | `dragonvalor_settings.toml` next to the exe: `[audio] volume`, `[menu] pause_in_menu / dim / opacity`, written by the in-game menu provider (see *In-game menu*) |
 | Keyboard binds | `keybinds.ini` next to the exe (generated on first run) |
 | Host hotkeys / pad mapping | `config.ini` next to the exe (`[KeyMap]`, `[controller]`, `[mapping]`) |
 | Overlay captures + native shards | `overlay_captures.json(.d)` and `cache/` next to the exe |
@@ -592,25 +592,39 @@ Start pause still exists. Scripted test: `tests/test_menu.py` (keys through
 the debug server's `host_key`, screenshots through `present_shot`, since
 native screenshots never contain the overlay).
 
-**Volume persists through the title (2026-10-15).** The runtime keeps the
-host master volume in `host_osd.c` (`host_volume_get/set`); the launcher
-seeds its Settings stepper from it and re-applies it when it returns, but
-`settings.toml` has no key for it (`config_loader.cpp` writes `[audio]
-frequency` / `spu_hq` only), so every start came back at 100 whatever the
-player had set in the launcher or in this menu. The menu provider now keeps
-it in `dragonvalor_settings.toml` next to the executable (`[audio] volume =
-N`): the file is read and applied by the provider's static initializer,
-before `main`, so the launcher's stepper is seeded with it; it is written
-whenever the value is seen to differ, by the menu's Volume row, at attach
-(the launcher stepper) and at detach (the numpad hotkeys). No file = the
-framework default, and nothing is written until the volume moves. The path
-comes from `SDL_GetBasePath()`, resolved once and copied: under SDL3 (this
-build) the string is SDL's and must not be freed; the first version freed
-it and the heap damage surfaced as a guest `DISPATCH FATAL: misaligned
-target` a second later. Round trip checked on build-debug (`scratchpad
-volume_probe.py`): file 37 → the row shows 37 at the next start; two steps
-right → the file reads 47; relaunch → 47. The proper fix is an upstream
-`[audio] volume` key in the settings file (`BACKLOG.md`).
+**What each menu row persists to (2026-10-15).** Three stores, none of
+them this file's choice except the last:
+
+| Rows | Where | How |
+|---|---|---|
+| Fullscreen, Linear filter, Texture filtering, Scanlines, Dynamic resolution | `settings.toml` (the launcher's) | `PsxMenuHost.video_apply` posts the change; the main thread applies it and calls `save_user_settings` (checked live: two steps on Texture filtering rewrote the key) |
+| Cheats, gem/scroll every N, Skip intro | `mods/state.toml` | `PsxMenuHost.mod_set` records it in the catalogue and saves |
+| Magic levels, Items, Val, stats | nowhere | one-shot RAM writes; the game's own save carries them |
+| State slot | nowhere | a session choice |
+| **Volume**, **Pause in menu**, **Menu dim**, **Menu opacity** | `dragonvalor_settings.toml` next to the exe (ours) | see below |
+
+The runtime keeps the host master volume in `host_osd.c`
+(`host_volume_get/set`); the launcher seeds its Settings stepper from it and
+re-applies it when it returns, but `settings.toml` has no key for it
+(`config_loader.cpp` writes `[audio] frequency` / `spu_hq` only), so every
+start came back at 100 whatever the player had set in the launcher or in
+this menu; the menu's own rows lived in the provider's struct. The provider
+now keeps the four in `dragonvalor_settings.toml` (`[audio] volume`, `[menu]
+pause_in_menu / dim / opacity`): read and applied by its static initializer,
+before `main`, so the launcher's stepper is seeded with the volume; written
+whenever a value is seen to differ, by the rows themselves, at attach (the
+launcher stepper) and at detach (the numpad hotkeys). No file = the
+defaults, and nothing is written until a value moves. The path comes from
+`SDL_GetBasePath()`, resolved once and copied: under SDL3 (this build) the
+string is SDL's and must not be freed; the first version freed it and the
+heap damage surfaced as a guest `DISPATCH FATAL: misaligned target` a second
+later. Round trips checked on build-debug (`scratchpad volume_probe.py`,
+`settings_probe.py`): file 37 → the Volume row shows 37 at the next start,
+two steps → 47 in the file, relaunch → 47; file dim 20 / opacity 80 / pause
+off → the menu opens with that backdrop and Pause in menu Off, two steps on
+Menu dim (step 10) → `dim = 40`, Return on Pause in menu → `true`, relaunch keeps
+them. The proper fix for the volume is an upstream `[audio] volume` key in
+the settings file (`BACKLOG.md`).
 
 #### This project's package: `dragonvalor.skip-intro`
 
