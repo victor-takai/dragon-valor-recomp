@@ -19,7 +19,6 @@ id = "widescreen"
 name = "Widescreen"
 description = "Stages render at the chosen aspect with real scenery in the extra columns; the HUD keeps its 4:3 positions. The title screen, menus, the status screen's panel and movies stay 4:3 with side bars. Experimental: tested on the first chapter only; objects may appear late at the far edges."
 group = "Display"
-channel = "experimental"
 default_enabled = false
 
 [[option]]

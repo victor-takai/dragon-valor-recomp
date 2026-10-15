@@ -708,8 +708,10 @@ moves on; `--off` checks the movie keeps playing.
 
 #### This project's package: `dragonvalor.enhancement.widescreen` (2026-10-15)
 
-Native-wide widescreen for the stages, **off by default**, feature
-`channel = "experimental"` (the launcher shows the EXP tag). On PSX the
+Native-wide widescreen for the stages, **off by default**; the feature's
+description says it is experimental (it carried `channel = "experimental"`
+and the launcher's amber EXP tag until 2026-10-15, dropped on the player's
+request). On PSX the
 framework offers no widescreen switch of its own: `psxrecomp/docs/WIDESCREEN.md`
 (*Config reference*) says a title's package selects the view at activation,
 and `tomba.enhancement.widescreen` / `r4.enhancement.widescreen` are the
