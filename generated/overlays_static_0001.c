@@ -78115,8 +78115,7 @@ block_800C2B80:
 #ifdef PSX_ENABLE_BLOCK_CYCLES
     psx_cyc_step(cpu, 0x14u);
 #endif
-    { uint32_t _pgx1 = cpu->gpr[4]; cpu->gpr[2] = ((int32_t)cpu->gpr[4] < 385) ? 1 : 0;
-    PGXP_ALU(0x28820181u, cpu->gpr[2], _pgx1, 0x0181u); }  /* 0x800C2B80: 0x28820181 */
+cpu->gpr[2] = psx_ws_cull_slti(cpu->gpr[4], 385);  /* ws auto screen-x cull (right edge) */  /* 0x800C2B80: 0x28820181 */
 #ifdef PSX_COSIM
     cosim_instr(0x800C2B80u);
 #endif

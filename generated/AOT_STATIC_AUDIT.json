@@ -1,6 +1,6 @@
 {
   "game_id": "SLUS-01092",
-  "recipe_input_sha256": "53027b51c3f9d5d5e240fff934a179caf86ec92cf98010117977deba72dde36c",
+  "recipe_input_sha256": "4f86b3177c4b8ba53f58136fedc6775028f3785dc158cf5ceecf2c195d39faf0",
   "recipe_count": 5,
   "all_pairs_valid": true,
   "all_guards_match_known_input_bytes": true,
@@ -41,8 +41,8 @@
   "published_variants": 4630,
   "files": {
     "overlays_static.c": "4bcdd074dd4d60ec8649e24d15b880ab06f3929f04fa53bedc28665fa8d24d79",
-    "overlays_static_0000.c": "3863d8ec5668885777ed43cc0983468f630e8aab7705316353f786b52e0bba7d",
-    "overlays_static_0001.c": "70253c1f7f8010a32cdd67b3af8b58dd883a16a2c2a2c3b4d39213127eeff9da",
+    "overlays_static_0000.c": "fab6eb889fd6b25ab6198ffc2ad95617d228475c1ddca6715d56864accafc1bb",
+    "overlays_static_0001.c": "162efc432b3000c4ab1866f84d3616978357d34ddbe53bbcce544fa354799205",
     "overlays_static_0002.c": "274efd3f71751bead11001b54ceb194b75b4976bb556da0b8023bd4cc9902ce7",
     "overlays_static_0003.c": "1d24ef445bc1c34a137998a021f7605c32e3dad0a2a23b0cca856d66da6411bc",
     "overlays_static_0004.c": "6bfd56e2f6c27b9f098d58a3ff7638ab1044399c312af260702bbdde9ac1a842",
@@ -23213,12 +23213,12 @@
   "generation_inputs": {
     "schema": "psxrecomp AOT static generation inputs v1",
     "profile_sha256": "ab45700973cc8fb986d55bf1527f06cb879ecc2a4ab8839091fb565734760cf4",
-    "game_toml_sha256": "8788b14edbcc0f8c54edb8784502501e12b2b613141e9ff4f4116520747d7786",
+    "game_toml_sha256": "4cd93ad400344aaf7608ad2a21185dc200742c507571e7a96f0fa5a5439431e4",
     "disc": {
       "sha256": "9b41965d1c1bd8ab909d3a5301f376aaf4be346039aae070869b018afe59c59f"
     },
     "recompiler_sha256": "fe892a04fe6c06bbd766e2caaa942ffcd57cdce3361748e5677bd430b1e4ed16",
-    "cache_tag": "cg18_0bea7895_gc558cfcc3_f0",
+    "cache_tag": "cg18_0bea7895_gce0abe874_f0",
     "cps": true,
     "gcc": "C:\\retcomm-toolchain\\bin\\clang.exe",
     "tools": {
@@ -23237,5 +23237,5 @@
     },
     "mod_packages": {}
   },
-  "generation_inputs_sha256": "78ab5517fcbfa6cc9ace2b5a63dfcd1034ea73b41b853ff588bfbda52c6a8077"
+  "generation_inputs_sha256": "e2b76eea8723e9670a8a2a54dc11948426912f8c221803ab1a7794c62cb428a6"
 }

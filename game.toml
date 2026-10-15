@@ -105,13 +105,23 @@ p1_device = "auto"
 # keeps the projection and rasterises the extra columns into a wider surface.
 # The view is selected by that package's plugin (psx_mod_set_fixed_display_
 # aspect), so [video] aspect_ratio stays 4:3 and these keys change nothing
-# while the package is off. The game's own 4:3 reject is not widened yet
-# ([widescreen.cull] auto_screen_x needs a regen; BACKLOG.md section F).
+# while the package is off.
 [widescreen]
 native_wide = true        # the framework default, stated for clarity
 # 3D title with no per-sprite tag helper: classify a frame as gameplay when it
 # projects vertices through the GTE, so menus, FMV and the title stay 4:3.
 gte_game_mode = true
+
+# The game's own screen-X reject, widened by the live margin (identity at 4:3).
+# From `psxrecomp-analyze SLUS_010.92 --scan-widescreen`: the stage is 384 px
+# wide and two render-funnel functions test X against 0x181 next to a height
+# test; auto_screen_x rewrites those compares (3 sites: 0x8001FE1C,
+# 0x80040334, 0x8004034C in generated/ shards 05 and 17). Code-generator
+# substitution: regenerate generated/ after changing this block.
+[widescreen.cull]
+auto_screen_x = true
+screen_w_imms = ["0x180", "0x181"]
+screen_h_imms = ["0xF1", "0x102", "0x103"]
 
 # Online mount gate: digests + track count + optional TOC fingerprint
 # (see psxrecomp/docs/NETPLAY.md).

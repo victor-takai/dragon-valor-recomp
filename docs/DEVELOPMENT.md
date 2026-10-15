@@ -659,22 +659,36 @@ worked examples this one follows.
   framework's `nw_hud_corners` thirds shift is left off: ENHANCEMENTS.md
   records composite tears (dialogue boxes split) on the title that tried it,
   and this game's tutorial boxes span the full width.
-- **Culling.** `psxrecomp-analyze --scan-widescreen --emit-ws-sites`
-  (`cmake --build build-recompiler --target psxrecomp-analyze`) on the EXE:
-  screen extents `0x180/0x181` × `0xF1/0x102/0x103`, 2 functions carry the
-  width+height signature and are covered by `[widescreen.cull] auto_screen_x
-  = true`, 0 bias/range pairs, 16 `a1` nop candidates at 50 % (several are
-  object-script natives, so noise). `auto_screen_x` is a code-generator
-  substitution (identity at 4:3) and needs a regen of `generated/`, which
-  has not been done: objects that sit entirely in the revealed columns may
-  still be dropped by the game's own 4:3 reject. Not observed in the first
-  forest (rock, trees and the enemy drew to the edges in every capture), but
-  no capture caught an object crossing the far edge either. Backlog row.
+- **Culling** (applied the same day). `psxrecomp-analyze SLUS_010.92
+  --scan-widescreen --emit-ws-sites` (`cmake --build build-recompiler
+  --target psxrecomp-analyze`): screen extents `0x180/0x181` ×
+  `0xF1/0x102/0x103`, 2 EXE functions carry the width+height signature,
+  0 bias/range pairs, 16 `a1` nop candidates at 50 % (several are
+  object-script natives: noise, not used). `game.toml [widescreen.cull]
+  auto_screen_x = true` with those immediates is a code-generator
+  substitution, so `psxrecomp_cli.py generate` was re-run (11 s; the tree
+  is deterministic, the diff is exactly the substitutions): three EXE
+  compares against 385 become `psx_ws_cull_sltiu/slti` (`0x8001FE1C` both
+  edges, `0x80040334` and `0x8004034C` right edge, shards 05 and 17) and
+  two more in the static overlay shard (`0x800BECB8`, `0x800C2B80`, the
+  mode modules at `0x800BBEF0`); `AOT_STATIC_AUDIT.json` records the new
+  `game_toml_sha256` / cache tag, and the 4630 static variants are
+  unchanged in number. The tag change makes a `cache/gcc/<old tag>`
+  directory next to the exe stale: the loader then logs `OVERLAY CACHE
+  HASH MISMATCH … ALL overlays run INTERPRETED`, which is a false alarm
+  here (the static shard serves every overlay: `overlay_static_entries`
+  4217 entries with hits, `autocompile_status` triggers 0) but worth
+  silencing by deleting the old tag directory. Identity at 4:3: the helper returns the stock
+  compare while the margin is 0. Objects that sit entirely in the revealed
+  columns are therefore no longer dropped by those funnels; other
+  per-object culls, if any, were not found by the scan.
 - **Checked** on build-debug, OpenGL, 1080p, PGXP on, from save state 0:
   `tests/test_widescreen.py on` 5/5 (mode 2, 128 columns, still wide with
-  the pause up, window 16:9) and `off` 4/4; 0 unknown dispatches. Not
-  checked: later chapters, the field module (`MAP.BIN`) scenes, in-stage
-  movies, the software renderer, a real resize with Fit.
+  the pause up, window 16:9) and `off` 4/4; 0 unknown dispatches, the
+  static shard still serves every overlay (no runtime compiles), re-run
+  after the regen together with `tests/test_menu.py`. Not checked: later
+  chapters, the field module (`MAP.BIN`) scenes, in-stage movies, the
+  software renderer, a real resize with Fit.
 
 #### Video and audio defaults (measured 2026-10-14)
 
