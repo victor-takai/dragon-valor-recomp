@@ -156,10 +156,14 @@ route is replayed. States are whole-machine state: same BIOS (OpenBIOS),
 same disc, and a runtime update that changes the format means re-taking
 them (`state save`, then `state keep`).
 
-Slots the tools write: menu slot 1 (`slot00`, restored from `tests/states/`
-by every `launch --state 0`) and menu slot 12 (`slot11`, `tests/test_menu.py`,
-restored afterwards). Keep personal states in slots 2 to 11;
-`tests/states/README.md` has the table.
+A second committed state, **slot 10** (menu slot 11; `launch --state 10`),
+is a cave stage of area 1 / stage 11 with Fire selected and every spell at
+level 3 (play time 30:27, HP 32/39, MP 37/37, Earrings 1, Val 270): the
+start point for anything that needs a spell. Slots the tools write: menu
+slot 1 (`slot00`) and menu slot 11 (`slot10`), both restored from
+`tests/states/` by `launch --state N` when missing or older, and menu slot
+12 (`slot11`, `tests/test_menu.py`, restored afterwards). Keep personal
+states in slots 2 to 10; `tests/states/README.md` has the table.
 
 ### Known RAM addresses (USA EXE)
 
@@ -331,19 +335,29 @@ enemies killed with magic stepped `0x800A2DB4` 0 → 1 → 2 (pc `0x800256F0`,
 called from `func_800260FC` right after the HP write; the sword counter
 untouched), the second kill left a scroll, and picking it up ran
 `func_80034908`: counter 2 → 0, scrolls 0 → 1, both 1 → 2, MP max 21 → 29.
-Casting a spell from a script is still open, but closer (2026-10-15):
-slot 0's hero has no spell at all (`0x800A2D99` = 0xFF, every level 0),
-which is the first reason `press circle` did nothing; and the action code
-reads the pad through the action words (`0x800A2F68`, *Known RAM
-addresses*), where slot 0's button configuration puts the magic action
-bit `0x80` on Cross, not Circle (B on the Xbox pad lands on whichever
-button the launcher maps it to). Writing a level, the ring index
-`0x8009FAFA` and the selected spell `0x800A2D99` and pressing Cross still
-cast nothing (MP, the cost field `0x8008633E` and the HUD-icon flag
-`0x800A2C0C` unchanged), so the hero state that reacts to the bit
-(ACTION.BIN `0x800C58B8`, or the per-state switch in front of
-`0x800BF1C8`) needs one more precondition (see the backlog);
-`drop_test.py` covers the gem only.
+Casting a spell from a script works from the second test state (solved
+2026-10-15 with the player's save, `tests/states/` slot 10 = menu slot 11,
+`launch --state 10`): a cave stage of area 1 / stage 11, Fire selected at
+level 3, every spell at level 3, HP 32/39, MP 37/37, Earrings 1, out of
+the tutorial. There `press circle:8` (action bit `0x08`, the game's
+default Magic button) casts at once: the cost field `0x8008633E` takes the
+spell's cost minus the Earrings count and MP drops by it within 0.3 s. Why
+slot 0 never cast: its hero knows no spell (`0x800A2D99` = 0xFF, every
+level 0) and it sits inside the first stage's tutorial (mode 8 sub 5),
+where even a forced level + selection + cast state (`0x800A2C0C` = 1,
+icon `0x800A2C10`) did nothing on Cross (`0x80`, the magic-type select) or
+Circle. Two things to know when measuring: the cheats package's
+`infinite_mp` tops MP up to the maximum every VBlank, so with it on the
+deduction is invisible (run the measurement with a bare `mods/state.toml`,
+as `scratchpad cast_probe7.py` does), and the top-up never clamps, so an MP
+above the maximum stays. `drop_test.py` still covers the gem only: a
+magic-kill test needs an enemy in Fire's range, and slot 10 has none on
+screen (the one live object besides the hero is slot 2 with 1 HP, not
+touched by a cast). Pad action bits measured on slot 0's configuration:
+Square `0x01` attack, Cross `0x82` (`0x02` jump + `0x80` magic-type
+select), Circle `0x08` cast, Triangle `0x120`, L1/L2 `0x10`, R1/R2 `0x04`,
+Start `0x40`; spell-ring struct `0x8009FAF8` (`+0` current, `+1` state,
+`+2` index, `+0xC` pointer).
 
 **Cheat.** `dragonvalor.cheats` 1.3.0 has `gem_every` / `scroll_every`
 (launcher Mods page and the in-game Cheats page): each VBlank the plugin
@@ -373,10 +387,14 @@ live: every spell's script stores its MP cost through native handler 30
 (`func_80029BAC`: cost − Earrings count → `0x8008633E`) and spends it
 through handler 31 (`func_80029BDC`: MP −= that), so each Earring makes
 every cast 1 MP cheaper, as the GameFAQs guide says. The setter does not
-clamp: with more Earrings than a spell costs, the u16 subtraction would
-*add* MP (unverified; a pad test is in the backlog). Editing a count on the
-menu's Items page therefore changes the count and nothing else (Earrings
-aside).
+clamp, and the u16 underflow is real (measured 2026-10-15 on test state
+10, Fire level 3, cheats off): Earrings 0 → cost 4, MP 37 → 33; 1 → 3; 3 →
+1; 4 → cost 0, MP unchanged; 5 → cost 65535, MP 37 → **38**; 50 → cost
+65490, MP 37 → **83** and 129 after a second cast, above the 37 maximum
+and never clamped (the HUD bar draws it as full). So with Earrings ≥ a
+spell's cost every cast *adds* MP. Editing a count on the menu's Items page
+therefore changes the count and nothing else (Earrings aside, where 5 or
+more turn Fire into a free MP source).
 
 **Object scripts and native handlers.** Every object runs a bytecode
 script from `func_800260FC` ObjectUpdate; one opcode calls a native handler
