@@ -1,0 +1,58 @@
+diff --git a/src/common/backends/imgui/runtime_ui_imgui.cpp b/src/common/backends/imgui/runtime_ui_imgui.cpp
+index 5c7e1ec..b831075 100644
+--- a/src/common/backends/imgui/runtime_ui_imgui.cpp
++++ b/src/common/backends/imgui/runtime_ui_imgui.cpp
+@@ -147,16 +147,30 @@ void draw_items(RecompRuntimeUi *ui, const LauncherTheme &theme,
+         ImGui::PushID(static_cast<int>(index));
+         if (!enabled) ImGui::BeginDisabled();
+         const ImVec2 start = ImGui::GetCursorScreenPos();
+-        const float row_h = item->description && item->description[0]
+-                                ? theme.row_height + theme.spacing_sm
+-                                : theme.row_height;
++        const bool has_description = item->description && item->description[0];
++        const float base_row_h = has_description
++                                     ? theme.row_height + theme.spacing_sm
++                                     : theme.row_height;
+         const float step_button_w =
+-            touch_friendly ? std::max(76.0f, row_h * 0.90f) : 38.0f;
++            touch_friendly ? std::max(76.0f, base_row_h * 0.90f) : 38.0f;
+         const float step_gap = touch_friendly ? 12.0f : 6.0f;
+         const float step_controls_w =
+             item->type == RECOMP_RUNTIME_UI_INT
+                 ? step_button_w * 2.0f + step_gap + theme.spacing_sm
+                 : 0.0f;
++        // A description wraps inside the row instead of running under the
++        // -/+ buttons or past the drawer's edge; the row grows by the extra
++        // lines (a one-line description keeps the old height).
++        const float description_wrap_w = std::max(
++            80.0f, ImGui::GetContentRegionAvail().x - theme.spacing_md * 2.0f -
++                       step_controls_w);
++        const float description_h =
++            has_description ? ImGui::CalcTextSize(item->description, nullptr,
++                                                  false, description_wrap_w).y
++                            : 0.0f;
++        const float row_h =
++            base_row_h +
++            std::max(0.0f, description_h - ImGui::GetTextLineHeight());
+         // INT rows carry -/+ buttons and TEXT rows an edit field, both drawn on
+         // top of the row selectable; without AllowOverlap the selectable would
+         // swallow the clicks meant for them.
+@@ -200,11 +214,13 @@ void draw_items(RecompRuntimeUi *ui, const LauncherTheme &theme,
+                                                   : theme.text_muted),
+                           value);
+         }
+-        if (item->description && item->description[0]) {
+-            draw->AddText(ImVec2(start.x + theme.spacing_md,
+-                                start.y + theme.spacing_sm +
+-                                    ImGui::GetTextLineHeight() + 2.0f),
+-                          u32(theme.text_muted), item->description);
++        if (has_description) {
++            draw->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
++                          ImVec2(start.x + theme.spacing_md,
++                                 start.y + theme.spacing_sm +
++                                     ImGui::GetTextLineHeight() + 2.0f),
++                          u32(theme.text_muted), item->description, nullptr,
++                          description_wrap_w);
+         }
+         if (editing_this && enabled) {
+             const float field_w = touch_friendly

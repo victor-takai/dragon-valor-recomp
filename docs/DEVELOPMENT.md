@@ -457,7 +457,10 @@ the provider draws nothing itself. Two things that drawer lacked at pin
 not scroll to follow keyboard/pad navigation, so rows past the eighth of the
 Items page were unreachable by eye, and the selected row only had the subtle
 header fill; the patch scrolls the selected row into view and frames it with
-an accent outline plus a left bar. It is meant to go upstream as a PR.
+an accent outline plus a left bar. A second patch (`0002-…`, 2026-10-15)
+wraps a row's description inside the row and lets the row grow, after the
+player saw the longer cheat descriptions run past the drawer's edge. Both
+are meant to go upstream as one PR.
 
 The file compiles to nothing when the recomp-ui launcher is off
 (`RECOMP_LAUNCHER`). Rows that need a restart (internal resolution,
