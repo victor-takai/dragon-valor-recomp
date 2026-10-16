@@ -10,8 +10,9 @@ disc where that stage number is an action stage (kAreaActionStages in
 mods/plugins/dragonvalor_menu.cpp, from `tools/datacdr.py kinds --c`): a
 scene-type or empty stage left the screen black until the runtime's
 watchdog closed the game. "Go now" writes HP 0, holds Infinite HP off and
-presses Cross on the CONTINUE prompt through a pad transform, so the reload
-needs no input.
+answers YES on the CONTINUE prompt by writing the prompt's state (no button
+is pressed: a pressed Cross made the standing hero jump), and its pad
+transform gives the guest a neutral pad until the stage runs again.
 
 The test writes its own <build>/mods/state.toml (the player's file is backed
 up and restored, as are settings.toml and dragonvalor_settings.toml, which a
@@ -27,8 +28,10 @@ Go now trip (a debug-server input override would bypass the pad transform).
   3. --reloads: from slot 9, every allowed area for stage 1 (0..6) is
      written and reloaded through GAME OVER > CONTINUE (Cross pressed by the
      test); each must come back to the action stage, running 8 s later.
-  4. slot 9: Area -> 0, then Go now: the stage reloads as area 0 / stage 1
-     with no input.
+  4. slot 9: Cross held on the debug server's host layer reaches the guest
+     (control); Area -> 0, then Go now: the stage reloads as area 0 / stage 1
+     with no input, and the guest pad never shows a button during the trip,
+     not even while Cross is held there during the GAME OVER.
   run 2, Infinite HP on:
   5. slot 9: Area -> 2, Go now: area 2 / stage 1 is reached, and Infinite HP
      works again afterwards (HP written to 5 is refilled).
@@ -137,17 +140,34 @@ def main(argv):
         key("Down"); key("Return")
         time.sleep(0.5)
 
-    def wait_reload(target_area, limit=60):
-        """No input: wait for the GAME OVER, the automatic Continue and the stage."""
-        t0, seen9 = time.time(), False
+    def guest_pad():
+        return int(rpc(port, "pad_status")["slot0"]["buttons"], 16)
+
+    def wait_reload(target_area, limit=60, hold_x=False):
+        """No input from the test (unless hold_x: Cross held for 1.5 s on the
+        debug server's host layer, which the pad transform sees like a real
+        pad, during the GAME OVER): wait for the automatic Continue and the
+        stage.
+        Returns (ok, seconds, guest pad values seen while not in mode 8)."""
+        t0, seen9, pads, held = time.time(), False, set(), None
         while time.time() - t0 < limit:
             m = rd8(MODE)
             seen9 |= m == 9
+            if m != 8:
+                pads.add(guest_pad())
+            if hold_x and seen9 and held is None:
+                rpc(port, "set_input", layer="host", buttons="0xBFFF")
+                held = time.time()
+            if held and held > 0 and time.time() - held > 1.5:
+                rpc(port, "clear_input")
+                held = -1
             if seen9 and m == 8 and rd16(AREA) == target_area:
                 time.sleep(2)
-                return rd8(MODE) == 8, round(time.time() - t0, 1)
-            time.sleep(0.5)
-        return False, round(time.time() - t0, 1)
+                return rd8(MODE) == 8, round(time.time() - t0, 1), pads
+            time.sleep(0.1)
+        if held and held > 0:
+            rpc(port, "clear_input")
+        return False, round(time.time() - t0, 1), pads
 
     def reload_via_game_over():
         wr16(HP, 0)
@@ -188,11 +208,16 @@ def main(argv):
                 check(f"area {area}: back in an action stage and running", ok and running, f"area/stage {a}/{s}, mode {rd8(MODE)}")
 
         print("4. Go now from slot 9 into area 0:", load(9))
+        rpc(port, "set_input", layer="host", buttons="0xBFFF"); time.sleep(0.3)
+        held_pad = guest_pad()
+        rpc(port, "clear_input"); time.sleep(1.5)
+        check("control: Cross held on the host layer reaches the guest", not held_pad & 0x4000, f"pad {held_pad:04X}")
         val0 = rd16(VAL)
         blk0 = bytes.fromhex(rpc(port, "read_ram", addr="800A2D20", len=0x200)["hex"])
         go_now(["Left", "Left", "Left"])
-        ok, secs = wait_reload(0)
+        ok, secs, pads = wait_reload(0, hold_x=True)
         check("Go now reloaded area 0 / stage 1 with no input", ok and rd16(STAGE) == 1, f"{rd16(AREA)}/{rd16(STAGE)} after {secs} s")
+        check("no button reached the guest during the trip (Cross held 1.5 s)", pads == {0xFFFF}, " ".join(f"{v:04X}" for v in sorted(pads)))
         check("Go now gives back the Val the Continue costs", rd16(VAL) == val0, f"{val0} -> {rd16(VAL)}")
         blk1 = bytes.fromhex(rpc(port, "read_ram", addr="800A2D20", len=0x200)["hex"])
         diffs = [hex(0x800A2D20 + i) for i in range(0x200) if blk0[i] != blk1[i]]
@@ -204,7 +229,7 @@ def main(argv):
         launch(STATE_INFINITE_HP)
         print("5. Go now with Infinite HP on, slot 9 into area 2:", load(9))
         go_now(["Left"])   # 3 -> 2
-        ok, secs = wait_reload(2)
+        ok, secs, pads = wait_reload(2)
         check("Go now reloaded area 2 / stage 1 with Infinite HP on", ok and rd16(STAGE) == 1, f"{rd16(AREA)}/{rd16(STAGE)} after {secs} s")
         wr16(HP, 5); time.sleep(0.6)
         check("Infinite HP refills again after the trip", rd16(HP) == rd16(HPMAX), f"HP {rd16(HP)}/{rd16(HPMAX)}")

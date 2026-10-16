@@ -117,9 +117,9 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power.", 0, 999, 5),
     DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense.", 0, 999, 5),
     DV_ROW_INT("dv.ram.area", "Cheats", "Area (next Continue)",
-               "Area the stage reloads from after GAME OVER > Continue (0-1 Clovis, 3 Kodel). Only areas of this disc where your stage number is also an action stage are offered. Then use Go now below.", 0, 12, 1),
+               "Area the stage reloads from after GAME OVER > Continue (0-1 Clovis, 3 Kodel). The stage number is kept, so only areas of this disc where it is also an action stage are offered (from a chapter's first stage, all of them). Then use Go now below.", 0, 12, 1),
     {DV_KEY_GO_NOW, "Cheats", "Go now (Game Over)",
-     "Ends the stage with a Game Over and picks Continue for you: the stage reloads in the area above, about 10 s. Infinite HP pauses meanwhile; the 50 Val the Continue costs is given back.",
+     "Ends the stage with a Game Over and answers Continue for you: the stage reloads in the area above, in about 10 s. The pad is ignored until then and Infinite HP pauses; the 50 Val the Continue costs is given back.",
      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
     DV_ROW_MAGIC("dv.ram.magic0", "Heal", "Recovers HP and damages undead."),
     DV_ROW_MAGIC("dv.ram.magic1", "Defense", "Raises defense and weapon range."),
@@ -340,22 +340,35 @@ int next_allowed_area(int wanted, int current, int stage) {
 }
 
 /* ---- "Go now": a Game Over that reloads the stage in the chosen area -------
- * The row writes HP 0 and closes the menu; the game plays the hero's death
- * and shows GAME OVER / CONTINUE? with YES selected (mode 9, sub-state 2).
+ * The row writes HP 0 and closes the menu. ACTION.BIN (0x800C40E0) turns
+ * HP 0 straight into mode 9 (no death animation: the hero stays on its feet
+ * and the world keeps running under GAME OVER), and the mode 9 / sub-state 2
+ * handler (0x800C51F0) runs the CONTINUE prompt as a small state machine at
+ * 0x8009FAF8: 0 GAME OVER fades in, 1 CONTINUE? fades in, 2 waits for
+ * Cross/Circle, 3 blinks the choice for a 30-frame timer, 4 acts on it (YES:
+ * Val - 50, HP refilled, mode 17 reloads the stage number in the area the
+ * Area row chose). Pressing Cross there also made the standing hero jump, and
+ * the prompt ignored it until state 2, so the trip writes what the prompt's
+ * confirm branch writes (0x800C58CC: cursor on YES, fade 128, timer 30,
+ * state 3) as soon as the prompt starts, and no button is pressed at all.
  * A title pad transform (mod_plugins.h; offline only, never under netplay)
- * presses Cross there, and the CONTINUE reload loads the stage number in the
- * area the Area row chose. Meanwhile the cheats plugin's Infinite HP is held
- * off (dv_cheats_hold_hp, mods/plugins/dragonvalor_cheats.c) so the HP stays
- * at 0. Outside a trip the transform returns the stock pad; it is detached
- * the next time the menu opens. Timing is wall-clock because the transform
- * may run more than once per guest frame. */
+ * is the per-frame hook: it does those writes and hands the guest a neutral
+ * pad until the stage runs again, so nothing the player presses meanwhile
+ * moves the hero. The cheats plugin's Infinite HP is held off
+ * (dv_cheats_hold_hp, mods/plugins/dragonvalor_cheats.c) so the HP stays at
+ * 0. Outside a trip the transform returns the stock pad; it is detached the
+ * next time the menu opens. Timing is wall-clock because the transform may
+ * run more than once per guest frame. */
 extern "C" volatile int dv_cheats_hold_hp;
-#define DV_MODE       0x8008634Cu
-#define DV_SUB        0x8008634Du
-#define DV_HP         0x8008A5AEu
-#define PSX_PAD_CROSS 0x4000u
+#define DV_MODE        0x8008634Cu
+#define DV_SUB         0x8008634Du
+#define DV_HP          0x8008A5AEu
+#define DV_GO_STATE    0x8009FAF8u   /* u32 CONTINUE prompt state, 0..4 (above) */
+#define DV_GO_TIMER    0x8009FB04u   /* u32 +0x0C frames left in state 3       */
+#define DV_GO_FADE     0x8009FB08u   /* u32 +0x10 text brightness, 128 = full  */
+#define DV_GO_CURSOR   0x8009FB12u   /* s16 +0x1A 0 = YES, 1 = NO              */
 struct Warp {
-    int phase = 0;            /* 0 idle, 1 dying, 2 at the prompt, 3 reloading */
+    int phase = 0;            /* 0 idle, 1 dying, 2 reloading */
     uint64_t started_ms = 0, since_ms = 0;
     uint16_t val = 0;         /* Val before the trip: CONTINUE costs 50 */
     bool registered = false;
@@ -364,6 +377,12 @@ Warp g_warp;
 
 void warp_finish() { g_warp.phase = 0; dv_cheats_hold_hp = 0; }
 
+void neutral_pad(PSXModPadOutput* out) {
+    out->buttons = 0xFFFFu;
+    out->lx = out->ly = out->rx = out->ry = 0x80u;
+    out->negcon_i = out->negcon_ii = out->negcon_l = 0;
+}
+
 int warp_transform(const PSXModPadFrame* frame, PSXModPadOutput* out) {
     (void)frame;
     if (!g_warp.phase) return 0;
@@ -371,19 +390,19 @@ int warp_transform(const PSXModPadFrame* frame, PSXModPadOutput* out) {
     if (now - g_warp.started_ms > 60000u) { warp_finish(); return 0; }   /* never got there */
     const uint8_t mode = psx_mod_read_byte(DV_MODE), sub = psx_mod_read_byte(DV_SUB);
     if (g_warp.phase == 1) {
-        if (mode == 9 && sub == 2) { g_warp.phase = 2; g_warp.since_ms = now; }
-        return 0;
-    }
-    if (g_warp.phase == 2) {
-        if (mode != 9) { g_warp.phase = 3; g_warp.since_ms = now; return 0; }
-        /* Cross for 100 ms every 800 ms after 500 ms on the prompt, released
-         * in between: the prompt answers a press edge. */
-        const uint64_t t = now - g_warp.since_ms;
-        const bool down = t >= 500 && (t - 500) % 800 < 100;
-        out->buttons = down ? (out->buttons & ~PSX_PAD_CROSS) : (out->buttons | PSX_PAD_CROSS);
+        /* Sub-state 1 resets the prompt state to 0 before it hands over to 2. */
+        if (mode == 9 && sub == 2 && psx_mod_read_word(DV_GO_STATE) <= 2u) {
+            psx_mod_write_half(DV_GO_CURSOR, 0);
+            psx_mod_write_word(DV_GO_FADE, 128);
+            psx_mod_write_word(DV_GO_TIMER, 30);
+            psx_mod_write_word(DV_GO_STATE, 3);
+            g_warp.phase = 2;
+        }
+        neutral_pad(out);
         return 1;
     }
-    if (mode == 8 && now - g_warp.since_ms > 1000) {                /* the stage runs again */
+    if (mode != 8) { g_warp.since_ms = now; neutral_pad(out); return 1; }   /* still reloading */
+    if (now - g_warp.since_ms > 1000) {                            /* the stage runs again */
         psx_mod_write_half(0x800A2DD0u, g_warp.val);   /* the trip is not a real death: no Val toll */
         warp_finish();
     }

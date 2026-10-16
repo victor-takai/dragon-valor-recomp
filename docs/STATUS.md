@@ -79,8 +79,11 @@ the native 60 Hz version.
   reaches every chapter's hero (`tests/test_area_row.py --reloads`, 7/7);
   action rows no longer show "OPEN" (`patches/recomp-ui/0003`). A **Go
   now (Game Over)** row below Area makes the trip by itself: Game Over,
-  Continue pressed for the player, Infinite HP held off meanwhile, the
-  Continue's 50 Val given back (11‥14 s; `tests/test_area_row.py` 9/9).
+  Continue answered for the player, Infinite HP held off meanwhile, the
+  Continue's 50 Val given back (8‥12 s; `tests/test_area_row.py` 11/11).
+  Since the player saw the hero jump during it, the row no longer presses
+  Cross: it writes the CONTINUE prompt's own state (`0x8009FAF8`) and
+  gives the game a neutral pad until the stage runs again.
   The blue status line now replaces the key hint in the footer and wraps
   before Resume instead of running under it (`patches/recomp-ui/0004`).
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
