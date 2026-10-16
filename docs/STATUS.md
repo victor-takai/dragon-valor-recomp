@@ -65,8 +65,11 @@ the native 60 Hz version.
   dragonvalor.enhancement.widescreen*.
 - **Chapter 2 reached** (2026-10-16): the player finished chapter 1 (Clovis)
   on this build and plays chapter 2 as Kodel at 60 fps; their save state at
-  its first stage (area 3 / stage 1) gave the hero-index finding in
-  `DEVELOPMENT.md`, *Character and weapon*.
+  its first stage (area 3 / stage 1) is the third committed test state
+  (`tests/states/`, menu slot 10) and gave the hero finding in
+  `DEVELOPMENT.md`, *Character and weapon*: the hero follows the area, so
+  the Cheats page gained an **Area (next Continue)** row that reloads
+  another area's stage (Kodel's save + area 0 = Clovis in the prologue).
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots

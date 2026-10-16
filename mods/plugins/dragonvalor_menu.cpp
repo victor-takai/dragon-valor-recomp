@@ -67,6 +67,7 @@ const RamRow kRamRows[] = {
     {DV_RAM_VAL, 0x800A2DD0u, 2},        {"dv.ram.hpmax", 0x8008A5B0u, 2},
     {"dv.ram.mpmax", 0x8008A5B4u, 2},    {"dv.ram.str", 0x8008A5B6u, 2},
     {"dv.ram.def", 0x8008A5B8u, 2},
+    {"dv.ram.area", 0x800A2F18u, 2},   /* area the next stage load reads (save block +0x1F8) */
     {"dv.ram.magic0", 0x800A2E06u, 1}, {"dv.ram.magic1", 0x800A2E07u, 1},
     {"dv.ram.magic2", 0x800A2E08u, 1}, {"dv.ram.magic3", 0x800A2E09u, 1},
     {"dv.ram.magic4", 0x800A2E0Au, 1}, {"dv.ram.magic5", 0x800A2E0Bu, 1},
@@ -114,6 +115,8 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP.", 1, 999, 10),
     DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power.", 0, 999, 5),
     DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense.", 0, 999, 5),
+    DV_ROW_INT("dv.ram.area", "Cheats", "Area (next Continue)",
+               "Area the stage reloads from after GAME OVER > Continue: 0-1 Clovis, 3 Kodel. The stage number is kept and must exist there, or the screen stays black.", 0, 12, 1),
     DV_ROW_MAGIC("dv.ram.magic0", "Heal", "Recovers HP and damages undead."),
     DV_ROW_MAGIC("dv.ram.magic1", "Defense", "Raises defense and weapon range."),
     DV_ROW_MAGIC("dv.ram.magic2", "Fire", "Fireball; also ignites devices."),

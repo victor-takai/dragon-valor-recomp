@@ -20,8 +20,13 @@ in-process, so it is safe from any shell.
   python tools/dvdbg.py state save|load|keep [N]
         runtime save state in slot N (saves/openbios/, restored from the
         committed tests/states/ copy when missing); keep copies the slot into
-        tests/states/. Slot 0 = first screen of gameplay (skips the 5 min intro).
+        tests/states/. Slot 0 = first screen of gameplay (skips the 5 min intro),
+        9 = chapter 2 (Kodel, ship's hold), 10 = town stage with Fire selected.
   python tools/dvdbg.py raw <cmd> [k=v ...]
+        e.g. raw present_shot path=out.png (the composed window). That one is
+        fulfilled at the next composed present: after a stage reload it can
+        stay pending and be written with a later frame; poll present_shot_seq
+        or use `shot` (VRAM) when the timing matters.
   python tools/dvdbg.py kill              stop every DragonValorUS_Recompiled.exe
 
 PORT env or --port selects another instance (--renderer software runs are

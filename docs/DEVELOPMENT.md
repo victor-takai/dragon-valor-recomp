@@ -170,11 +170,15 @@ A second committed state, **slot 10** (menu slot 11; `launch --state 10`),
 is a town stage of area 1 / stage 7 with Fire selected (level 1) and an
 enemy of 15 HP in front of the hero (HP 38/38, MP 38/38, Earrings 0, Val
 1014): the start point for anything that needs a spell or a magic kill
-(`tests/test_scroll_cheat.py`). Slots the tools write: menu
-slot 1 (`slot00`) and menu slot 11 (`slot10`), both restored from
-`tests/states/` by `launch --state N` when missing or older, and menu slot
-12 (`slot11`, `tests/test_menu.py`, restored afterwards). Keep personal
-states in slots 2 to 10; `tests/states/README.md` has the table.
+(`tests/test_scroll_cheat.py`). The third, `slot09` (menu slot 10, since
+2026-10-16), is the player's chapter-2 state: Kodel in the hold of a ship,
+area 3 / stage 1, HP 36/36, MP 31/31, Heal selected, three pirates (see
+*Character and weapon*): the start point for anything past chapter 1. Slots
+the tools write: menu slot 1 (`slot00`), menu slot 10 (`slot09`) and menu
+slot 11 (`slot10`), all restored from `tests/states/` by `launch --state N`
+when missing or older, and menu slot 12 (`slot11`, `tests/test_menu.py`,
+restored afterwards). Keep personal states in slots 2 to 9;
+`tests/states/README.md` has the table.
 
 ### Known RAM addresses (USA EXE)
 
@@ -460,9 +464,25 @@ the model-selection block:
   `0x8006CC70` = 0 0 1 2 3 4 5 6 7 8 7 6 5 (areas 0‥12), stored at stage
   start by `func_80027D58` (pc `0x80027D8C`); slot 0 (area 0) reads 0, Kodel
   (area 3) reads 2. `func_800282E8` stores 8 there while summing the save
-  block (an epilogue / gallery path, unverified). So a hero swap is an
-  **area / stage** swap: write `0x800A2F18` / `1A` and reload the stage; the
-  model and the portrait should follow (not tried).
+  block (an epilogue / gallery path, unverified). The byte is a mirror,
+  not the switch: poking it (0 on Kodel, 2 on Clovis, before or during the
+  GAME OVER prompt) changes nothing visible, and the death handler zeroes it
+  anyway (`func_800260FC`, the `sb v0, 0(a2)` at pc `0x80026630`, a script
+  "store byte" native).
+- **The hero follows the area** (verified 2026-10-16, cheats off, through
+  GAME OVER → CONTINUE): Kodel's save with `0x800A2F18` = 0 written before
+  or during the prompt reloads area 0 / stage 1, the prologue, with
+  **Clovis's model** and Kodel's numbers (HP 36/36, MP 31/31, Heal
+  selected). Clovis's save with area 3 asks for area 3 / stage 2, which
+  does not exist: black screen in mode 10 (the earlier "areas 1‥3 go black"
+  note was this). The **stage id cannot be changed this way**: whatever is
+  written to `0x800A2F1A` before the prompt, the reload comes back with the
+  stage the game recorded at stage start (3/2 → 3/1, 0/1 → 0/2), and
+  `wtrace` on the word saw no CPU write doing it, so the loader takes the id
+  from somewhere else (open: BACKLOG F). The in-game menu's Cheats page has
+  an **Area (next Continue)** row (0‥12) for this; write it, let HP reach 0
+  (or the HP editor), YES on CONTINUE. Beware: the area sits in the save
+  block (`+0x1F8`), so a Memory Card save made afterwards keeps it.
 - Save block: only the play time, two kill counters (`0x800A2DA4` = 19,
   `0x800A2DA8` = 16), Val, the inventory, the spell levels, area / stage,
   `0x800A2F74` (0x16F → 0xA4) and 8 bytes at `0x800A2F78` differ. There is no
@@ -614,7 +634,7 @@ player's request, and the Magic and Items rows carry the game's own texts
 | Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
 | Audio | Volume | `host_volume_set` |
 | System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
-| Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
+| Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF, Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE reloads from, see *Character and weapon*) | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |
 | Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
