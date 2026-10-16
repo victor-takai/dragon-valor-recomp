@@ -26,7 +26,8 @@ dumps that work), Play. Controls are in `CONTROLS.md`.
 - Boot, intro movie (Start skips it), title and menus, New Game, the first
   chapter at 60 fps, the Configuration screens, disc 2 boot.
 - The in-game menu (Escape, or Select + Start): cheats, video rows, volume,
-  save states, disc change; mouse, keyboard and pad.
+  save states, disc change; mouse, keyboard and pad. Return to launcher
+  restarts the program into the launcher.
 - Bundled mods: Cheats (Infinite HP / MP, a gem or scroll every N kills, Val
   and stat editors), Skip Intro, PGXP (on by default), Widescreen
   (experimental, off by default).

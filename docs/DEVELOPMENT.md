@@ -558,7 +558,10 @@ Kodel's save forced to area 0 = stage 0/1) and the render lists in RAM.
   header; area 0 has stages 1‥9, the others 1‥39). A stage index is a
   container whose section 3 lists the start of every file of the stage
   ([m s f 0] from the index); a file runs to the next start and the game
-  reads exactly that many sectors. Files are mostly containers (u32 count,
+  reads exactly that many sectors. A stage is an **action stage** when it
+  carries an action pack (below); the others are scene-type stages (story
+  scenes, maps) and they interleave differently in every area, e.g. area 1:
+  odd stages are action, even ones scenes (`tools/datacdr.py kinds`). Files are mostly containers (u32 count,
   count + 1 u32 offsets, data) with sections tagged `VAB_CODE` (sound bank),
   `TIM_CODE` (a TIM with that text in place of the 0x10 magic) or
   `SEQ_CODE`. The hero byte's address appears nowhere in this data.
@@ -702,8 +705,8 @@ player's request, and the Magic and Items rows carry the game's own texts
 | Display | Fullscreen, Game dimming, Menu opacity | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`); the backdrop rows are the menu's own |
 | Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
 | Audio | Volume | `host_volume_set` |
-| System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit` |
-| Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF, Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE reloads from, see *Character and weapon*) | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
+| System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit`. Return to launcher asks for `PSX_MENU_EXIT_RELAUNCH` in builds without the netplay lobby client (ours): the framework's in-process return re-enters the launcher only inside its lobby-client block and otherwise ends the program (player report 2026-10-16; still so on upstream master 379565a6), while a relaunch restarts the executable with its own arguments, which opens the launcher as at boot. Builds with `PSX_NETPLAY` keep `PSX_MENU_EXIT_TO_FRONTEND`. |
+| Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF, Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE reloads from, see *Character and weapon*; since 2026-10-16 the row only steps to areas of the same disc where the current stage number (`0x800A2F1A`) is an action stage, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game) | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |
 | Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
@@ -1071,7 +1074,7 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
   A second Start on the title goes to the menu; a Start on the menu starts a
   New Game.
 - **Committed tests** (`tests/test_manifests.py`, `test_cheats.py`, `test_drop_cheat.py`,
-  `test_scroll_cheat.py`, `test_menu.py`, `test_skip_intro.py`, `test_widescreen.py`).
+  `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`).
   `python tests/test_manifests.py` checks every mod
   manifest statically (ids, default-off features, option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
@@ -1081,7 +1084,13 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
   `python tests/test_menu.py` drives the in-game menu from slot 0 (it launches
   the build itself with its own `mods/state.toml`, Infinite HP off, the
   player's file backed up and restored, because the menu persists every
-  toggle there; `--attach` uses the game already running).
+  toggle there; `--attach` uses the game already running; the last step
+  picks Return to launcher twice and checks that the program restarts with
+  the same command line); `python tests/test_area_row.py [--reloads]`
+  checks that the Area row only offers areas where the current stage is an
+  action stage and, with `--reloads`, reloads Kodel's slot 9 into every
+  allowed area (2026-10-16: areas 0‥6 at stage 1 all come back running,
+  each with its own hero).
 
 ## Project layout (what is ours)
 
@@ -1103,7 +1112,7 @@ mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonval
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
 tools/bin_listing.py  BIN/*.BIN from the disc -> listings at 0x800BBEF0 (whole modules, not only executed pages)
-tools/datacdr.py      DATA.CDR areas / stages / files and a stage's hero entries, read from the disc (read-only)
+tools/datacdr.py      DATA.CDR areas / stages / files, action stages vs scenes (`kinds`), a stage's hero entries (read-only)
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
 tests/states/         committed save states slot 0 and slot 10 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)

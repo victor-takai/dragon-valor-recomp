@@ -1,0 +1,14 @@
+diff --git a/src/common/backends/imgui/runtime_ui_imgui.cpp b/src/common/backends/imgui/runtime_ui_imgui.cpp
+--- a/src/common/backends/imgui/runtime_ui_imgui.cpp
++++ b/src/common/backends/imgui/runtime_ui_imgui.cpp
+@@ -23,7 +23,9 @@
+ void value_text(RecompRuntimeUi *ui, const RecompRuntimeUiItem *item,
+                 char *out, size_t out_size) {
+     if (item->type == RECOMP_RUNTIME_UI_ACTION) {
+-        std::snprintf(out, out_size, "OPEN");
++        // An action row's label is already the command ("Save state",
++        // "Quit"); a fixed "OPEN" beside it read as if it opened a page.
++        if (out_size) out[0] = 0;
+         return;
+     }
+     if (item->type == RECOMP_RUNTIME_UI_TEXT) {

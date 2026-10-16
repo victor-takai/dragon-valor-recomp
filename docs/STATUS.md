@@ -70,6 +70,14 @@ the native 60 Hz version.
   `DEVELOPMENT.md`, *Character and weapon*: the hero follows the area, so
   the Cheats page gained an **Area (next Continue)** row that reloads
   another area's stage (Kodel's save + area 0 = Clovis in the prologue).
+- **Menu fixes from the player's reports** (2026-10-16): Return to launcher
+  restarts the program, which opens the launcher (the framework's own
+  return only works in netplay builds and closed the game; upstream
+  report pending); the Area row only steps to areas where the current
+  stage number is an action stage on the same disc (a scene left the
+  screen black until the watchdog closed the game), and from stage 1 it
+  reaches every chapter's hero (`tests/test_area_row.py --reloads`, 7/7);
+  action rows no longer show "OPEN" (`patches/recomp-ui/0003`).
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots

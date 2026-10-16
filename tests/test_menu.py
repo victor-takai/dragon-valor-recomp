@@ -23,6 +23,11 @@ events a keyboard produces) and checks:
   4. System page: "Save state" on slot 12 (runtime slot 11) writes the slot
      file; the slot's previous content is restored afterwards. No other
      slot is written (slot 0/1 is only ever restored from tests/states/).
+  5. System page: "Return to launcher" restarts the program with the same
+     command line (PSX_MENU_EXIT_RELAUNCH in builds without the netplay
+     lobby client; with the player's arguments that opens the launcher).
+     Skipped with --attach. The player's settings.toml and
+     dragonvalor_settings.toml are backed up and restored around the run.
 The menu always opens on the first section (Display) with nothing selected,
 so a path is Down x N then Enter. Exit code 0 on PASS.
 """
@@ -71,6 +76,7 @@ def main(argv):
         return (r.stdout + r.stderr).strip()
 
     state = ROOT / build / "mods" / "state.toml"
+    settings = {f: f.read_bytes() for f in (ROOT / build / "settings.toml", ROOT / build / "dragonvalor_settings.toml") if f.is_file()}
     backup = state.with_suffix(".toml.test_menu.bak")
     had_state = state.is_file()
     if not attach:
@@ -81,9 +87,11 @@ def main(argv):
         try:
             print("launch:", cli("launch", "--state", "0", "--build", str(ROOT / build)))
             time.sleep(9)
-            return run(port, attach=False)
+            return run(port, attach=False, exe=ROOT / build / "DragonValorUS_Recompiled.exe")
         finally:
             print("kill:", cli("kill"))
+            for f, b in settings.items():
+                f.write_bytes(b)
             if had_state:
                 shutil.move(backup, state)
             else:
@@ -91,7 +99,20 @@ def main(argv):
     return run(port, attach=True)
 
 
-def run(port, attach):
+def game_processes(exe):
+    """{pid: command line} of the running copies of the game executable."""
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='" + exe.name + "'\" | "
+          "ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True).stdout
+    procs = {}
+    for line in out.splitlines():
+        if "\t" in line:
+            pid, cmd = line.split("\t", 1)
+            procs[int(pid)] = cmd.strip()
+    return procs
+
+
+def run(port, attach, exe=None):
     results = []
 
     def frame():
@@ -199,6 +220,31 @@ def run(port, attach):
                 f.write_bytes(saved[f])
             elif f.exists():
                 f.unlink()
+
+    # 5. Return to launcher (System rows: Resume, State slot, Save state, Load
+    #    state, Pause in menu, Return to launcher, Quit): the process restarts
+    #    with its own command line and the debug server comes back.
+    if not attach and exe is not None:
+        before = game_processes(exe)
+        key("Escape"); goto_section("System"); key("Down", 5); key("Return", 2)   # the row asks to press twice
+        after, t0 = {}, time.time()
+        while time.time() - t0 < 60:
+            after = game_processes(exe)
+            fresh = {pid: cmd for pid, cmd in after.items() if pid not in before}
+            if fresh and not (set(before) & set(after)):
+                break
+            time.sleep(1)
+        fresh = {pid: cmd for pid, cmd in after.items() if pid not in before}
+        same_cmd = bool(fresh) and set(fresh.values()) == set(before.values())
+        check(f"Return to launcher restarted the program with the same command line ({len(fresh)} new process)",
+              same_cmd and not (set(before) & set(after)))
+        t0, up = time.time(), False
+        while time.time() - t0 < 60 and not up:
+            try:
+                up = frame() is not None
+            except OSError:
+                time.sleep(1)
+        check("the restarted program answers on the debug port", up)
 
     ok = all(results)
     print("RESULT:", "PASS" if ok else "FAIL", f"({sum(results)}/{len(results)})")

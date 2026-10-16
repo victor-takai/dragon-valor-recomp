@@ -2,6 +2,7 @@
 """datacdr.py - read the stage layout of Dragon Valor's DATA.CDR (read-only).
 
   python tools/datacdr.py areas [--disc CUE]
+  python tools/datacdr.py kinds [--c] [--disc CUE]   # action stages vs scenes per area
   python tools/datacdr.py stage AREA STAGE [--disc CUE]
   python tools/datacdr.py hero AREA STAGE [--disc CUE]
 
@@ -56,6 +57,8 @@ class Disc:
     def sector(self, lba):
         self.f.seek(lba * 2352)
         raw = self.f.read(2352)
+        if len(raw) < 2352:   # an unused table entry can point past the image
+            return bytes(2048)
         return raw[24:2072] if raw[15] == 2 else raw[16:2064]
 
     def _find(self, lba, size, want, must=True):
@@ -127,14 +130,17 @@ def area_header(d, area):
     return off, [msf(tab[4 * i:4 * i + 3]) for i in range(len(tab) // 4)]
 
 
-def stage_files(d, area, stage):
+def stage_index(d, area, stage):
+    """(index offset, [(start, sectors)]) of a stage, or None when the area is
+    not on this disc, the stage entry is empty or its index is not a stage
+    index (unused table entries hold leftovers)."""
     ah, table = area_header(d, area)
-    if ah is None:
-        sys.exit(f"area {area} is not on this disc (disc 1 holds areas 0..6, disc 2 holds 7..12)")
-    if stage >= len(table) or (stage and not table[stage]):
-        sys.exit(f"area {area} has no stage {stage}")
+    if ah is None or stage < 1 or stage >= len(table) or not table[stage]:
+        return None
     idx = ah + table[stage]
     sec = split(d.cdr(idx))
+    if not sec or len(sec) != 4:
+        return None
     starts = [msf(sec[3][4 * i:4 * i + 3]) for i in range(len(sec[3]) // 4)]
     starts = [s for s in starts if s]
     files = []
@@ -144,6 +150,24 @@ def stage_files(d, area, stage):
             break
         files.append((s, nxt - s))
     return idx, files
+
+
+def action_pack(d, idx, files):
+    """(start, sectors, entries) of the stage's action pack, or None (a scene)."""
+    for s, n in files[:4]:
+        e = split(d.cdr(idx + s, n))
+        if e and len(e) > 100 and tag(e[1]) == "VAB_CODE":
+            return s, n, e
+    return None
+
+
+def stage_files(d, area, stage):
+    r = stage_index(d, area, stage)
+    if r is None:
+        if area not in d.areas:
+            sys.exit(f"area {area} is not on this disc (disc 1 holds areas 0..6, disc 2 holds 7..12)")
+        sys.exit(f"area {area} has no stage {stage}")
+    return r
 
 
 def describe(b):
@@ -174,14 +198,29 @@ def cmd_stage(d, area, stage):
         print(f"  +{s:5d} {n:4d} sect  {describe(d.cdr(idx + s, n))}")
 
 
+def cmd_kinds(d, as_c):
+    """Action stages (an action pack) and scenes per area of this disc; with
+    --c, the bitmask table the in-game menu's Area row is built from."""
+    masks = {}
+    for a in d.areas:
+        ah, table = area_header(d, a)
+        acts, scenes = [], []
+        for s in range(1, len(table) if table else 0):
+            r = stage_index(d, a, s)
+            if r is None:
+                continue
+            (acts if action_pack(d, *r) else scenes).append(s)
+        masks[a] = sum(1 << s for s in acts)
+        if not as_c:
+            print(f"area {a:2d}: action {acts}\n          scene  {scenes}")
+    if as_c:
+        for a, m in masks.items():
+            print(f"    0x{m:016X}ull,   /* area {a:2d} */")
+
+
 def cmd_hero(d, area, stage):
     idx, files = stage_files(d, area, stage)
-    pack = None
-    for s, n in files[:4]:
-        e = split(d.cdr(idx + s, n))
-        if e and len(e) > 100 and tag(e[1]) == "VAB_CODE":
-            pack = (s, n, e)
-            break
+    pack = action_pack(d, idx, files)
     if not pack:
         sys.exit("no action pack (container > 100 entries with a sound bank in entry 1) among the first files")
     s, n, e = pack
@@ -206,11 +245,13 @@ def main(argv):
         i = args.index("--disc")
         cue = Path(args[i + 1])
         del args[i:i + 2]
-    if not args or args[0] not in ("areas", "stage", "hero"):
+    if not args or args[0] not in ("areas", "kinds", "stage", "hero"):
         sys.exit(__doc__)
     d = Disc(cue)
     if args[0] == "areas":
         cmd_areas(d)
+    elif args[0] == "kinds":
+        cmd_kinds(d, "--c" in args)
     elif len(args) < 3:
         sys.exit("stage|hero need AREA STAGE")
     elif args[0] == "stage":
