@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Drive the in-game menu (mods/plugins/dragonvalor_menu.cpp) on a debug build.
 
-  python tools/dvdbg.py launch --state 0
-  python tests/test_menu.py [--port N]
+  python tests/test_menu.py [--build build-debug] [--port N]
+  python tests/test_menu.py --attach          # use the game already running
 
+The test writes its own <build>/mods/state.toml (cheats enabled, Infinite
+HP off; the player's file is backed up and restored, even on failure) and
+launches the build muted from slot 0 with tools/dvdbg.py, because the menu
+persists every toggle to that file and the checks below assume Infinite HP
+starts off. With --attach it uses the running game and the player's file as
+they are (the Infinite HP checks then expect whatever state the file holds).
 Injects keys through the debug server's host_key command (the same SDL
-events a keyboard produces) and checks, from slot 0:
+events a keyboard produces) and checks:
   1. Escape opens the menu and the guest pauses (frame counter stops).
   2. Cheats page: Enter on "Infinite HP" turns it on; after closing the menu
      the guest runs again and HP written to 5 refills to HPmax within a frame
@@ -21,20 +27,71 @@ The menu always opens on the first section (Display) with nothing selected,
 so a path is Down x N then Enter. Exit code 0 on PASS.
 """
 import os
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-from dvdbg import rpc, port_from_args, slot_file, SAVES_STATES_DIR, DEFAULT_DISC  # noqa: E402
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+from dvdbg import rpc, port_from_args, slot_file, wait_savestate, SAVES_STATES_DIR, DEFAULT_DISC  # noqa: E402
 
+DV = str(ROOT / "tools" / "dvdbg.py")
 HP, HPMAX = 0x8008A5AE, 0x8008A5B0
 SECTIONS = ["Display", "Graphics", "Audio", "System", "Cheats", "Game"]
+STATE = """format_version = 2
+
+[[package]]
+id = "dragonvalor.cheats"
+version = "1.3.0"
+
+[[feature]]
+package_id = "dragonvalor.cheats"
+id = "cheats"
+enabled = true
+[feature.values]
+infinite_hp = "false"
+infinite_mp = "false"
+"""
 
 
 def main(argv):
     args = list(argv)
     port = port_from_args(args)
+    build = "build-debug"
+    if "--build" in args:
+        i = args.index("--build")
+        build = args[i + 1]
+        del args[i:i + 2]
+    attach = "--attach" in args
+
+    def cli(*a, timeout=120):
+        r = subprocess.run([sys.executable, DV, *a, "--port", str(port)], capture_output=True, text=True, timeout=timeout)
+        return (r.stdout + r.stderr).strip()
+
+    state = ROOT / build / "mods" / "state.toml"
+    backup = state.with_suffix(".toml.test_menu.bak")
+    had_state = state.is_file()
+    if not attach:
+        if had_state:
+            shutil.copy2(state, backup)
+        state.parent.mkdir(parents=True, exist_ok=True)
+        state.write_text(STATE, encoding="utf-8")
+        try:
+            print("launch:", cli("launch", "--state", "0", "--build", str(ROOT / build)))
+            time.sleep(9)
+            return run(port, attach=False)
+        finally:
+            print("kill:", cli("kill"))
+            if had_state:
+                shutil.move(backup, state)
+            else:
+                state.unlink(missing_ok=True)
+    return run(port, attach=True)
+
+
+def run(port, attach):
     results = []
 
     def frame():
@@ -73,17 +130,32 @@ def main(argv):
     key("Escape"); time.sleep(0.5)
     check("Escape opens the menu and pauses the guest", paused())
 
-    # 2. Infinite HP on (first row of the Cheats page)
+    # 2. Infinite HP on (first row of the Cheats page). The menu persists the
+    #    toggle to mods/state.toml; the test wrote that file with the option
+    #    off, so Enter turns it on. With --attach the row starts wherever the
+    #    player's file left it: probe first and expect the opposite.
+    was_on = False
+    if attach:
+        close(); wr16(HP, 5); time.sleep(0.5)
+        was_on = rd16(HP) == rd16(HPMAX)
+        key("Escape"); time.sleep(0.5)
     goto_section("Cheats"); key("Return"); close()
     check("closing the menu resumes the guest", not paused())
     wr16(HP, 5); time.sleep(0.5)
-    check("Infinite HP applied live (HP 5 -> HPmax)", rd16(HP) == rd16(HPMAX))
+    hp = rd16(HP)
+    if was_on:
+        check("Infinite HP off live (written HP stays; it was on)", hp == 5)
+    else:
+        check("Infinite HP applied live (HP 5 -> HPmax)", hp == rd16(HPMAX))
 
-    # 3. and off again
+    # 3. and back again
     key("Escape"); goto_section("Cheats"); key("Return"); close()
     wr16(HP, 5); time.sleep(0.5)
     hp = rd16(HP)
-    check("Infinite HP off again (written HP stays)", hp == 5)
+    if was_on:
+        check("Infinite HP on again (HP 5 -> HPmax)", hp == rd16(HPMAX))
+    else:
+        check("Infinite HP off again (written HP stays)", hp == 5)
     wr16(HP, rd16(HPMAX))   # leave the hero healthy
 
     # 3b. Val editor: fifth row of the Cheats page (after Infinite HP/MP and the two
@@ -116,8 +188,10 @@ def main(argv):
     try:
         key("Escape"); goto_section("System"); key("Down")
         key("Left", 12); key("Right", 11)          # slot row: 1 -> 12 whatever it showed
+        gen = rpc(port, "savestate_status").get("generation", 0)
         key("Down"); key("Return")
-        time.sleep(1.5); close(); time.sleep(2.5)
+        wait_savestate(port, gen)                   # the save is staged; wait for it to land
+        close(); time.sleep(0.5)
         check(f"Save state from the menu wrote slot 12 ({target.name})", target.exists())
     finally:
         for f in (target, thumb):

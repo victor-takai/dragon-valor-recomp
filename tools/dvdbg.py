@@ -6,7 +6,7 @@ This wraps the handful of commands a test session needs; anything else goes
 through `raw`. Windows only (detached process, taskkill); all waits are
 in-process, so it is safe from any shell.
 
-  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--build DIR] [--disc CUE] [--state N]
+  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--pad] [--build DIR] [--disc CUE] [--state N]
         start the runtime detached, wait for the server, print pid and the
         controller line. Muted (SDL dummy audio driver) unless --sound.
         --state N then loads save state slot N: the way gameplay tests start.
@@ -133,6 +133,11 @@ def cmd_launch(args):
     if not sound:
         env["SDL_AUDIO_DRIVER"] = "dummy"   # SDL3 name; SDL2 reads the next one
         env["SDL_AUDIODRIVER"] = "dummy"
+    if "--pad" not in args:
+        # A connected pad is opened by the runtime and drives the game: a stick
+        # that rests off-centre walked the hero out of every scripted scene on
+        # 2026-10-15. Scripted runs see no pad unless asked (--pad).
+        env["SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT"] = "0x0000/0x0000"
     log_path = build / f"dvdbg_{port}.log"
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:   # the child keeps its own handle

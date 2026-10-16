@@ -105,7 +105,18 @@ BOXART_SOURCE.txt; player docs say "run the executable" (the zip has no
 Play.bat); `.recomp.json` project/game fields; release name token,
 `body_path: RELEASE_NOTES.md` and a manifest-test step in the workflow;
 DISC.md Redump digests; the widescreen texts name the real blemish; STATUS /
-BACKLOG / DEVELOPMENT stale lines. Still open:
+BACKLOG / DEVELOPMENT stale lines. Code fixes applied the same night: the
+RAM editors keep their "Written" status (`set_value` returns 0 there; 1 let
+recomp-ui replace it with "Saved"; mod and video rows must keep returning 1,
+the model records a toggle only when told it succeeded), ImGui's mouse
+state is cleared when the menu opens or closes (a click that closed it
+never got its release), the pickup pool is 32 objects (the reviewer's 46
+was wrong: entries 32‥45 hold other data, `li t7, 46` at `0x80033E4C` counts
+something else), `test_scroll_cheat` reads the scroll count where the
+plugin does (`0x800A2EDE`), `test_menu` waits on the save-state generation
+and owns its `mods/state.toml` (the player's file had Infinite HP on, which
+inverted its two live-toggle checks), `dvdbg.py launch` hides gamepads from
+scripted runs (`--pad` to allow one). Still open:
 
 | P | Item | Where | Why / how |
 |---|---|---|---|
@@ -114,6 +125,7 @@ BACKLOG / DEVELOPMENT stale lines. Still open:
 | M | Repository is private | GitHub settings | README badges, the PLAYTESTING / issue-template links and the Retro-Catalog submission need a public repository; a private one also bills the four-OS matrix minutes. Make it public before the first dispatch, or accept both until then. |
 | L | `.recomp.json` multi-serial form | `.recomp.json` (`original.serial` = SLUS-01092 only) | Check the recomp.fyi schema for listing disc 2 (SLUS-01164). |
 | L | CONTROLS / README hotkeys vs `config.ini` | `psxrecomp/runtime/src/host_keymap.c` | The defaults documented now (F6 scanlines, F7 picker, F8 rewind, F9 turbo toggle, Numpad +/- volume, Ctrl+F fullscreen) come from the code; a player's `config.ini [KeyMap]` can change them, which the docs say. Re-check after a framework bump. |
+| L | Non-ASCII install path | `mods/plugins/dragonvalor_menu.cpp` (`dv_settings_path`, `std::fopen`) | `SDL_GetBasePath` returns UTF-8; the C runtime's `fopen` on Windows takes the ANSI code page, so a folder with characters outside the player's code page (pt-BR cp1252 copes with accents; CJK, emoji do not) cannot read or write `dragonvalor_settings.toml` (the menu falls back to its defaults, nothing else breaks). Convert to UTF-16 and `_wfopen` on Windows; check how the framework opens `settings.toml` and `mods/state.toml` in the same folder (upstream issue #371 is the same class). |
 
 ## E. Ideas from other psxrecomp titles
 

@@ -19,6 +19,7 @@
 #if defined(RECOMP_LAUNCHER)
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -55,8 +56,11 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
  * are enabled only while a hero is loaded (HPmax != 0); the guest is paused
- * while the menu is up and the event path runs on the emulation thread, so a
- * plain write is a one-shot cheat, not a per-frame lock. */
+ * while the menu is up, so a plain write is a one-shot cheat, not a per-frame
+ * lock. Keyboard/pad activations run on the main thread; a mouse click
+ * activates from the draw callback (the GL thread when [video] render_thread
+ * is on; off by default), which is fine while "Pause in menu" holds the
+ * guest. */
 struct RamRow { const char* key; uint32_t addr; int width; };
 #define DV_RAM_VAL "dv.ram.val"
 const RamRow kRamRows[] = {
@@ -311,11 +315,11 @@ void write_str(int v) {
  * with the player's save: a hand-written count opened nothing, the real
  * pickup changed exactly the count and that byte). So a key row that goes up
  * also "takes" every key object of that kind in the stage's pickup pool
- * (46 entries of 0x250 bytes at 0x800A6A98: +0x238 active, +0x244 pickup id,
+ * (32 entries of 0x250 bytes at 0x800A6A98: +0x238 active, +0x244 pickup id,
  * +0x24C flag index), which is what opens this stage's locked doors. Keys of
  * other stages keep needing their own pickup. */
 #define DV_PICKUP_POOL   0x800A6A98u
-#define DV_PICKUP_COUNT  46u
+#define DV_PICKUP_COUNT  32u
 #define DV_OBJ_STRIDE    0x250u
 #define DV_SAVE_FLAGS    0x800A2D20u   /* 64 event bytes at the head of the save block */
 int key_pickup_id(uint32_t count_addr) {
@@ -377,10 +381,14 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     return 0;
 }
 
-void apply_video(Menu& m, const PsxHostVideoSettings& v) {
+/* Returns what set_value should return. Mod and video rows return 1 (the model
+ * only records a toggle it was told succeeded; recomp-ui then overwrites the
+ * status with "Saved"); RAM rows return 0 and keep their own text. */
+int apply_video(Menu& m, const PsxHostVideoSettings& v) {
     const unsigned bits = m.host->video_apply(&v);
     if (bits & PSX_MENU_RESTART_AFTER_MATCH) recomp_runtime_ui_set_status(m.ui, "Applies after the match");
     else if (bits) recomp_runtime_ui_set_status(m.ui, "Restart the game to apply");
+    return 1;   /* recomp-ui then shows "Saved"; the restart note is kept in the row's own status while bits were set */
 }
 
 void set_mod(Menu& m, const char* pkg, const char* feat, const char* opt, const char* value) {
@@ -391,14 +399,14 @@ void set_mod(Menu& m, const char* pkg, const char* feat, const char* opt, const 
 int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     Menu& m = *static_cast<Menu*>(ctx);
     PsxHostVideoSettings v{};
-    char text[16];
+    char text[96];
     if (is(item, RECOMP_RUNTIME_UI_KEY_FULLSCREEN)) {
-        m.host->video_get(&v); v.fullscreen = value ? (v.fullscreen ? v.fullscreen : 1) : 0; apply_video(m, v); return 1;
+        m.host->video_get(&v); v.fullscreen = value ? (v.fullscreen ? v.fullscreen : 1) : 0; return apply_video(m, v);
     }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_LINEAR_FILTER)) { m.host->video_get(&v); v.present_linear = value ? 1 : 0; apply_video(m, v); return 1; }
-    if (is(item, DV_KEY_TEXFILTER)) { m.host->video_get(&v); v.texture_filter = value; apply_video(m, v); return 1; }
-    if (is(item, DV_KEY_SCANLINES)) { m.host->video_get(&v); v.scanlines = value ? 1 : 0; apply_video(m, v); return 1; }
-    if (is(item, DV_KEY_DYNRES)) { m.host->video_get(&v); v.dynamic_resolution = value ? 1 : 0; apply_video(m, v); return 1; }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_LINEAR_FILTER)) { m.host->video_get(&v); v.present_linear = value ? 1 : 0; return apply_video(m, v); }
+    if (is(item, DV_KEY_TEXFILTER)) { m.host->video_get(&v); v.texture_filter = value; return apply_video(m, v); }
+    if (is(item, DV_KEY_SCANLINES)) { m.host->video_get(&v); v.scanlines = value ? 1 : 0; return apply_video(m, v); }
+    if (is(item, DV_KEY_DYNRES)) { m.host->video_get(&v); v.dynamic_resolution = value ? 1 : 0; return apply_video(m, v); }
     if (is(item, RECOMP_RUNTIME_UI_KEY_VOLUME)) { host_volume_set(value); dv_settings_sync(m); return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_DIM)) { m.dim = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); dv_settings_sync(m); return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_OPACITY)) { m.opacity = value; recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f); dv_settings_sync(m); return 1; }
@@ -426,7 +434,7 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
             std::snprintf(text, sizeof text, "Written: %d", value);
         }
         recomp_runtime_ui_set_status(m.ui, text);
-        return 1;
+        return 0;   /* 1 would let recomp-ui replace the status with "Saved"; the row re-reads RAM */
     }
     return 0;
 }
@@ -498,11 +506,13 @@ void set_open_locked(Menu& m, bool open) {
         m.ui = nullptr;
         if (!create_ui(m)) return;
         recomp_runtime_ui_open(m.ui);
+        if (m.imgui) ImGui::GetIO().ClearInputMouse();   /* no stale button or hover from last time */
         m.open = true;
         if (m.pause_in_menu && !m.host->set_paused(1))
             recomp_runtime_ui_set_status(m.ui, "Running: pause refused during netplay");
     } else if (!open && m.open) {
         recomp_runtime_ui_close(m.ui);
+        if (m.imgui) ImGui::GetIO().ClearInputMouse();   /* a click that closed the menu never gets its release */
         m.open = false;
         (void)m.host->set_paused(0);
     }

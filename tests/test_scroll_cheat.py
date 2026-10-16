@@ -31,11 +31,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 from dvdbg import rpc, port_from_args  # noqa: E402
 
 DV = str(ROOT / "tools" / "dvdbg.py")
-MAGIC_KILLS, SCROLLS, HPMAX, MP = 0x800A2DB4, 0x800A2DBC, 0x8008A5B0, 0x8008A5B2
+MAGIC_KILLS, SCROLLS, HPMAX, MP = 0x800A2DB4, 0x800A2EDE, 0x8008A5B0, 0x8008A5B2   # SCROLLS as dragonvalor_cheats.c indexes the table
 SCROLL_TABLE = 0x8006CAB8                       # u16[5] 2, 4, 7, 12, 20
 OBJECTS, OBJ_STRIDE, OBJ_HP = 0x8008A4E0, 0x250, 0xCE
 ENEMY_SLOTS = (5, 7)
-PICKUPS = 0x800A6A98                            # 32 pickup objects, 0x250 bytes each
+PICKUPS = 0x800A6A98                            # pickup pool, 32 objects of 0x250 bytes (32..45 hold other data)
+POOL_COUNT = 32
 SCROLL_ID = 2
 MAX_CASTS = 14
 
@@ -93,9 +94,9 @@ def main(argv):
         return {s: rd16(OBJECTS + s * OBJ_STRIDE + OBJ_HP) for s in ENEMY_SLOTS}
 
     def pickups():
-        p = rd(PICKUPS, 32 * OBJ_STRIDE)
+        p = rd(PICKUPS, POOL_COUNT * OBJ_STRIDE)
         out = []
-        for i in range(32):
+        for i in range(POOL_COUNT):
             s = p[i * OBJ_STRIDE:(i + 1) * OBJ_STRIDE]
             if int.from_bytes(s[0x238:0x23C], "little"):
                 out.append(int.from_bytes(s[0x244:0x248], "little"))

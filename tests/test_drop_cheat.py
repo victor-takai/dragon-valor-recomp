@@ -27,7 +27,8 @@ from dvdbg import rpc, port_from_args  # noqa: E402
 DV = str(Path(__file__).resolve().parent.parent / "tools" / "dvdbg.py")
 SWORD_KILLS, GEMS, HPMAX = 0x800A2DB0, 0x800A2EDC, 0x8008A5B0
 ENEMY_HP = 0x8008B070 + 0xCE          # object slot 5 of save state 0
-PICKUPS = 0x800A6A98                  # 32 pickup objects, 0x250 bytes each
+PICKUPS = 0x800A6A98                  # pickup pool, 32 objects of 0x250 bytes (32..45 hold other data)
+POOL_COUNT = 32
 FIRST_GEM_THRESHOLD = 15
 
 
@@ -49,9 +50,9 @@ def main(argv):
         return int.from_bytes(rd(a, 4), "little")
 
     def pickups():
-        p = rd(PICKUPS, 32 * 0x250)
+        p = rd(PICKUPS, POOL_COUNT * 0x250)
         out = []
-        for i in range(32):
+        for i in range(POOL_COUNT):
             s = p[i * 0x250:(i + 1) * 0x250]
             if int.from_bytes(s[0x238:0x23C], "little"):
                 out.append(int.from_bytes(s[0x244:0x248], "little"))
