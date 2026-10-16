@@ -58,9 +58,15 @@ the native 60 Hz version.
   positions; the game's own screen-X rejects are left stock (widening
   them bought nothing visible). Known blemish: a block of texture noise at
   the right edge in some stages, a parked part of the hero model
-  (`BACKLOG.md`, section F). `tests/test_widescreen.py on|off` 5/5 and 4/4; see
+  (`BACKLOG.md`, section F). `tests/test_widescreen.py on|off` 5/5 and 4/4;
+  chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
+  clean too; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
+- **Chapter 2 reached** (2026-10-16): the player finished chapter 1 (Clovis)
+  on this build and plays chapter 2 as Kodel at 60 fps; their save state at
+  its first stage (area 3 / stage 1) gave the hero-index finding in
+  `DEVELOPMENT.md`, *Character and weapon*.
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots
@@ -98,7 +104,8 @@ the native 60 Hz version.
    config switch exists; 58 of them, 2 GB, had piled up in one afternoon of
    scripted runs).
 5. Widescreen follow-ups: HUD anchored to the window edges, a check of
-   later chapters and the field module, a real Fit resize; see
+   chapters 3+ and the field module (chapter 2's first stage is fine), a
+   real Fit resize; see
    `BACKLOG.md`, section F.
 
 ## Backlog

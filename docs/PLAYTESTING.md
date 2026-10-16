@@ -37,8 +37,8 @@ Nobody has played the game through on this build yet. In rough priority:
 
 1. **A full playthrough on a Memory Card save.** Save at the inn / save
    points as you normally would and tell us how far you got. Keep a save
-   from right after the first boss and one at the start of chapter 2 (they
-   are useful to us beyond bug reports).
+   from right after each boss and one at the start of each chapter (they
+   are useful to us beyond bug reports; we have the start of chapter 2).
 2. **The disc change.** When the game asks for disc 2, use the in-game
    menu's disc row (or the launcher's). Does the game continue?
 3. **Load Game** from a card save after restarting the program.

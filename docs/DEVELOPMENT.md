@@ -199,7 +199,7 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x8008633C` | u8 | Non-zero suppresses every drop | `func_800187D4` (R), pc `0x800377C8` (W) |
 | `0x8008633E` | u16 | MP cost of the spell being cast: the spell's script stores it through native handler 30 (`func_80029BAC`: cost − Earrings count) and spends it through handler 31 (`func_80029BDC`: MP −= it). The setter does not clamp at 0 | `func_80029BAC` (W), `func_80029BDC` (R) |
 | `0x80086336` | u16 | +20 per **Bracelet** obtained (−20 on the undo, `func_80029098`); the game's own text for the Bracelet is "Reduces fatigue". Read by nothing in the EXE or the five BIN modules, and no data on disc 1 holds the address, so whatever fatigue is, the action module does not drive it from here. (Attributed to Pepper until 2026-10-15 through the one-slot-off item table below.) | `func_80028940` pc `0x80028F88`, `FloorPickup` pc `0x80035434` |
-| `0x80086318` | struct | Stage / HUD state block the rows above belong to: `+0x06` / `+0x08` HP / MP mirrors, `+0x0C`‥`+0x14` attack table, `+0x1A` the 1200-frame timer of pickup 9, `+0x1E` the Bracelet (fatigue) counter, `+0x22` a mode byte (0 in play, 1 once the HUD's enemy counter is up), `+0x24` drop flag, `+0x26` spell cost | |
+| `0x80086318` | struct | Stage / HUD state block the rows above belong to: `+0x00` hero index (u8, `table[area]`, see *Character and weapon*: 0 Clovis, 2 Kodel), `+0x06` / `+0x08` HP / MP mirrors, `+0x0C`‥`+0x14` attack table, `+0x1A` the 1200-frame timer of pickup 9, `+0x1E` the Bracelet (fatigue) counter, `+0x22` a mode byte (0 in play, 1 once the HUD's enemy counter is up), `+0x24` drop flag, `+0x26` spell cost | |
 | `0x800A2D99` | u8 | Selected spell of the hero (0xFF = none; slot 0 has none and every level 0). `func_80037D94` SetCurrentSpell copies it into the HUD icon state (`0x800A2C0C` = 1, `0x800A2C10` = (3 × spell + level) × 2 + 15) | `func_80037D94`, ACTION.BIN `0x800BFFE4` |
 | `0x8009FAF8` | struct | Spell ring of the action HUD (ACTION.BIN `0x800BFFE4`, pointer at `0x800C5E48`): `+0` current spell, `+1` state, `+2` ring index (u16; the D-pad moves it, action `0x100` confirms, action `0x80` selects), `+0xC` countdown | ACTION.BIN |
 | `0x800A2F64` / `0x800A2F68` / `0x800A2F80` | u32 ×3 | Pad words: held / newly pressed / repeat. High half = raw pad bits (D-pad 0x10 Up, 0x20 Right, 0x40 Down, 0x80 Left; 0x1000 Triangle … 0x8000 Square), low half = game actions after the button configuration. Slot 0's configuration, measured with `press` on 2026-10-15: Square 0x01 (attack), Circle 0x08, Cross 0x82 (0x80 = magic), Triangle 0x120, L1 / L2 0x10, R1 / R2 0x04, Start 0x40, Select nothing | ACTION.BIN, MAP.BIN |
@@ -444,8 +444,40 @@ game's chapter progress, the hero's model and the Status portrait are loaded
 from `DATA.CDR` at stage start, and the weapon is part of the hero: the
 inventory holds no weapons, and STR is the only weapon-related number. Nothing
 in the stats struct, the inventory block or the area/stage pair changes the
-hero, and the field that selects the hero has not been identified. What it
-takes:
+hero, and the field that selects the hero had not been identified (2026-10-14).
+
+**Chapter-2 reference point (2026-10-16).** The player's save state at the
+start of chapter 2 (their menu slots 3 and 12, copied to slot 4 and backed up
+out of tree; area 3 / stage 1, the hold of a ship with three pirates; hero
+**Kodel**, HP 36/36, MP 31/31, STR 73, DEF 0, Val 433; Heal 2, Defense 1,
+Fire 2, Mine 1, Stealth 1; Pendant ×2, Lithograph ×4, Ring, Mask, Harp; every
+save event flag 0, cleared at the chapter start), diffed against slot 0 over
+`0x800A2D00`‥`0x800A3200`, `0x80086300`‥`0x800863FF`, the hero object and
+the model-selection block:
+
+- The hero index is `0x80086318` (+0x00 of the stage block above) and it is
+  **derived from the area**: `table[area]` with the byte table at
+  `0x8006CC70` = 0 0 1 2 3 4 5 6 7 8 7 6 5 (areas 0‥12), stored at stage
+  start by `func_80027D58` (pc `0x80027D8C`); slot 0 (area 0) reads 0, Kodel
+  (area 3) reads 2. `func_800282E8` stores 8 there while summing the save
+  block (an epilogue / gallery path, unverified). So a hero swap is an
+  **area / stage** swap: write `0x800A2F18` / `1A` and reload the stage; the
+  model and the portrait should follow (not tried).
+- Save block: only the play time, two kill counters (`0x800A2DA4` = 19,
+  `0x800A2DA8` = 16), Val, the inventory, the spell levels, area / stage,
+  `0x800A2F74` (0x16F → 0xA4) and 8 bytes at `0x800A2F78` differ. There is no
+  separate chapter field.
+- Stats block: the HP / MP mirrors, the attack table (7, 11, 14, 19, 22, index
+  byte 2 instead of 1), `0x80086310` = 1 (0 in slot 0; 18 references in
+  `0x80038F44`‥`0x800393F0`, unexplored) and `+0x3B` = 2.
+- The model-selection block `0x8009E840` holds other pointers (Kodel's
+  parts), as expected.
+
+Widescreen on that stage: native-wide engaged (mode 2, 128 columns), real
+scenery in the extra width, no blemish seen in the hold (`ws_nw`, two
+window shots, health 0 / 0).
+
+What it took to get here:
 
 1. A second reference point: a save (memory card or save state) in a later
    chapter with another hero, then a RAM diff against slot 0 around
