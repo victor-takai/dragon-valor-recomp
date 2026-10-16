@@ -30,7 +30,7 @@ Notes
 -----
 - Experimental: tested on chapter 1 (forest, town, castle). Known blemish:
   a small block of texture noise can sit just right of the 4:3 area in some
-  stages (a parked part of the hero model that the console's 4:3 picture
+  stages (a parked model part that the console's 4:3 picture
   clipped); report any other oddity with the stage name.
 - OpenGL renderer (the default). Not checked on the software renderer.
 - Changing it needs no rebuild; the wide path is in every build and does

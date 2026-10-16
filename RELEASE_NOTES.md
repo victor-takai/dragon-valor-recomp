@@ -36,8 +36,8 @@ dumps that work), Play. Controls are in `CONTROLS.md`.
 ## Known issues
 
 - Widescreen: a small block of texture noise can sit just right of the 4:3
-  area in some stages (a parked part of the hero model that the console's
-  4:3 picture clipped). Off by default.
+  area in some stages (a parked model part that the console's 4:3 picture
+  clipped). Off by default.
 - The runtime writes a `psx_freeze_dump_*.json` next to the executable on
   every boot (a false positive of the framework's freeze watchdog on this
   title); it is deleted at the next start and can be deleted by hand.

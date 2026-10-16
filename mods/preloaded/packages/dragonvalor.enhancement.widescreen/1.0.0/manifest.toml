@@ -17,7 +17,7 @@ game_id = "SLUS-01092"
 [[feature]]
 id = "widescreen"
 name = "Widescreen"
-description = "Stages render at the chosen aspect with real scenery in the extra columns; the HUD keeps its 4:3 positions. The title screen, menus, the status screen's panel and movies stay 4:3 with side bars. Experimental: tested on the first chapter only. Known blemish: a small block of texture noise can sit just right of the 4:3 area in some stages (a parked part of the hero model that the console's 4:3 picture clipped)."
+description = "Stages render at the chosen aspect with real scenery in the extra columns; the HUD keeps its 4:3 positions. The title screen, menus, the status screen's panel and movies stay 4:3 with side bars. Experimental: tested on the first chapter only. Known blemish: a small block of texture noise can sit just right of the 4:3 area in some stages (a parked model part that the console's 4:3 picture clipped)."
 group = "Display"
 default_enabled = false
 

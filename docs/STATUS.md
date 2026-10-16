@@ -57,7 +57,7 @@ the native 60 Hz version.
   predicate), title / menus / movies stay 4:3, the HUD keeps its 4:3
   positions; the game's own screen-X rejects are left stock (widening
   them bought nothing visible). Known blemish: a block of texture noise at
-  the right edge in some stages, a parked part of the hero model
+  the right edge in some stages, a parked model part (owner unverified)
   (`BACKLOG.md`, section F). `tests/test_widescreen.py on|off` 5/5 and 4/4;
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see

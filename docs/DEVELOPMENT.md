@@ -465,18 +465,21 @@ the model-selection block:
   `0x8006CC70` = 0 0 1 2 3 4 5 6 7 8 7 6 5 (areas 0‥12), stored at stage
   start by `func_80027D58` (pc `0x80027D8C`); slot 0 (area 0) reads 0, Kodel
   (area 3) reads 2. `func_800282E8` stores 8 there while summing the save
-  block (an epilogue / gallery path, unverified). The byte is a mirror,
-  not the switch: poking it (0 on Kodel, 2 on Clovis, before or during the
-  GAME OVER prompt) changes nothing visible, and the death handler zeroes it
-  anyway (`func_800260FC`, the `sb v0, 0(a2)` at pc `0x80026630`, a script
-  "store byte" native).
+  block (an epilogue / gallery path, unverified). The byte is not the
+  switch: poking it (0 on Kodel, 2 on Clovis, before or during the GAME
+  OVER prompt) changes nothing visible. A stage script also stores it
+  (`func_800260FC`, the `sb v0, 0(a2)` at pc `0x80026630`, a script "store
+  byte" native): stage 0/2 stored 0 when the hero died; on Kodel's stage
+  nothing rewrote it through a death and CONTINUE, so a value poked before
+  the death survives the reload.
 - **The hero follows the area** (verified 2026-10-16, cheats off, through
   GAME OVER → CONTINUE): Kodel's save with `0x800A2F18` = 0 written before
   or during the prompt reloads area 0 / stage 1, the prologue, with
   **Clovis's model** and Kodel's numbers (HP 36/36, MP 31/31, Heal
-  selected). Clovis's save with area 3 asks for area 3 / stage 2, which
-  does not exist: black screen in mode 10 (the earlier "areas 1‥3 go black"
-  note was this). The **stage id cannot be changed this way**: whatever is
+  selected). Clovis's save with area 3 asks for area 3 / stage 2, a short
+  scene-type stage (20 files, a large image first; `tools/datacdr.py stage
+  3 2`), and the reload stays black in mode 10 (the earlier "areas 1‥3 go
+  black" note was this). The **stage id cannot be changed this way**: whatever is
   written to `0x800A2F1A` before the prompt, the reload comes back with the
   stage the game recorded at stage start (3/2 → 3/1, 0/1 → 0/2), and
   `wtrace` on the word saw no CPU write doing it, so the loader takes the id
@@ -491,8 +494,8 @@ the model-selection block:
 - Stats block: the HP / MP mirrors, the attack table (7, 11, 14, 19, 22, index
   byte 2 instead of 1), `0x80086310` = 1 (0 in slot 0; 18 references in
   `0x80038F44`‥`0x800393F0`, unexplored) and `+0x3B` = 2.
-- The model-selection block `0x8009E840` holds other pointers (Kodel's
-  parts), as expected.
+- The block at `0x8009E840` is not a hero selector: it holds the render
+  lists every model is drawn from (see *DATA.CDR layout and the hero*).
 
 Widescreen on that stage: native-wide engaged (mode 2, 128 columns), real
 scenery in the extra width, no blemish seen in the hold (`ws_nw`, two
@@ -539,6 +542,71 @@ What it took to get here:
 3. For a cosmetic weapon/hero change without game logic: HD texture
    replacement (OpenGL, `psx.enhancement.hd-textures` dumps the originals) or
    a `[[overlay]]` on the model data inside `DATA.CDR`.
+
+### DATA.CDR layout and the hero (2026-10-16)
+
+Traced from the CD read log (`cd_read_log` with `tail` = the transfers of
+one reload) of three GAME OVER → CONTINUE reloads (Clovis 0/2, Kodel 3/1,
+Kodel's save forced to area 0 = stage 0/1) and the render lists in RAM.
+`tools/datacdr.py` reads the same structures from the player's disc
+(`areas`, `stage A S`, `hero A S`).
+
+- **Disc layout.** `DATA.CDR` sector 0 is the area table (13 × [min sec
+  frame 0] offsets of the area headers, +1; disc 1 holds areas 0‥6, disc 2
+  areas 7‥12, its table restarts at 0). An area header is a container whose
+  section 1 is the stage table (offsets of each stage index from the
+  header; area 0 has stages 1‥9, the others 1‥39). A stage index is a
+  container whose section 3 lists the start of every file of the stage
+  ([m s f 0] from the index); a file runs to the next start and the game
+  reads exactly that many sectors. Files are mostly containers (u32 count,
+  count + 1 u32 offsets, data) with sections tagged `VAB_CODE` (sound bank),
+  `TIM_CODE` (a TIM with that text in place of the 0x10 magic) or
+  `SEQ_CODE`. The hero byte's address appears nowhere in this data.
+- **Load order of a stage.** ACTION.BIN to `0x800BBEF0`; the area header and
+  the stage index to `0x8007CE50`; the stage's first file (sound bank +
+  TIMs) to `0x800C5E98`, uploaded and then overwritten by the second file,
+  the **action pack**, which stays at `0x800C5E98` for the whole stage
+  (146‥153 sectors, 149‥157 entries); then sound banks, sequences, more
+  TIMs and two model containers (at `0x80127698` / `0x80178698` in stage
+  0/2).
+- **The hero is in the action pack** (pointers checked in RAM): entry 0
+  holds the render nodes (the hero's 14 at `e0+0x10`, 0x70 bytes each, node
+  `+0x68` → body-part packets, `+0x6C` → its vertices; the hero object at
+  `0x8008A4E0` points at entry 2), entry 1 the hero's sound bank (the same
+  for Clovis in areas 0 and 1), entry 2 skeleton / animation data (one per
+  area group: identical in stages 0/1 and 0/2, different in castle stage
+  1/19 with the same Clovis), entries 3‥16 the 14 body parts as **GPU
+  packet templates** (UV, CLUT, texture page; the game rewrites them every
+  frame, so RAM never matches the disc), entries 17‥30 their **vertex
+  data** (read-only), and four more hero-only entries (35, 59, 115, 116;
+  the rest of 31‥150 is common to every stage). The hero's texture page is
+  the TIM at VRAM (384, 0) with CLUTs at (384, 245‥255) in the stage's
+  first file; Kodel adds a small page at (464, 0) / CLUT (448, 0). The
+  prologue hero of stage 0/1 (purple hair, armour) and Clovis of 0/2 share
+  entries 1 and 2 and differ in 3‥30 and the page, so the look is entries
+  3‥30 plus the page.
+- **The render lists** at `0x8009E840`: 0x800-byte lists of node pointers
+  with their counts at `+0x1000`; list 0 in stage 0/2 = 14 stage-object
+  nodes, then the hero's 14. `func_800213C8` walks them (generic model
+  renderer; per-primitive-type drawers `func_80022604`, `func_80022770`,
+  `func_80022920`, …).
+- **Swap experiments** on a scratch copy of the disc image (the runtime
+  checks no sector EDC/ECC, so edited user data loads; a mod would ship the
+  same bytes as a `disc_user` `[[overlay]]`), reloaded through GAME OVER →
+  CONTINUE with cheats off:
+
+  | Swap | Result |
+  |---|---|
+  | Kodel's entries 1, 2, 19, 35, 59, 115, 116 into Clovis's 0/2 | runs; Clovis unchanged (entry 2 is not the look) |
+  | Clovis 0/2's entries 3‥30 and page into Kodel's 3/1 | hero drawn as long spikes, game keeps running |
+  | the same plus entries 1, 2, 35, 59, 115, 116 | guest crash (address-error exception loop in the BIOS handler) or full-screen garbage; hero byte 0 does not help |
+  | same area: 0/2's entries 3‥30 into the prologue 0/1 | loads, then memory corruption about 4 s later (the same warp on the stock disc runs on into stage 0/2) |
+
+  So the hero's look is located, but those entries are bound to something
+  else per stage: likely the 0x110-byte table at the head of each packet
+  template (16-byte records whose high halves differ per stage), or stage
+  scripts that touch hero parts by offset. Not a plain data swap. Next steps
+  in `BACKLOG.md`, section F.
 
 ### Modding: what the framework offers
 
@@ -826,21 +894,26 @@ worked examples this one follows.
   found a 54 × 22 block of texture noise at the right edge of the castle
   corridor (area 1 / stage 19). `ws_census` + `wtrace` traced it: shaded
   textured quads at screen X 381‥462, written by the mesh packet writer
-  `func_80023130` (pc `0x80023234`) for the model that `func_800213C8`
-  draws from its single call site `0x80021094`, the **hero's own model**
-  (parts table at `0x8006DE70`, weapon/part selection in the block at
-  `0x8009E840`); texture page (640, 0), CLUT (640, 245), which holds no
-  texture in that stage. It follows the camera because the hero does. The
+  `func_80023130` (pc `0x80023234`) for a model that `func_800213C8`
+  draws from its single call site `0x80021094`; texture page (640, 0),
+  CLUT (640, 245), which holds no texture in that stage. It follows the
+  camera. **Correction 2026-10-16:** `func_800213C8` is the generic model
+  renderer of the render lists at `0x8009E840` (stage objects, enemies and
+  the hero; see *DATA.CDR layout and the hero*), not a hero-only renderer,
+  and the hero's 14 body meshes use the page at (384, 0) in that stage
+  (`tools/datacdr.py hero 1 19`), so the parked part is not one of them. The
+  parts table at `0x8006DE70` points into the hero's skeleton entry, so a
+  hero-attached piece is still possible; the owner is unverified. The
   block is still there with every cull back to stock, so it is not a cull
-  artefact: the game parks an unused hero part some 220‥300 px right of the
+  artefact: the game parks an unused model part some 220‥300 px right of the
   hero, where the 4:3 draw area clips it on a console and the wide surface
   does not. The widening therefore bought nothing visible (the first
   forest and town captures already drew to both edges: the stock object
   cull reaches 193 px past the 4:3 edge, enough for 16:9 and 21:9) and the
   tree was regenerated back to stock culls (`[widescreen.cull]
   auto_screen_x = false`, no sites). What would hide the block: pushing
-  the parked part further out from a hook on `0x800213C8` once the hero
-  model's part layout is decoded, or an upstream rule that skips textured
+  the parked part further out from a hook on `0x800213C8` once its owner
+  is known, or an upstream rule that skips textured
   primitives outside the canonical frame whose texture page was never
   uploaded in the stage (`BACKLOG.md`). The stale-cache note still applies:
   every regen moves the cache tag, and an old `cache/gcc/<tag>` directory
@@ -1030,6 +1103,7 @@ mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonval
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
 tools/bin_listing.py  BIN/*.BIN from the disc -> listings at 0x800BBEF0 (whole modules, not only executed pages)
+tools/datacdr.py      DATA.CDR areas / stages / files and a stage's hero entries, read from the disc (read-only)
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
 tests/states/         committed save states slot 0 and slot 10 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)
