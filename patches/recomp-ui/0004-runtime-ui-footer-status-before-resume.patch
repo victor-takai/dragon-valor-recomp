@@ -1,0 +1,98 @@
+diff --git a/src/common/backends/imgui/runtime_ui_imgui.cpp b/src/common/backends/imgui/runtime_ui_imgui.cpp
+--- a/src/common/backends/imgui/runtime_ui_imgui.cpp
++++ b/src/common/backends/imgui/runtime_ui_imgui.cpp
+@@ -441,9 +441,40 @@
+         const float close_h = touch_friendly
+             ? std::max(ImGui::GetFrameHeight(), theme.row_height * 0.82f)
+             : 0.0f;
++        const char *close_label = "Resume";
++        const float close_w = touch_friendly
++            ? std::max(320.0f, ImGui::CalcTextSize(close_label).x +
++                                   theme.spacing_lg * 2.0f)
++            : ImGui::CalcTextSize(close_label).x + theme.spacing_lg * 2.0f;
++        // The footer line left of Resume: the key hint, or the status while
++        // it shows (it used to follow the hint on the same line and ran
++        // under the button). It wraps before the button, and the footer
++        // grows by the extra lines.
++        char footer_text[256];
++        const bool show_status = ui->status_frames && ui->status[0];
++        if (show_status) {
++            snprintf(footer_text, sizeof(footer_text), "%s", ui->status);
++        } else if (touch_friendly) {
++            snprintf(footer_text, sizeof(footer_text), "%s",
++                     "Tap a section or setting");
++        } else {
++            const char *accept = ui->config.accept_label
++                                     ? ui->config.accept_label : "Select";
++            const char *back = ui->config.back_label
++                                   ? ui->config.back_label : "Back";
++            snprintf(footer_text, sizeof(footer_text),
++                     "%s  Select    %s  Back    D-pad / Arrows  Navigate",
++                     accept, back);
++        }
++        const float footer_text_w = std::max(
++            1.0f, ImGui::GetContentRegionAvail().x - close_w -
++                      ImGui::GetStyle().ItemSpacing.x);
++        const float footer_text_h =
++            ImGui::CalcTextSize(footer_text, nullptr, false, footer_text_w).y;
+         const float footer_h = touch_friendly
+-            ? close_h + theme.spacing_sm * 2.0f
+-            : ImGui::GetTextLineHeightWithSpacing() + theme.spacing_lg + 2.0f;
++            ? std::max(close_h, footer_text_h) + theme.spacing_sm * 2.0f
++            : ImGui::GetTextLineHeightWithSpacing() + theme.spacing_lg + 2.0f +
++                  std::max(0.0f, footer_text_h - ImGui::GetTextLineHeight());
+         const float content_h = ImGui::GetContentRegionAvail().y - footer_h;
+         if (wide) {
+             const float sidebar_w = touch_friendly
+@@ -485,30 +516,16 @@
+         }
+ 
+         ImGui::Separator();
+-        if (touch_friendly) {
+-            ImGui::TextDisabled("Tap a section or setting");
+-        } else {
+-            const char *accept = ui->config.accept_label
+-                                     ? ui->config.accept_label : "Select";
+-            const char *back = ui->config.back_label
+-                                   ? ui->config.back_label : "Back";
+-            ImGui::TextDisabled(
+-                "%s  Select    %s  Back    D-pad / Arrows  Navigate",
+-                accept, back);
+-        }
+-        if (ui->status_frames) {
+-            ImGui::SameLine();
+-            ImGui::PushStyleColor(ImGuiCol_Text, col(theme.accent2));
+-            ImGui::TextUnformatted(ui->status);
+-            ImGui::PopStyleColor();
+-            --ui->status_frames;
+-        }
++        ImGui::PushStyleColor(ImGuiCol_Text,
++                              show_status
++                                  ? col(theme.accent2)
++                                  : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
++        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + footer_text_w);
++        ImGui::TextUnformatted(footer_text);
++        ImGui::PopTextWrapPos();
++        ImGui::PopStyleColor();
++        if (ui->status_frames) --ui->status_frames;
+         ImGui::SameLine();
+-        const char *close_label = "Resume";
+-        const float close_w = touch_friendly
+-            ? std::max(320.0f, ImGui::CalcTextSize(close_label).x +
+-                                   theme.spacing_lg * 2.0f)
+-            : ImGui::CalcTextSize(close_label).x + theme.spacing_lg * 2.0f;
+         ImGui::SetCursorPosX(ImGui::GetWindowWidth() -
+                              ImGui::GetStyle().WindowPadding.x - close_w);
+         if (ImGui::Button(close_label, ImVec2(close_w, close_h)))
+diff --git a/src/common/recomp_runtime_ui_internal.h b/src/common/recomp_runtime_ui_internal.h
+--- a/src/common/recomp_runtime_ui_internal.h
++++ b/src/common/recomp_runtime_ui_internal.h
+@@ -28,7 +28,7 @@
+     size_t page_depth;
+     size_t row_stack[RECOMP_RUNTIME_UI_MAX_DEPTH]; /* row to restore on Back */
+     unsigned status_frames;
+-    char status[48];
++    char status[128];           /* a provider's status is a short sentence */
+     RecompRuntimeUiItem *owned_items;
+     const char **owned_view_choices;
+     int *owned_view_values;

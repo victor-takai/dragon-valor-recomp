@@ -92,7 +92,7 @@ Files the runtime writes, all gitignored:
 
 | What | Where |
 |---|---|
-| Memory cards | `saves/card1.mcd`, `saves/card2.mcd` (project root, `[runtime] memcard_dir`); raw 128 KB images, a DexDrive `.gme` minus its 3904-byte header. The game's Load Game reads card 1 only. |
+| Memory cards | `saves/card1.mcd`, `saves/card2.mcd` (project root, `[runtime] memcard_dir`); raw 128 KB images, a DexDrive `.gme` minus its 3904-byte header. The game's Load Game reads card 1 only. `card2.mcd` holds one save, the GameFAQs "Prolog Clovis 25:54" (entry 14, installed there on request 2026-10-14; a copy is also entry 14 on card 1). The game also writes card 2's write-test frame (block 0, frame 63; seen 2026-10-16, one second after a card 1 write), so the file date changes while the save itself stays as installed. |
 | Launcher/user settings | `settings.toml` next to the exe (overrides `game.toml` defaults) |
 | Title settings the launcher does not keep | `dragonvalor_settings.toml` next to the exe: `[audio] volume`, `[menu] pause_in_menu / dim / opacity`, written by the in-game menu provider (see *In-game menu*) |
 | Keyboard binds | `keybinds.ini` next to the exe (generated on first run) |

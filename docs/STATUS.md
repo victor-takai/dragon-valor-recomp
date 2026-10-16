@@ -81,6 +81,8 @@ the native 60 Hz version.
   now (Game Over)** row below Area makes the trip by itself: Game Over,
   Continue pressed for the player, Infinite HP held off meanwhile, the
   Continue's 50 Val given back (11‥14 s; `tests/test_area_row.py` 9/9).
+  The blue status line now replaces the key hint in the footer and wraps
+  before Resume instead of running under it (`patches/recomp-ui/0004`).
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots
