@@ -112,14 +112,18 @@ native_wide = true        # the framework default, stated for clarity
 # projects vertices through the GTE, so menus, FMV and the title stay 4:3.
 gte_game_mode = true
 
-# The game's own screen-X reject, widened by the live margin (identity at 4:3).
-# From `psxrecomp-analyze SLUS_010.92 --scan-widescreen`: the stage is 384 px
-# wide and two render-funnel functions test X against 0x181 next to a height
-# test; auto_screen_x rewrites those compares (3 sites: 0x8001FE1C,
-# 0x80040334, 0x8004034C in generated/ shards 05 and 17). Code-generator
-# substitution: regenerate generated/ after changing this block.
+# The game's own screen-X rejects are left stock (identity at every aspect).
+# `psxrecomp-analyze SLUS_010.92 --scan-widescreen` finds two of them: the
+# mesh renderer's per-vertex `sltiu 385` at 0x8001FE1C and func_800401D8's
+# object cull (`slti 385` at 0x80040334 / 0x8004034C, |object - camera|).
+# Both were widened on 2026-10-15 (auto_screen_x) and the first one let in
+# a mesh the game parks just past the right edge with no texture loaded (a
+# block of noise at camera + ~400); the stock rejects already draw scenery
+# and objects to the 16:9 and 21:9 edges, so nothing is widened. Setting
+# screen_x_sites / slti_sites here is a code-generator substitution:
+# regenerate generated/ afterwards (docs/DEVELOPMENT.md, *Culling*).
 [widescreen.cull]
-auto_screen_x = true
+auto_screen_x = false
 screen_w_imms = ["0x180", "0x181"]
 screen_h_imms = ["0xF1", "0x102", "0x103"]
 

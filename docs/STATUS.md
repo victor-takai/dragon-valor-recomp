@@ -55,9 +55,10 @@ the native 60 Hz version.
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
   predicate), title / menus / movies stay 4:3, the HUD keeps its 4:3
-  positions, and the game's own screen-X reject is widened with the
-  margin (`[widescreen.cull] auto_screen_x`, five compare sites in the
-  regenerated code). `tests/test_widescreen.py on|off` 5/5 and 4/4; see
+  positions; the game's own screen-X rejects are left stock (widening
+  them bought nothing visible). Known blemish: a block of texture noise at
+  the right edge in some stages, a parked part of the hero model
+  (`BACKLOG.md`, section F). `tests/test_widescreen.py on|off` 5/5 and 4/4; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,

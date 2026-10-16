@@ -760,29 +760,38 @@ worked examples this one follows.
   framework's `nw_hud_corners` thirds shift is left off: ENHANCEMENTS.md
   records composite tears (dialogue boxes split) on the title that tried it,
   and this game's tutorial boxes span the full width.
-- **Culling** (applied the same day). `psxrecomp-analyze SLUS_010.92
-  --scan-widescreen --emit-ws-sites` (`cmake --build build-recompiler
-  --target psxrecomp-analyze`): screen extents `0x180/0x181` ×
-  `0xF1/0x102/0x103`, 2 EXE functions carry the width+height signature,
-  0 bias/range pairs, 16 `a1` nop candidates at 50 % (several are
-  object-script natives: noise, not used). `game.toml [widescreen.cull]
-  auto_screen_x = true` with those immediates is a code-generator
-  substitution, so `psxrecomp_cli.py generate` was re-run (11 s; the tree
-  is deterministic, the diff is exactly the substitutions): three EXE
-  compares against 385 become `psx_ws_cull_sltiu/slti` (`0x8001FE1C` both
-  edges, `0x80040334` and `0x8004034C` right edge, shards 05 and 17) and
-  two more in the static overlay shard (`0x800BECB8`, `0x800C2B80`, the
-  mode modules at `0x800BBEF0`); `AOT_STATIC_AUDIT.json` records the new
-  `game_toml_sha256` / cache tag, and the 4630 static variants are
-  unchanged in number. The tag change makes a `cache/gcc/<old tag>`
-  directory next to the exe stale: the loader then logs `OVERLAY CACHE
-  HASH MISMATCH … ALL overlays run INTERPRETED`, which is a false alarm
-  here (the static shard serves every overlay: `overlay_static_entries`
-  4217 entries with hits, `autocompile_status` triggers 0) but worth
-  silencing by deleting the old tag directory. Identity at 4:3: the helper returns the stock
-  compare while the margin is 0. Objects that sit entirely in the revealed
-  columns are therefore no longer dropped by those funnels; other
-  per-object culls, if any, were not found by the scan.
+- **Culling: left stock** (widened at 14:00 on 2026-10-15, withdrawn the
+  same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
+  --emit-ws-sites` (`cmake --build build-recompiler --target
+  psxrecomp-analyze`) finds two functions with the width+height signature:
+  the mesh renderer's per-vertex `sltiu 385` at `0x8001FE1C` and
+  `func_800401D8`'s object cull (`slti 385` at `0x80040334` /
+  `0x8004034C`, `|object − camera| < 385`), plus the overlay copies
+  `0x800BECB8` / `0x800C2B80`; `auto_screen_x = true` widened them all (a
+  regen of 11 s whose diff is exactly the substitutions). The player then
+  found a 54 × 22 block of texture noise at the right edge of the castle
+  corridor (area 1 / stage 19). `ws_census` + `wtrace` traced it: shaded
+  textured quads at screen X 381‥462, written by the mesh packet writer
+  `func_80023130` (pc `0x80023234`) for the model that `func_800213C8`
+  draws from its single call site `0x80021094`, the **hero's own model**
+  (parts table at `0x8006DE70`, weapon/part selection in the block at
+  `0x8009E840`); texture page (640, 0), CLUT (640, 245), which holds no
+  texture in that stage. It follows the camera because the hero does. The
+  block is still there with every cull back to stock, so it is not a cull
+  artefact: the game parks an unused hero part some 220‥300 px right of the
+  hero, where the 4:3 draw area clips it on a console and the wide surface
+  does not. The widening therefore bought nothing visible (the first
+  forest and town captures already drew to both edges: the stock object
+  cull reaches 193 px past the 4:3 edge, enough for 16:9 and 21:9) and the
+  tree was regenerated back to stock culls (`[widescreen.cull]
+  auto_screen_x = false`, no sites). What would hide the block: pushing
+  the parked part further out from a hook on `0x800213C8` once the hero
+  model's part layout is decoded, or an upstream rule that skips textured
+  primitives outside the canonical frame whose texture page was never
+  uploaded in the stage (`BACKLOG.md`). The stale-cache note still applies:
+  every regen moves the cache tag, and an old `cache/gcc/<tag>` directory
+  next to the exe makes the loader log `OVERLAY CACHE HASH MISMATCH`, a
+  false alarm while the static shard serves every overlay; delete it.
 - **Checked** on build-debug, OpenGL, 1080p, PGXP on, from save state 0:
   `tests/test_widescreen.py on` 5/5 (mode 2, 128 columns, still wide with
   the pause up, window 16:9) and `off` 4/4; 0 unknown dispatches, the

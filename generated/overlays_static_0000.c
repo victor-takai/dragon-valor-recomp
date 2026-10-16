@@ -17566,7 +17566,8 @@ block_800BECA8:
 #ifdef PSX_ENABLE_BLOCK_CYCLES
     psx_cyc_step(cpu, 0x4u);
 #endif
-cpu->gpr[2] = psx_ws_cull_slti(cpu->gpr[2], 385);  /* ws auto screen-x cull (right edge) */  /* 0x800BECB8: 0x28420181 */
+    { uint32_t _pgx1 = cpu->gpr[2]; cpu->gpr[2] = ((int32_t)cpu->gpr[2] < 385) ? 1 : 0;
+    PGXP_ALU(0x28420181u, cpu->gpr[2], _pgx1, 0x0181u); }  /* 0x800BECB8: 0x28420181 */
 #ifdef PSX_COSIM
     cosim_instr(0x800BECB8u);
 #endif
