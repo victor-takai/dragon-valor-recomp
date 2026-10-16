@@ -31,6 +31,10 @@ if not exist "%GAMEDIR%\%EXE%" (
     pause
     exit /b 1
 )
+REM The freeze watchdog leaves a psx_freeze_dump_*.json on every boot (a false
+REM positive on this title, upstream psxrecomp #646); clear them so they do
+REM not pile up (35 MB each on the debug build).
+del /q "%GAMEDIR%\psx_freeze_dump_*.json" >nul 2>&1
 REM The runtime resolves saves, settings, bios/ and keybinds.ini relative to the
 REM exe directory, so it is started there (start /D, or cd for the waiting path).
 if defined PLAY_WAIT goto wait

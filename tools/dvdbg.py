@@ -118,6 +118,14 @@ def cmd_launch(args):
     else:
         sys.exit(f"port {port} already answers: another instance is running "
                  "(`dvdbg.py kill`, or pick --port N)")
+    # The framework's freeze watchdog writes a ~35 MB psx_freeze_dump_*.json
+    # on every boot of this title (a false positive on statically compiled
+    # code, upstream #646); nothing reads them, so clear the pile first.
+    dumps = list(build.glob("psx_freeze_dump_*.json"))
+    for d in dumps:
+        d.unlink(missing_ok=True)
+    if dumps:
+        print(f"cleared {len(dumps)} freeze dump(s) in {build}")
     exe_args = ["--debug-port", str(port), "--no-launcher", "--disc", disc]
     if sw:
         exe_args += ["--renderer", "software"]

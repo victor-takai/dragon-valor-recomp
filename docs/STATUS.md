@@ -91,8 +91,10 @@ the native 60 Hz version.
    a human play session.
 4. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
    beside the exe on every boot (false positive on statically compiled code).
-   Upstream PR #646 fixes it; until the pin includes it, delete the dumps
-   before timing runs (no config switch exists).
+   Upstream PR #646 fixes it; until the pin includes it, `Play.bat` and
+   `tools/dvdbg.py launch` delete the existing dumps before each start (no
+   config switch exists; 58 of them, 2 GB, had piled up in one afternoon of
+   scripted runs).
 5. Widescreen follow-ups: HUD anchored to the window edges, a check of
    later chapters and the field module, a real Fit resize; see
    `BACKLOG.md`, section F.

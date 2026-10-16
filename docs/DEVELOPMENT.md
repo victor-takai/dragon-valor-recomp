@@ -98,7 +98,7 @@ Files the runtime writes, all gitignored:
 | Keyboard binds | `keybinds.ini` next to the exe (generated on first run) |
 | Host hotkeys / pad mapping | `config.ini` next to the exe (`[KeyMap]`, `[controller]`, `[mapping]`) |
 | Overlay captures + native shards | `overlay_captures.json(.d)` and `cache/` next to the exe |
-| Exit report / watchdog | `psx_last_run_report.json` (unknown dispatches, segment misses, overlay loader counters, CPU state at exit), `psx_freeze_heartbeat.json`, boot-time `psx_freeze_dump_*.json` (false positives, ~35 MB each — delete) |
+| Exit report / watchdog | `psx_last_run_report.json` (unknown dispatches, segment misses, overlay loader counters, CPU state at exit), `psx_freeze_heartbeat.json`, boot-time `psx_freeze_dump_*.json` (false positives, ~35 MB each on the debug build; `tools/dvdbg.py launch` and `Play.bat` delete the existing ones before each start, since 2026-10-15) |
 
 ## Bumping the framework
 
