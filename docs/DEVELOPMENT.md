@@ -117,6 +117,7 @@ The debug build listens on `127.0.0.1:4370` (JSON lines; see
 python tools/dvdbg.py launch            # OpenGL on 4370
 python tools/dvdbg.py launch --sw       # software renderer on 4371
 python tools/dvdbg.py launch --pad      # let the runtime open a connected gamepad (scripted runs hide pads since 2026-10-15: a resting stick that reads full-left walks the hero out of every scene)
+python tools/dvdbg.py launch --show     # show the game window (scripted runs keep it hidden since 2026-10-16: PSX_HIDDEN_WINDOW, so the player's fullscreen setting never covers the screen; the in-game menu, host_key, present_shot and screenshot all work hidden)
 python tools/dvdbg.py press start cross down:8
 python tools/dvdbg.py shot out.png      # guest display
 python tools/dvdbg.py pad               # SIO pad: connected / analog / type

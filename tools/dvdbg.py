@@ -6,9 +6,11 @@ This wraps the handful of commands a test session needs; anything else goes
 through `raw`. Windows only (detached process, taskkill); all waits are
 in-process, so it is safe from any shell.
 
-  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--pad] [--build DIR] [--disc CUE] [--state N]
+  python tools/dvdbg.py launch [--sw] [--port N] [--sound] [--pad] [--show] [--build DIR] [--disc CUE] [--state N]
         start the runtime detached, wait for the server, print pid and the
         controller line. Muted (SDL dummy audio driver) unless --sound.
+        The game window stays hidden (PSX_HIDDEN_WINDOW, never fullscreen,
+        never takes focus) unless --show; the in-game menu still works.
         --state N then loads save state slot N: the way gameplay tests start.
   python tools/dvdbg.py press start cross down:8 ...
         tap buttons in order (NAME[:frames]); PS1 pad words are active-low,
@@ -143,13 +145,18 @@ def cmd_launch(args):
         # that rests off-centre walked the hero out of every scripted scene on
         # 2026-10-15. Scripted runs see no pad unless asked (--pad).
         env["SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT"] = "0x0000/0x0000"
+    if "--show" not in args:
+        # The build's settings.toml is the player's: with fullscreen = 1 every
+        # scripted run covered the screen (2026-10-16). The runtime's test hook
+        # keeps the window hidden and windowed and still runs the in-game menu.
+        env["PSX_HIDDEN_WINDOW"] = "1"
     log_path = build / f"dvdbg_{port}.log"
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:   # the child keeps its own handle
         proc = subprocess.Popen([str(build / EXE_NAME), *exe_args], cwd=str(build), env=env,
                                 stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
     print(f"pid={proc.pid} port={port} renderer={'software' if sw else 'opengl'} "
-          f"audio={'on' if sound else 'muted'} log={log_path}")
+          f"audio={'on' if sound else 'muted'} window={'shown' if '--show' in args else 'hidden'} log={log_path}")
     t0 = time.time()
     while time.time() - t0 < 90:
         if proc.poll() is not None:
