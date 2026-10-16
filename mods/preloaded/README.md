@@ -1,6 +1,7 @@
 # Preloaded mods
 
-Ship reviewed, default-disabled packages here:
+Ship reviewed packages here (off by default unless the manifest says so:
+PGXP and the Cheats holder ship on):
 
 ```text
 packages/<package-id>/<version>/

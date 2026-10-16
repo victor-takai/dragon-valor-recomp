@@ -4,7 +4,8 @@
 # game.toml sets [video] pgxp_mod_only = true so this feature is the one switch,
 # and netplay runs with it off. Measured 2026-10-14: 66 % of vertex lookups
 # corrected by dataflow in Brize Forest, 60 fps kept. Everything below is the
-# builtin manifest verbatim except default_enabled.
+# builtin manifest verbatim except default_enabled and the first words of the
+# feature description (which said "Disabled by default").
 format_version = 5
 id = "psx.enhancement.pgxp"
 version = "1.0.0"
@@ -22,7 +23,7 @@ game_id = "*"
 [[feature]]
 id = "pgxp"
 name = "PGXP Precision"
-description = "Disabled by default (the faithful floor). Corrections are validated per vertex against the exact packet words the game drew with and clamped to half a pixel, so 2D sprites and UI are never touched and a vertex the tracker cannot prove simply draws the faithful way. Most effective on a build compiled with the PGXP hook variant; on other builds coverage is reduced but never harmful. Needs supersampling >= 2 to be visible."
+description = "On by default in this title (the framework ships it off). Corrections are validated per vertex against the exact packet words the game drew with and clamped to half a pixel, so 2D sprites and UI are never touched and a vertex the tracker cannot prove simply draws the faithful way. Most effective on a build compiled with the PGXP hook variant; on other builds coverage is reduced but never harmful. Needs supersampling >= 2 to be visible."
 group = "Visual"
 default_enabled = true
 

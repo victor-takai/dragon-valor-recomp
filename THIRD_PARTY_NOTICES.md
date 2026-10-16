@@ -1,8 +1,8 @@
 # Third-party notices
 
 The root [MIT license](LICENSE) covers this project's own files: `tools/`,
-`scripts/`, `tests/`, `docs/`, `mods/`, `codegen_setup.c`, the CMake and
-config files. It does not relicense the submodules, the third-party code
+`scripts/`, `tests/`, `docs/`, `mods/`, `patches/`, `aot/`, `seeds/`,
+`codegen_setup.c`, the CMake and config files. It does not relicense the submodules, the third-party code
 they carry, Dragon Valor, the recompiled game code in `generated/` (machine
 output derived from the game, no licence grant from us) or the game imagery
 in screenshots.

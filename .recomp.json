@@ -1,11 +1,11 @@
 {
   "$schema": "https://recomp.fyi/schema/v1.json",
-  "game": "DragonValorUS",
+  "game": "Dragon Valor",
   "system": "PS1",
   "type": "recomp",
   "toolchain": "psxrecomp",
   "status": "in-progress",
-  "project": "psxrecomp.ico",
+  "project": "DragonValorUSRecomp",
   "original": {
     "region": "USA",
     "serial": "SLUS-01092"

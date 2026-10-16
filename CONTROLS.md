@@ -2,7 +2,7 @@
 
 How a pad or the keyboard reaches the game, what the game does with each
 PlayStation button, and the host hotkeys. Settings pages are the launcher's
-(`Play.bat`) and the in-game menu's.
+(it opens when you start `DragonValorUS_Recompiled`) and the in-game menu's.
 
 ## Pads
 
@@ -21,7 +21,8 @@ unverified (`docs/STATUS.md`, open items).
 ## Keyboard
 
 Generated into `keybinds.ini` next to the executable on the first run; edit
-that file (or `config.ini`, `[KeyMap]`) to change it.
+that file and restart, or rebind live on the launcher's Controls page
+(`config.ini` `[KeyMap]` holds the host hotkeys below, not the pad buttons).
 
 | PlayStation | Key | | PlayStation | Key |
 |---|---|---|---|---|
@@ -55,9 +56,12 @@ jump) are the game's; the first stage's tutorial boxes introduce them.
 | Key / pad | Action |
 |---|---|
 | `Escape`, or **Select + Start** on the pad | In-game menu: pause, cheats, texture filtering, scanlines, fullscreen, volume, save/load state, disc change, back to the launcher. Arrows / D-pad move, `Enter` / Cross selects, `Escape` / Circle goes back; the mouse works too (hover selects, click activates, wheel scrolls, right button goes back). |
-| `F7` / `F8` | Save state / rewind |
-| `Tab` (hold), `F9` | Turbo |
-| `Alt` + `Enter` | Fullscreen |
+| `F7` | Save-state slot picker: Left / Right pick the slot, `S` saves, `L` loads, `F7` / `Esc` close |
+| `F8` | Rewind (hold; only when Rewind is on in the launcher's Display card) |
+| `F6` | Scanlines on / off |
+| Numpad `+` / `-` | Volume |
+| `Tab` (hold), `F9` | Turbo (hold / toggle) |
+| `Alt` + `Enter`, `Ctrl` + `F` | Fullscreen |
 | `F` | FPS readout |
 
 Save states are the framework's, not the game's: a state taken with one

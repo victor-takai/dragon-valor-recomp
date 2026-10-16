@@ -218,6 +218,11 @@ jobs:
       # The release is built from COMMITTED C: the title's game C and the
       # framework's BIOS backends. Fail here, at the top, when either is
       # absent or untracked, or when a BIOS dump is in the tree.
+      - name: Check the mod manifests (pure Python, no disc)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 tests/test_manifests.py
+
       - name: Verify committed game C
         shell: bash
         run: bash psxrecomp/tools/ci/check_generated.sh --root .
@@ -714,9 +719,10 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           # Quoted: titles may contain ':' (e.g. "Marvel vs. Capcom: …").
-          name: "DragonValorUS Recompiled ${{ needs.prepare.outputs.tag }}"
+          name: "Dragon Valor (USA) Recompiled ${{ needs.prepare.outputs.tag }}"
           files: |
             dist/dvus-*.zip
+          body_path: RELEASE_NOTES.md
           generate_release_notes: true
           fail_on_unmatched_files: true
           target_commitish: ${{ github.sha }}

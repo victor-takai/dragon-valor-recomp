@@ -1,6 +1,6 @@
 # Dragon Valor (USA) Recompiled — status
 
-Last updated: 2026-10-14. Framework: psxrecomp @ f9c287f5 (submodule, bumped from 54abcb70 the same day; see [`framework_pin_history.md`](framework_pin_history.md)), recomp-ui @ 41c88ff, OpenBIOS only.
+Last updated: 2026-10-15. Framework: psxrecomp @ f9c287f5 (submodule, bumped from 54abcb70 the same day; see [`framework_pin_history.md`](framework_pin_history.md)), recomp-ui @ 41c88ff, OpenBIOS only.
 The project started on the PAL release (SCES-01705, 50 Hz) and moved to this
 USA version on 2026-10-14; the PAL tree was deleted. What that bring-up
 established (controller, dissolve rendering, first play session, framework
@@ -75,8 +75,9 @@ the native 60 Hz version.
 
 ## Open items
 
-1. Human play session (saves, Load Game, reaching disc 2 in-game, whether the
-   Xbox pad actually rumbles with Vibration ON) — not done yet. Also watch
+1. Human play session: the player has reached the castle of chapter 1 on
+   2026-10-15; still open are Load Game after a restart, reaching disc 2
+   in-game, and whether the Xbox pad actually rumbles with Vibration ON. Also watch
    what the title does after a Start during the intro movie: in scripted
    runs it sometimes goes to the menu and sometimes plays the story demo
    first (see `DEVELOPMENT.md`, *skip-intro*); the same race may show up

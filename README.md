@@ -31,8 +31,9 @@ Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
 
 ## Playing
 
-1. Build (see below) or unpack a release, then run **`Play.bat`** (or
-   double-click the executable itself: it opens no console window).
+1. Unpack a release and run **`DragonValorUS_Recompiled`** (Windows: the
+   `.exe`; it opens no console window). From a build tree, `Play.bat` does
+   the same for `build-release`.
 2. The launcher opens. On the first run browse to your own `Dragon Valor (USA)
    (Disc 1).cue` (see [`DISC.md`](DISC.md) for the dumps that work); it checks
    the serial, region and ISO header and remembers the location. The same
@@ -52,7 +53,8 @@ Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
 Xbox / PlayStation / Switch pads work out of the box; the game reads the
 analog stick. Memory cards live in `saves/`.
 
-The launcher's **Mods** page lists the bundled features, all off by default:
+The launcher's **Mods** page lists the bundled features, off by default
+except PGXP (on) and the Cheats holder (on, with every option off):
 the framework's enhancements (HD texture packs, PGXP, CD speed, 8 MB RAM,
 bezel) and this project's packages: **Dragon Valor Cheats** (Infinite HP,
 Infinite MP, a gem or scroll every N kills; also switchable in-game, where
@@ -74,9 +76,12 @@ Tick a feature, set its options, Play. See
 | Key | Action |
 |---|---|
 | `F` | FPS readout |
-| `F7` / `F8` | Save state / Rewind |
+| `F7` | Save-state slot picker: Left / Right pick the slot, `S` saves, `L` loads, `F7` / `Esc` close |
+| `F8` | Rewind (hold; only when Rewind is on in the launcher) |
+| `F6` | Scanlines |
+| Numpad `+` / `-` | Volume |
 | `Tab` (hold) / `F9` | Turbo |
-| `Alt`+`Enter` | Fullscreen |
+| `Alt`+`Enter`, `Ctrl`+`F` | Fullscreen |
 
 <!-- retcomm-readme-launcher -->
 ## Retro Launcher
@@ -119,8 +124,9 @@ Optional box art under `launcher_assets/img/` may come from
 
 ## Licensing
 
-Our own files (`tools/`, `scripts/`, `docs/`, `mods/`, `codegen_setup.c`,
-the CMake and config files) are MIT, see [`LICENSE`](LICENSE). The committed
+Our own files (`tools/`, `scripts/`, `tests/`, `docs/`, `mods/`, `patches/`,
+`aot/`, `seeds/`, `codegen_setup.c`, the CMake and config files) are MIT, see
+[`LICENSE`](LICENSE). The committed
 `generated/` tree is machine output derived from the game's code and carries
 no licence grant from us. The framework (`psxrecomp/`) is PolyForm
 Noncommercial 1.0.0 and the launcher (`recomp-ui/`) is MIT, so a built

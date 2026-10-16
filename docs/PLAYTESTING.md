@@ -12,8 +12,8 @@ want eyes on, and which files to send with a report. Controls are in
    [releases page](https://github.com/victor-takai/dragon-valor-recomp/releases)
    and unpack it anywhere (a path without spaces is safest). Nothing is
    installed; delete the folder to remove it.
-2. Windows: run `Play.bat`. Linux / macOS: run `DragonValorUS_Recompiled`
-   from the folder. The launcher opens.
+2. Run `DragonValorUS_Recompiled` from the folder (Windows: the `.exe`). The
+   launcher opens.
 3. First run: browse to your own `Dragon Valor (USA) (Disc 1).cue` (the
    `.bin` must sit next to it with its Redump name). The launcher checks the
    serial and remembers the location in `settings.toml`. Disc 2 is picked
@@ -54,9 +54,12 @@ Nobody has played the game through on this build yet. In rough priority:
    shortcut) with the settings you used.
 7. **Widescreen** (Mods > Display > Widescreen, experimental). Stages should
    show real scenery in the extra width; the title, menus and movies stay
-   4:3 with side bars. Report objects that pop in late at the far edges,
-   HUD pieces in odd places, or any screen that should have stayed 4:3.
-8. **Cheats mod.** Infinite HP / MP, "gem every N kills", and the in-game
+   4:3 with side bars. Known: a small block of texture noise can sit just
+   right of the 4:3 area in some stages. Report anything else: HUD pieces
+   in odd places, a screen that should have stayed 4:3, missing scenery at
+   the edges.
+8. **Cheats mod.** Infinite HP / MP, "Gem every N sword kills", "Scroll every
+   N magic kills", and the in-game
    menu's Val / stats / spell / item editors: anything that does not take
    effect or breaks a later screen.
 
@@ -67,8 +70,9 @@ stops responding, a stage that runs slow. Note the chapter and the moment.
 
 - **Try it again from a fresh boot**, with every mod off if one was on. Say
   whether it repeats.
-- **Take a save state just before the spot** if you can: `F7` (or the
-  in-game menu, System > Save state, slot 1 to 12). State files are
+- **Take a save state just before the spot** if you can: `F7` opens the
+  slot picker (Left / Right, then `S`), or the in-game menu, System > Save
+  state, slot 1 to 12. State files are
   `saves/openbios/state_*_slotNN.pst`; attach the one you took. A Memory
   Card save (`saves/card1.mcd`) that lands near the problem is just as good.
 - **Collect the files** from the folder with the executable:

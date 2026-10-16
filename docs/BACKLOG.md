@@ -30,7 +30,7 @@ Verified-correct things are listed at the end so they are not re-checked.
 | H | ✔ PGXP is offered but the exe is the base flavour | `CMakeLists.txt` (`PGXP` option of `psxrecomp_add_game_runtime`) | Without the hook variant the mod covers almost nothing (ENHANCEMENTS.md G1.11). Needs the A/B the doc mandates (`geom_correction` census + `screenshot_hires`), costs ~7 % CPU when off, and save states of the two flavours differ (slot 0 would be re-taken). **[done 2026-10-14: hook flavour built, state re-taken, census 66 % dataflow hits, default-on override + pgxp_mod_only]** |
 | M | ✔ `default_mode = "dualshock"` is not a recognised value | `game.toml [controller]` | Parser accepts `analog`/`digital` and falls back to analog, which is why it works. Write `analog`. Do not migrate to `[runtime] controller`: parsed but never read. **[done: `analog`]** |
 | M | ✔ Deprecated `psx.enhancement.fast-loading` ships in the catalog | `CMakeLists.txt` | Its own manifest says deprecated; `EXCLUDE_BUILTIN_MODS psx.enhancement.fast-loading` is the documented pattern; CD Speed is the supported accelerator. **[done: excluded]** |
-| M | ✔ Audio latency left at the 180 ms default | `game.toml [audio] buffer_ms` | Action title; measure 60‥90 ms for crackle and set it (a developer choice, not a player setting). **[done: 90 ms, 0 underruns muted]** |
+| M | ✔ Audio latency left at the 180 ms default | `game.toml [audio] buffer_ms` | Action title; measure 60‥90 ms for crackle and set it (a developer choice, not a player setting). **[done: 90 ms was clean muted but choppy on the device at the title screen; reverted to 180 ms in game.toml]** |
 | L | ✔ OpenGL quality opt-ins never evaluated | `game.toml [video]` | `texture_lod = "mipmap"` + `anisotropic_filtering` (shimmer at high scale), `fmv_chroma_smoothing = true` (MDEC movies), `antialiasing_mode = "fxaa"`. A/B with `present_shot`, ship the winners. **[done: mipmap + aniso 4 shipped; FXAA measured and left off; chroma smoothing not evaluated]** |
 | L | ✔ Load acceleration unconfigured | `game.toml [runtime] idle_skip`, `warm_cd_routes`; cd-speed mod | Per-game opt-in, evidence first; at least test cd-speed 2x/4x and note the safe value. **[done: 2×/4×/8× clean but the stage reload stays 3.5 s; left off]** |
 | L | ✔ Stale comment on `p1_device = "auto"` | `game.toml` | The "auto" branch is unconditional in the runtime; the macro story is outdated. **[done]** |
@@ -75,7 +75,7 @@ Verified-correct things are listed at the end so they are not re-checked.
 | L | ✔ Dissolve pointer, Start wording, Pillow prerequisite, unreferenced images, framework paths without `psxrecomp/` prefix | `docs/DEVELOPMENT.md:366,11`, `README.md:39`, `docs/HISTORY.md:41`, `game.toml:1,46`, `CMakeLists.txt:28` | Point at HISTORY for the dissolve; "press Start during the intro movie"; Pillow is optional; embed or drop `docs/assets/*.png`; prefix the paths. **[done (images embedded in HISTORY)]** |
 | L | ✔ `mods/preloaded/packages/.gitkeep` | repo | Remove, the directory has content now. **[done]** |
 
-## F. Added 2026-10-14
+## F. Added since 2026-10-14
 
 | P | Item | Where | Why / how |
 |---|---|---|---|
@@ -87,13 +87,33 @@ Verified-correct things are listed at the end so they are not re-checked.
 | L | Pickup ids 9 and 10; the second effect routine | `func_80028940`, jump table `0x8001131C` | Id 9 starts a 1200-frame timer at `0x80086332`, id 10 queues 5 HP of damage and gives 2 MP; `func_80028940` applies effects per id without the kill-counter bookkeeping and its trigger is unknown (not the floor pickup). |
 | M | ✔ Widescreen: widen the game's 4:3 reject (done, then withdrawn the same evening: it bought nothing visible, see `DEVELOPMENT.md` *Culling*) | `game.toml [widescreen.cull] auto_screen_x` + the scan's immediates, `psxrecomp_cli.py generate` | **[done 2026-10-15: regen diff = 3 EXE compares (shards 05/17) + 2 in the static overlay shard, all `x < 385` → `psx_ws_cull_slti(u)`; both builds rebuilt, widescreen/menu tests re-run, static shard still serves every overlay. Pop-in at the far edges was never caught on camera before or after (`ws_probe3.py` series), so the change is justified by the scan, not by a visible fix.]** |
 | L | Widescreen: HUD at the window edges | `nw_hud_corners` (framework thirds shift) or HUD packet tagging as R4 does (`psx_mod_tag_hud_primitive` from entry hooks on the HUD producers) | The bars sit 64 columns in at 16:9. The thirds shift tore composite boxes elsewhere and this game's tutorial boxes span the full width, so tagging per producer is the safer route; needs the HUD draw functions identified first. |
-| L | Widescreen: later chapters, field module, software renderer, Fit resize | play session with the package on | Only the first forest was checked. Watch the 2D field scenes (`MAP.BIN`): with `gte_game_mode` they should pillarbox; if they project a few vertices they would widen a flat image. |
+| L | Widescreen: later chapters, field module, software renderer, Fit resize | play session with the package on | Only chapter 1 (forest, town, castle corridor) was checked. Watch the 2D field scenes (`MAP.BIN`): with `gte_game_mode` they should pillarbox; if they project a few vertices they would widen a flat image. |
 | M | Upstream: persist the host volume in `settings.toml` | psxrecomp `recompiler/src/config_loader.cpp` (`UserSettings`, reader, writer), `runtime/src/main.cpp` (seed / save of `ls.volume`) | The launcher stepper and the in-game Volume row both end in `host_volume_set`, which nothing persists, so every start is 100. Worked around in `mods/plugins/dragonvalor_menu.cpp` with `dragonvalor_settings.toml` (2026-10-15); drop the workaround when the pin has the key. |
 | L | Upstream: `psx_window_icon.cpp` frees `SDL_GetBasePath()` under SDL3 | `psxrecomp/runtime/src/psx_window_icon.cpp` (non-Windows branch) | SDL3 owns the returned string; `SDL_free` on it corrupts the heap (seen in our plugin before the fix). Windows never reaches that branch (`GetModuleFileNameW` wins). |
 | M | Controller shortcuts for more actions | launcher Controls page, "Controller shortcuts" (recomp-ui `assist_pad_bind`: Rewind, Save-state menu, Fast forward, Fast-forward toggle; Select + button, or a two-button chord); keyboard hotkeys `[KeyMap]` (fullscreen, pause, turbo, volume, perf, reset …) have no pad capture | Player's request 2026-10-15: bind pad chords to the keyboard hotkeys as well. Upstream work in recomp-ui's hotkey catalog, or a title plugin that watches pad chords and calls the host (fullscreen / volume are reachable through `PsxMenuHost.video_apply` and `host_volume_set`; the in-game menu already opens on Select+Start). |
 | L | ✔ Items page edited the wrong slots | `mods/plugins/dragonvalor_menu.cpp`, `DEVELOPMENT.md` RAM table | **[fixed 2026-10-15: the inventory starts at `0x800A2DD4` and skips `0x800A2DE0`‥`EE` (spell-book counters); confirmed on the Status screen, which also supplied the row descriptions.]** |
 | L | Keys from the menu: confirm the door opens | player's castle save (menu slots 1‥3, area 1 / stage 13), `mods/plugins/dragonvalor_menu.cpp` `take_stage_keys` | The real pickup sets save flag 1 and retires the key object; the menu now does the same when a key count rises. Not yet seen: the door actually opening (the scripted walks never found the door's trigger). The player can confirm; then automate from a state in front of the door. |
 | M | Widescreen: the hero's parked part at the right edge | `func_800213C8` (hero model renderer, single caller `0x80021094`), parts table `0x8006DE70`, selection block `0x8009E840`; texture page (640, 0) / CLUT (640, 245) | A 54 × 22 noise block at screen X 381‥462 in stages where that texture page is not loaded (castle corridor, area 1 / stage 19; not the forest or the town). Hide it by moving the parked part further out from an entry hook once the model layout is decoded, or ask upstream for a rule that skips textured primitives outside the canonical frame whose texture page was never uploaded in the stage. Player report 2026-10-15 with screenshot; reproduced from their slot 2. |
+
+## G. Review round of 2026-10-15 (evening)
+
+Three read-only reviewers (code, docs/config, release readiness) over the
+day's 16 commits. Applied the same evening: F7 is the save-state slot picker
+(not a direct save) in README / CONTROLS / PLAYTESTING; the zip now ships
+CONTROLS.md, THIRD_PARTY_NOTICES.md, RELEASE_NOTES.md, LICENSE and
+BOXART_SOURCE.txt; player docs say "run the executable" (the zip has no
+Play.bat); `.recomp.json` project/game fields; release name token,
+`body_path: RELEASE_NOTES.md` and a manifest-test step in the workflow;
+DISC.md Redump digests; the widescreen texts name the real blemish; STATUS /
+BACKLOG / DEVELOPMENT stale lines. Still open:
+
+| P | Item | Where | Why / how |
+|---|---|---|---|
+| H | Dry-run the release workflow before the first release | `.github/workflows/release.yml` (`workflow_dispatch`, `publish=false`) | Never run: 0 workflow runs, 0 tags. It builds four platforms, configures `-DPSX_SETUP_WIZARD=ON` (local builds keep it OFF, so the shipped first-run wizard was never exercised), applies `patches/recomp-ui/*` with `git apply` inside MSYS2 and runs the new manifest step. Dispatch once with `publish=false`, unpack the Windows zip in a clean folder and walk the wizard; then align the CMakeLists comment and DISC.md with what the wizard shows. |
+| H | First version number | `VERSION` = 0.1.0, no tags | A dispatch with an empty `version` auto-bumps to v0.1.1. Pass `version=0.1.0` or push the tag `v0.1.0` first. Do not hand-upload `dist/dvus-0.1.0-windows-x64.zip`: it is a stale 2026-10-14 stage (old game.toml, no dragonvalor.* packages). |
+| M | Repository is private | GitHub settings | README badges, the PLAYTESTING / issue-template links and the Retro-Catalog submission need a public repository; a private one also bills the four-OS matrix minutes. Make it public before the first dispatch, or accept both until then. |
+| L | `.recomp.json` multi-serial form | `.recomp.json` (`original.serial` = SLUS-01092 only) | Check the recomp.fyi schema for listing disc 2 (SLUS-01164). |
+| L | CONTROLS / README hotkeys vs `config.ini` | `psxrecomp/runtime/src/host_keymap.c` | The defaults documented now (F6 scanlines, F7 picker, F8 rewind, F9 turbo toggle, Numpad +/- volume, Ctrl+F fullscreen) come from the code; a player's `config.ini [KeyMap]` can change them, which the docs say. Re-check after a framework bump. |
 
 ## E. Ideas from other psxrecomp titles
 
@@ -107,7 +127,7 @@ commits behind master `d3db61b1` (2026-10-14); landed since: the native
 in-game overlay menu series (#598‥#603, host pause, live mod options), cdrom
 SetLoc/XA fixes (#657/#658), debug-server accept timeout (#659), rollback
 fixes. Open PRs that matter to us: **#646** freeze-heartbeat false positives on
-statically compiled code (our STATUS open item 5: reference it, do not file a
+statically compiled code (our STATUS open item 4: reference it, do not file a
 duplicate), #652 in-game disc menu + game-driven disc switching, #645 AOT
 prepared images / disc sets, #591 graphics presets with hardware detection,
 #590 idle_skip, #593 Steam Deck Game Mode. Open issues: #371 wizard mojibake on

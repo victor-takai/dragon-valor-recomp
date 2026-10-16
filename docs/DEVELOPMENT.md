@@ -146,7 +146,7 @@ Useful facts:
 
 The runtime's save states (`savestate op=save|load slot=N`) are the shortcut
 around the ~5 min intro, and **every automated test that is not about the
-boot or the menus starts from slot 0**:
+boot or the menus starts from slot 0** (slot 10 for the spell tests):
 
 ```bash
 python tools/dvdbg.py launch --state 0  # boot, then load slot 0 and wait for it
@@ -202,9 +202,8 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x800A2D99` | u8 | Selected spell of the hero (0xFF = none; slot 0 has none and every level 0). `func_80037D94` SetCurrentSpell copies it into the HUD icon state (`0x800A2C0C` = 1, `0x800A2C10` = (3 × spell + level) × 2 + 15) | `func_80037D94`, ACTION.BIN `0x800BFFE4` |
 | `0x8009FAF8` | struct | Spell ring of the action HUD (ACTION.BIN `0x800BFFE4`, pointer at `0x800C5E48`): `+0` current spell, `+1` state, `+2` ring index (u16; the D-pad moves it, action `0x100` confirms, action `0x80` selects), `+0xC` countdown | ACTION.BIN |
 | `0x800A2F64` / `0x800A2F68` / `0x800A2F80` | u32 ×3 | Pad words: held / newly pressed / repeat. High half = raw pad bits (D-pad 0x10 Up, 0x20 Right, 0x40 Down, 0x80 Left; 0x1000 Triangle … 0x8000 Square), low half = game actions after the button configuration. Slot 0's configuration, measured with `press` on 2026-10-15: Square 0x01 (attack), Circle 0x08, Cross 0x82 (0x80 = magic), Triangle 0x120, L1 / L2 0x10, R1 / R2 0x04, Start 0x40, Select nothing | ACTION.BIN, MAP.BIN |
-| `0x800A6A98` | struct ×32 | Pickup objects lying on the floor, 0x250 bytes each: `+0x238` counts down to 0 (0 = free slot, the drop vanishes), `+0x244` pickup id | `func_80034024` (spawn), `func_80034908` (pickup), `func_80035A5C` |
 | `0x800A2D20`‥`0x800A2D5F` | u8 ×64 | **Save event flags**, the head of the save block (`0x800A2D20` is the base the code builds; selected spell is `+0x79`, play time `+0x7C`, Val `+0xB0`). A pickup object whose `+0x24C` is non-zero sets byte `[+0x24C]` to 1 when taken (`func_80034908`, pc `0x80034A94`‥`AB8`, then `+0x238` ← 0 retires the object); door scripts check these flags, not the key counts (2026-10-15, player's castle save: Gold Key object flag 1, a hand-written count opened nothing). Cleared with the save block by the routine at `0x80038B3C`‥`78`. | `func_80034908` (W) |
-| `0x800A6A98` | struct ×46 | Pickup pool, 46 objects of 0x250 bytes: `+0x238` active, `+0x244` pickup id, `+0x24C` save-flag index set on pickup (0 = none) | `func_80033E40` (scan), `func_80034908` |
+| `0x800A6A98` | struct ×46 | Pickup pool, 46 objects of 0x250 bytes (the drop tests read the first 32): `+0x238` active (counts down to 0 = free slot, the drop vanishes), `+0x244` pickup id, `+0x24C` save-flag index set on pickup (0 = none) | `func_80034024` (spawn), `func_80033E40` (scan), `func_80034908` (pickup), `func_80035A5C` |
 | `0x800A2DB8`‥ | u16 ×N | Pickup counters by id (0 gem, 2 scroll, 12 one Val, 13 ten Val, 14 HP max up, 15 MP max up, 16 attack up, 17 DEF up; index 12 is the Val field itself); ids from 14 on are the inventory list below, 13 is the ten-Val coin and 20‥27 count the spell books | `func_80034908`, `func_80028940` |
 | `0x8008A5B8` | u16 | DEF | `func_80038094`, `func_80038274` |
 | `0x800A2D9C` | u32 | Play time in frames (Load list shows it as h:mm; the GameFAQs save holds 5,594,735 = 25:54) | |
@@ -928,7 +927,7 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
 
 ## Test conventions
 
-- **Start from slot 0.** `python tools/dvdbg.py launch --state 0` (see *Save
+- **Start from slot 0** (slot 10 for spell tests). `python tools/dvdbg.py launch --state 0` (see *Save
   states* above). Replaying the intro is only for boot/menu tests.
 - **Run muted.** `SDL_AUDIO_DRIVER=dummy` (+ `SDL_AUDIODRIVER=dummy`) — the
   SPU still runs. `PSX_HOST_MUTE=1` is documented but not read by this runtime.
@@ -943,7 +942,9 @@ Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
   story movie → main menu → gameplay demo (dungeon, dragon arena), looping.
   A second Start on the title goes to the menu; a Start on the menu starts a
   New Game.
-- **Committed tests.** `python tests/test_manifests.py` checks every mod
+- **Committed tests** (`tests/test_manifests.py`, `test_cheats.py`, `test_drop_cheat.py`,
+  `test_scroll_cheat.py`, `test_menu.py`, `test_skip_intro.py`, `test_widescreen.py`).
+  `python tests/test_manifests.py` checks every mod
   manifest statically (ids, default-off features, option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
   exercises the cheat plugins on a running debug build from slot 0 (see *This
@@ -971,14 +972,16 @@ mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonval
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
 tools/bin_listing.py  BIN/*.BIN from the disc -> listings at 0x800BBEF0 (whole modules, not only executed pages)
-tests/states/         committed save state slot 0 (+ README);  tests/test_*.py  checks
+tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
+tests/states/         committed save states slot 0 and slot 10 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)
 Play.bat, PlayDebug.bat     player / debug launch
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
 CONTROLS.md           pads, keyboard binds, the game's default buttons, host hotkeys
 THIRD_PARTY_NOTICES.md  what ships and under which licence (framework, launcher, toolchain, art)
 docs/STATUS.md        state, open items;  docs/DEVELOPMENT.md (this file);
-docs/AOT.md, docs/HISTORY.md, docs/BACKLOG.md, docs/PLAYTESTING.md (tester guide)
+docs/AOT.md, docs/HISTORY.md, docs/BACKLOG.md, docs/PLAYTESTING.md (tester guide), docs/framework_pin_history.md
+RELEASE_NOTES.md      shipped with every release zip (platforms, what was verified, known issues)
 .github/workflows/release.yml  bundled release CI (framework template)
 .github/ISSUE_TEMPLATE/  bug-report form (asks for psx_last_run_report.json) + links
 patches/              local submodule patches applied at configure time (README inside)
