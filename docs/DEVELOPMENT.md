@@ -397,7 +397,8 @@ flag byte `0x800A2D20 + that index` to 1: keys carry one, and the locked
 door of the stage checks the flag rather than the key count, so a key
 count written by hand opens nothing. The in-game menu's key rows therefore
 "take" the stage's key objects of that kind (flag set, object retired)
-when the count goes up. Some inventory items
+when the count goes up (confirmed in play, 2026-10-15: the castle's
+locked door opened after the Gold Key was raised in the menu). Some inventory items
 carry a permanent bonus applied **when they are obtained** through
 `func_80028940` (reached through the function pointer at `0x8006FFF4`,
 presumably from the field module MAP.BIN): Pendant (14) HP max +1 (cap
