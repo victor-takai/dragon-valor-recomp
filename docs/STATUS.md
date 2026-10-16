@@ -77,7 +77,10 @@ the native 60 Hz version.
   stage number is an action stage on the same disc (a scene left the
   screen black until the watchdog closed the game), and from stage 1 it
   reaches every chapter's hero (`tests/test_area_row.py --reloads`, 7/7);
-  action rows no longer show "OPEN" (`patches/recomp-ui/0003`).
+  action rows no longer show "OPEN" (`patches/recomp-ui/0003`). A **Go
+  now (Game Over)** row below Area makes the trip by itself: Game Over,
+  Continue pressed for the player, Infinite HP held off meanwhile, the
+  Continue's 50 Val given back (11‥14 s; `tests/test_area_row.py` 9/9).
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots

@@ -49,6 +49,13 @@
 
 static int g_infinite_hp, g_infinite_mp, g_gem_every, g_scroll_every;
 
+/* The in-game menu's "Go now" (mods/plugins/dragonvalor_menu.cpp) sets this
+ * while it takes the hero through a Game Over to reload the stage in the
+ * chosen area: Infinite HP must leave the HP at 0 meanwhile. The menu clears
+ * it when the reload is done; the VBlank count is a safety net (60 s). */
+volatile int dv_cheats_hold_hp = 0;
+static uint32_t g_hold_vblanks;
+
 static int dv_opt_bool(const char* id)
 {
     char text[8];
@@ -118,9 +125,11 @@ static void dv_drop_floor(uint32_t counter, uint32_t table, uint32_t collected,
 
 static void dv_cheats_vblank(void)
 {
+    if (!dv_cheats_hold_hp) g_hold_vblanks = 0;
+    else if (++g_hold_vblanks > 3600u) dv_cheats_hold_hp = 0;
     if (!(g_infinite_hp || g_infinite_mp || g_gem_every || g_scroll_every)) return;
     if (!dv_hero_loaded()) return;
-    if (g_infinite_hp) dv_top_up(DV_HP, DV_HP_MAX);
+    if (g_infinite_hp && !dv_cheats_hold_hp) dv_top_up(DV_HP, DV_HP_MAX);
     if (g_infinite_mp) dv_top_up(DV_MP, DV_MP_MAX);
     if (g_gem_every)
         dv_drop_floor(DV_SWORD_KILLS, DV_GEM_TABLE, psx_mod_read_half(DV_GEMS),

@@ -52,6 +52,7 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_SKIP_INTRO  "dv.game.skip_intro"
 #define DV_KEY_DISC1       "dv.disc.1"
 #define DV_KEY_DISC2       "dv.disc.2"
+#define DV_KEY_GO_NOW      "dv.warp.go"
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
@@ -116,7 +117,10 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power.", 0, 999, 5),
     DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense.", 0, 999, 5),
     DV_ROW_INT("dv.ram.area", "Cheats", "Area (next Continue)",
-               "Area the stage reloads from after GAME OVER > Continue (0-1 Clovis, 3 Kodel). Only areas of this disc where your stage number is also an action stage are offered. Then lose all HP and pick Continue.", 0, 12, 1),
+               "Area the stage reloads from after GAME OVER > Continue (0-1 Clovis, 3 Kodel). Only areas of this disc where your stage number is also an action stage are offered. Then use Go now below.", 0, 12, 1),
+    {DV_KEY_GO_NOW, "Cheats", "Go now (Game Over)",
+     "Ends the stage with a Game Over and picks Continue for you: the stage reloads in the area above, about 10 s. Infinite HP pauses meanwhile; the 50 Val the Continue costs is given back.",
+     RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
     DV_ROW_MAGIC("dv.ram.magic0", "Heal", "Recovers HP and damages undead."),
     DV_ROW_MAGIC("dv.ram.magic1", "Defense", "Raises defense and weapon range."),
     DV_ROW_MAGIC("dv.ram.magic2", "Fire", "Fireball; also ignites devices."),
@@ -335,6 +339,67 @@ int next_allowed_area(int wanted, int current, int stage) {
     return -1;
 }
 
+/* ---- "Go now": a Game Over that reloads the stage in the chosen area -------
+ * The row writes HP 0 and closes the menu; the game plays the hero's death
+ * and shows GAME OVER / CONTINUE? with YES selected (mode 9, sub-state 2).
+ * A title pad transform (mod_plugins.h; offline only, never under netplay)
+ * presses Cross there, and the CONTINUE reload loads the stage number in the
+ * area the Area row chose. Meanwhile the cheats plugin's Infinite HP is held
+ * off (dv_cheats_hold_hp, mods/plugins/dragonvalor_cheats.c) so the HP stays
+ * at 0. Outside a trip the transform returns the stock pad; it is detached
+ * the next time the menu opens. Timing is wall-clock because the transform
+ * may run more than once per guest frame. */
+extern "C" volatile int dv_cheats_hold_hp;
+#define DV_MODE       0x8008634Cu
+#define DV_SUB        0x8008634Du
+#define DV_HP         0x8008A5AEu
+#define PSX_PAD_CROSS 0x4000u
+struct Warp {
+    int phase = 0;            /* 0 idle, 1 dying, 2 at the prompt, 3 reloading */
+    uint64_t started_ms = 0, since_ms = 0;
+    uint16_t val = 0;         /* Val before the trip: CONTINUE costs 50 */
+    bool registered = false;
+};
+Warp g_warp;
+
+void warp_finish() { g_warp.phase = 0; dv_cheats_hold_hp = 0; }
+
+int warp_transform(const PSXModPadFrame* frame, PSXModPadOutput* out) {
+    (void)frame;
+    if (!g_warp.phase) return 0;
+    const uint64_t now = SDL_GetTicks();
+    if (now - g_warp.started_ms > 60000u) { warp_finish(); return 0; }   /* never got there */
+    const uint8_t mode = psx_mod_read_byte(DV_MODE), sub = psx_mod_read_byte(DV_SUB);
+    if (g_warp.phase == 1) {
+        if (mode == 9 && sub == 2) { g_warp.phase = 2; g_warp.since_ms = now; }
+        return 0;
+    }
+    if (g_warp.phase == 2) {
+        if (mode != 9) { g_warp.phase = 3; g_warp.since_ms = now; return 0; }
+        /* Cross for 100 ms every 800 ms after 500 ms on the prompt, released
+         * in between: the prompt answers a press edge. */
+        const uint64_t t = now - g_warp.since_ms;
+        const bool down = t >= 500 && (t - 500) % 800 < 100;
+        out->buttons = down ? (out->buttons & ~PSX_PAD_CROSS) : (out->buttons | PSX_PAD_CROSS);
+        return 1;
+    }
+    if (mode == 8 && now - g_warp.since_ms > 1000) {                /* the stage runs again */
+        psx_mod_write_half(0x800A2DD0u, g_warp.val);   /* the trip is not a real death: no Val toll */
+        warp_finish();
+    }
+    return 0;
+}
+
+const PSXModPadTransform kWarpTransform = {
+    sizeof(PSXModPadTransform),
+    PSX_MOD_PAD_TYPE_BIT(PSX_MOD_PAD_DIGITAL) | PSX_MOD_PAD_TYPE_BIT(PSX_MOD_PAD_DUALSHOCK) |
+        PSX_MOD_PAD_TYPE_BIT(PSX_MOD_PAD_JOGCON) | PSX_MOD_PAD_TYPE_BIT(PSX_MOD_PAD_NEGCON),
+    PSX_MOD_PAD_DUALSHOCK,
+    warp_transform,
+};
+
+bool warp_possible() { return !g_warp.phase && hero_loaded() && psx_mod_read_byte(DV_MODE) == 8; }
+
 #define DV_ATTACK_TABLE 0x80086324u
 #define DV_STR          0x8008A5B6u
 void write_str(int v) {
@@ -473,7 +538,7 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
                 std::snprintf(text, sizeof text, "No area %s on this disc has an action stage %d", value > current ? "above" : "below", stage);
             } else {
                 psx_mod_write_half(DV_AREA, (uint16_t)area);
-                std::snprintf(text, sizeof text, "Area %d, stage %d: lose all HP and pick Continue", area, stage);
+                std::snprintf(text, sizeof text, "Area %d, stage %d: use Go now below", area, stage);
             }
             recomp_runtime_ui_set_status(m.ui, text);
             return 0;
@@ -529,6 +594,24 @@ int cb_run_action(void* ctx, const RecompRuntimeUiItem* item) {
         return 1;
     }
     if (is(item, RECOMP_RUNTIME_UI_KEY_QUIT)) { m.host->request_exit(PSX_MENU_EXIT_QUIT); return 1; }
+    if (is(item, DV_KEY_GO_NOW)) {
+        if (m.host->netplay_active()) { recomp_runtime_ui_set_status(m.ui, "Not during netplay"); return 0; }
+        if (!warp_possible()) { recomp_runtime_ui_set_status(m.ui, "Only in an action stage"); return 0; }
+        if (!g_warp.registered) {
+            if (!psx_mod_set_pad_transform(0, &kWarpTransform)) {
+                recomp_runtime_ui_set_status(m.ui, "The pad hook was refused");
+                return 0;
+            }
+            g_warp.registered = true;
+        }
+        dv_cheats_hold_hp = 1;
+        g_warp.val = (uint16_t)psx_mod_read_half(0x800A2DD0u);
+        g_warp.started_ms = g_warp.since_ms = SDL_GetTicks();
+        g_warp.phase = 1;
+        psx_mod_write_half(DV_HP, 0);
+        set_open_locked(m, false);
+        return 1;
+    }
     if (is(item, DV_KEY_DISC1) || is(item, DV_KEY_DISC2)) {
         const int n = is(item, DV_KEY_DISC1) ? 1 : 2;
         const int rc = m.host->disc_insert(n);
@@ -547,6 +630,7 @@ int cb_is_enabled(void* ctx, const RecompRuntimeUiItem* item) {
         return m.host->disc_count() >= n && m.host->disc_mounted() != n;
     }
     if (ram_row(item)) return hero_loaded() ? 1 : 0;
+    if (is(item, DV_KEY_GO_NOW)) return warp_possible() && !m.host->netplay_active() ? 1 : 0;
     return 1;
 }
 
@@ -574,6 +658,10 @@ void set_open_locked(Menu& m, bool open) {
         if (!create_ui(m)) return;
         recomp_runtime_ui_open(m.ui);
         if (m.imgui) ImGui::GetIO().ClearInputMouse();   /* no stale button or hover from last time */
+        if (g_warp.registered && !g_warp.phase) {        /* a finished trip: give the pad back */
+            (void)psx_mod_set_pad_transform(0, nullptr);
+            g_warp.registered = false;
+        }
         m.open = true;
         if (m.pause_in_menu && !m.host->set_paused(1))
             recomp_runtime_ui_set_status(m.ui, "Running: pause refused during netplay");
