@@ -1053,7 +1053,9 @@ tree trunks, the hero and the first enemy) in
 `<build>/mods/texture-packs/SLUS-01092/dumps/` after a clean exit (the
 `quit` debug command answers "emu busy" but does exit, and the PNGs are
 written on exit). Replacements go into `replacements/` under the same file
-names, enlarged by an integer factor. No Dragon Valor pack exists publicly;
+names, enlarged by an integer factor; `scripts/package_release.sh` leaves
+the whole `texture-packs/` folder out of the release zip. No Dragon Valor
+pack exists publicly;
 the first one would be drawn from these dumps. Reference:
 `psxrecomp/docs/HD_TEXTURE_PACKS.md`.
 
@@ -1178,7 +1180,7 @@ tools/datacdr.py      DATA.CDR areas / stages / files, action stages vs scenes (
 tools/make_app_icon.py  draws the app icon into assets/ (.ico, .png, .svg; needs Pillow)
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
 tests/states/         committed save states slot 0 and slot 10 (+ README);  tests/test_*.py  checks
-scripts/package_release.sh  local release zip (wraps the framework packager)
+scripts/package_release.sh  local release zip (framework packager with --stage-only, minus mods/texture-packs, then its create_release_zip.py)
 DragonValor.bat, DragonValorDebug.bat  player / debug launch (were Play.bat, PlayDebug.bat)
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
 CONTROLS.md           pads, keyboard binds, the game's default buttons, host hotkeys

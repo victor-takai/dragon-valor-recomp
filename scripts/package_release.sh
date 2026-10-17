@@ -50,7 +50,13 @@ for _doc in DISC.md CONTROLS.md THIRD_PARTY_NOTICES.md RELEASE_NOTES.md LICENSE 
 done
 
 cd "${ROOT}"
-exec bash "${PACKAGER}" \
+# Stage only, then zip here: the framework stages <build-dir>/mods whole
+# (dropping just installed/ and state.toml), so a build someone has played
+# would ship its texture-packs/: thousands of dumped game textures (3227
+# files, 42 MB in the 0.1.0 zip of 2026-10-16) and any installed HD pack.
+# The runtime recreates the folder on first start.
+bash "${PACKAGER}" \
+  --stage-only \
   --root "${ROOT}" \
   --build-dir "${BUILD_DIR}" \
   --artifact "${ARTIFACT_TAG}" \
@@ -61,3 +67,13 @@ exec bash "${PACKAGER}" \
   --version-env RELEASE_VERSION \
   --disc-hint "your legally owned Dragon Valor (USA) discs" \
   "${EXTRA[@]}"
+
+STAGE="${ROOT}/dist/stage-game-${ARTIFACT_TAG}"
+rm -rf "${STAGE}/mods/texture-packs"
+VERSION="$(tr -d '[:space:]' <"${ROOT}/VERSION")"   # the packager wrote the binary's stamp
+ZIP="${ROOT}/dist/DragonValorRecompiled-${VERSION}-${ARTIFACT_TAG}.zip"
+rm -f "${ZIP}"
+"${PSX_RELEASE_STAGE_PYTHON:-python3}" "${ROOT}/psxrecomp/tools/create_release_zip.py" \
+  --source "${STAGE}" --output "${ZIP}" >/dev/null
+echo "Wrote ${ZIP}"
+du -h "${ZIP}"

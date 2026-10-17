@@ -47,7 +47,13 @@ the native 60 Hz version.
   dispatches at 80 s; its five `BIN/*.BIN` are byte-identical to disc 1's, so
   the static shard serves both discs (only `SYSTEM.CNF` and the EXE name differ).
 - **Release zip**: `scripts/package_release.sh build-release windows-x64`
-  produced `dist/dvus-0.1.0-windows-x64.zip` (25 MB, unsigned); unpacked
+  produces `dist/DragonValorRecompiled-0.1.0-windows-x64.zip` (26 MB,
+  unsigned; `dvus-…` before the rename). The local zip of 2026-10-16 also
+  carried the 3227 textures dumped from `build-release` play sessions
+  (`mods/texture-packs/`, 42 MB of game imagery): the framework stages the
+  build's `mods/` whole. Since 2026-10-17 the wrapper stages, drops that
+  folder and zips itself (409 files; CI zips come from a clean build and
+  never had it; BACKLOG, upstream row). Unpacked
   elsewhere it boots at 60 fps with the bundled OpenBIOS and the tcc-based
   overlay autocompile (no compiler on the player's machine). `game.toml` names
   the discs by Redump file name only and `DISC.md` ships at the zip root.
