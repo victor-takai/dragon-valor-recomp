@@ -219,6 +219,7 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 
 | `0x800A2DD4`‥`0x800A2DDE`, `0x800A2DF0`‥`0x800A2E04` | u16 ×17 | Inventory counts in the Status screen's grid order: Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings (`0x800A2DD4`‥`DE`), then Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key (`0x800A2DF0`‥`0x800A2E04`); `0x800A2DE0`‥`EE` between them count the eight spell books (ids 20‥27). Verified 2026-10-15 by setting each slot to 1 and reading the Status screen, which also gave the item texts the in-game menu shows (accessories, trade goods, keys; **no weapons**). Until that day the table started at `0x800A2DD2` and named the slots one off, so the menu's Items page edited the wrong count for everything but Earrings; Almar's CodeBreaker list had it right. | |
 | `0x800A2F18` / `0x800A2F1A` | u16 ×2 | Area and stage id of the stage to load (DEMO.BIN writes 0/6‥9 and 7/31‥34 before calling `func_8003A9B0`); slot 0 is 0/2 | `func_80025264` (W), `func_80038094`, … |
+| `0x8007D8D0` | struct | Stage-start record: `func_80038094` copies the hero's numbers into it when a stage starts, and the CONTINUE YES branch's `func_80038274` copies them back. `+0xF6` (`0x8007D9C6`, u16) is the stage id: `sh` at pc `0x80038158` stores `0x800A2F1A` there (skipped in areas 10‥12 below stage 29), `sh` at pc `0x80038298` writes it back to `0x800A2F1A`. The area is not in it, which is why only the area survived a Continue. | `func_80038094` (W), `func_80038274` (R) |
 | `0x8008634C` / `0x8008634D` | u8 ×2 | Game mode and sub-state: 8 = action stage, 9 = GAME OVER (sub 2 = the CONTINUE prompt), 10 = loading, 17 = attract demo and the CONTINUE reload | `func_8004BF84`, `func_80025264`, … |
 | `0x8009FAF8` | struct | Work area of the current screen; in mode 9 / sub 2 it is the CONTINUE prompt (ACTION.BIN `0x800C51F0`, jump table `0x800BC1F4`): `+0` state (0 GAME OVER fades in, 1 CONTINUE? fades in, 2 waits for a button, 3 blinks the choice, 4 acts on it), `+0x0C` frames left in state 3, `+0x10` text brightness (128 = full), `+0x1A` cursor (s16, 0 = YES). State 2 tests `0x800A2F68` bit `0x80` (Cross or Circle; Start does nothing) and then writes cursor-blink 128 / timer 30 / state 3 (`0x800C58CC`); YES in state 4 (`0x800C55DC`) takes 50 Val, refills HP and sets mode 17. Sub-state 1 resets `+0` to 0. | ACTION.BIN (`tools/bin_listing.py`) |
 | `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields. Objects are 0x250 bytes apart: slot 0 is the hero, enemies sit in later slots with the same layout (slot 0's first screen: the enemy is slot 5, `0x8008B070`, HP 15/15 at `+0xCE`). Enemy fields of the drop rule: `+0x7F` drop class (0 = never drops), `+0xBC` kind of the hit that last touched it (0‥4 sword, 5‥27 magic, copied from the hit object's `+0xC0`; 255 before any hit), `+0xC` kill credit (2 sword, 1 magic, 3 none) | |
@@ -293,7 +294,7 @@ save because the save path copies the entries (`func_80038094` /
 
 Useful test route: writing 0 to HP gives GAME OVER → CONTINUE? in ~5 s, and
 Cross on YES reloads the current stage from disc (stage id restored from the
-game's own record, so `0x800A2F1A` is overwritten). Area values 1‥3 written
+stage-start record `0x8007D9C6`, so `0x800A2F1A` is overwritten). Area values 1‥3 written
 before CONTINUE leave the game black in mode 10 (CD-ROM status polling, no
 crash); 0 and 7 reload normally.
 
@@ -482,9 +483,18 @@ the model-selection block:
   3 2`), and the reload stays black in mode 10 (the earlier "areas 1‥3 go
   black" note was this). The **stage id cannot be changed this way**: whatever is
   written to `0x800A2F1A` before the prompt, the reload comes back with the
-  stage the game recorded at stage start (3/2 → 3/1, 0/1 → 0/2), and
-  `wtrace` on the word saw no CPU write doing it, so the loader takes the id
-  from somewhere else (open: BACKLOG F). The in-game menu's Cheats page has
+  stage the game recorded at stage start (3/2 → 3/1, 0/1 → 0/2): the YES
+  branch calls `func_80038274`, which copies the stage-start record's
+  `+0xF6` (`0x8007D9C6`) back over it at pc `0x80038298` (an earlier `wtrace`
+  missed that write; its dump then returned only the 256 oldest entries).
+  **Stage warp, first runs (2026-10-16):** writing the area to `0x800A2F18`
+  and the stage to both `0x800A2F1A` and `0x8007D9C6`, then HP 0 and YES,
+  loads that stage. From the Brize Forest test state (0/2), 0/3 loaded a
+  playable action stage (mountain path, HP 30/30, hero in control 8 s
+  later). 0/5 loaded too but opens with a dialogue whose text is garbage
+  glyphs: the game draws its text from pre-rendered atlases in VRAM, and the
+  one this scene needs is evidently loaded on the normal route to it, not by
+  the Continue reload (open: BACKLOG L). The in-game menu's Cheats page has
   an **Area (next Continue)** row (0‥12) for this; write it, let HP reach 0
   (or the HP editor), YES on CONTINUE. Beware: the area sits in the save
   block (`+0x1F8`), so a Memory Card save made afterwards keeps it.
