@@ -165,8 +165,10 @@ python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . --
 Releases: tag `vX.Y.Z` or run the *Release builds* workflow
 (`.github/workflows/release.yml`, generated from the framework template). CI
 builds the committed `generated/` C on Linux, Windows and macOS and attaches
-`DragonValorRecompiled-<version>-<platform>.zip`, the compiled game. Locally:
-`scripts/package_release.sh build-release windows-x64`.
+`DragonValorRecompiled-<version>-<platform>.zip`, the compiled game. 0.x
+versions publish as GitHub pre-releases. A dispatch with `publish` unticked
+is a rehearsal: the zips land as run artifacts, with no tag and no release.
+Locally: `scripts/package_release.sh build-release windows-x64`.
 
 ## Symbols
 

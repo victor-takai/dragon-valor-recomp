@@ -25,6 +25,9 @@ run on its own: graphics, audio, video and levels are read from your discs.
 | `DragonValorRecompiled-<version>-macos-arm64.zip` | macOS, Apple Silicon |
 | `DragonValorRecompiled-<version>-macos-x64.zip` | macOS, Intel |
 
+Only the Windows build has been played. The Linux and macOS zips are built
+by the same CI from the same code, but nobody has run them yet.
+
 Unpack anywhere, run `DragonValorRecompiled` (Windows: the `.exe`), point
 the launcher at `Dragon Valor (USA) (Disc 1).cue` (see `DISC.md` for the
 dumps that work), Play. Controls are in `CONTROLS.md`.
@@ -56,5 +59,16 @@ dumps that work), Play. Controls are in `CONTROLS.md`.
 
 ## Reporting
 
-`PLAYTESTING.md` in the repository says what to test and which files to
-send; issues go to <https://github.com/victor-takai/dragon-valor-recomp/issues>.
+Most wanted: chapter 3 onwards, the disc change in play, Load Game after a
+restart, rumble, and any run of the Linux or macOS zips. Open an issue at
+<https://github.com/victor-takai/dragon-valor-recomp/issues> with what you
+did and what happened (a screenshot helps), plus these files from the
+game's folder:
+
+- `psx_last_run_report.json` (written when the game closes);
+- `psx_crash.txt`, when there is one;
+- `settings.toml`;
+- for a problem at one place in the game, the memory card from `saves/`
+  with a save near it.
+
+The `psx_freeze_dump_*.json` files are not needed (see Known issues).

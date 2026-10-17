@@ -723,6 +723,9 @@ jobs:
           files: |
             dist/DragonValorRecompiled-*.zip
           body_path: RELEASE_NOTES.md
+          # Title choice: 0.x versions are previews, so GitHub marks them
+          # pre-release and keeps them off "Latest".
+          prerelease: ${{ startsWith(needs.prepare.outputs.tag, 'v0.') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           target_commitish: ${{ github.sha }}
