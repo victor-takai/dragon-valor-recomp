@@ -86,6 +86,14 @@ the native 60 Hz version.
   gives the game a neutral pad until the stage runs again.
   The blue status line now replaces the key hint in the footer and wraps
   before Resume instead of running under it (`patches/recomp-ui/0004`).
+- **Stage warp** (2026-10-16): after the player asked why the Area row
+  only offered areas 3 and 6 (their stage number, 21, is an action stage
+  only there), the stage the Continue reloads was found in the stage-start
+  record (`0x8007D9C6`), and the Cheats page gained a **Stage (next
+  Continue)** row: Area and Stage pick any action stage of the disc, Go
+  now goes there (`tests/test_area_row.py` 16/16, `tests/test_menu.py`
+  9/9). Known limit: a stage that opens with a story scene shows the
+  scene's text as garbage after the jump (the scene still plays).
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots

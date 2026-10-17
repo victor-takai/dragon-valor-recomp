@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Check the in-game menu's "Area (next Continue)" and "Go now" rows on a
-debug build.
+"""Check the in-game menu's "Area (next Continue)", "Stage (next Continue)"
+and "Go now" rows on a debug build.
 
   python tests/test_area_row.py [--reloads] [--build build-debug] [--port N]
 
-The Area row writes the area the next GAME OVER > CONTINUE reloads from
-(0x800A2F18); the stage number is kept. It only steps to areas of the same
-disc where that stage number is an action stage (kAreaActionStages in
-mods/plugins/dragonvalor_menu.cpp, from `tools/datacdr.py kinds --c`): a
-scene-type or empty stage left the screen black until the runtime's
-watchdog closed the game. "Go now" writes HP 0, holds Infinite HP off and
+The Area row writes the area the next GAME OVER > CONTINUE loads
+(0x800A2F18), the Stage row the stage it loads: the stage-start record
+0x8007D9C6, which the Continue copies over 0x800A2F1A. Both only offer
+action stages (kAreaActionStages in mods/plugins/dragonvalor_menu.cpp, from
+`tools/datacdr.py kinds --c`): a scene-type or empty stage left the screen
+black until the runtime's watchdog closed the game. The Area row stays on
+the disc and, when the chosen stage is not an action stage in the new area,
+moves it to the nearest one that is. "Go now" writes HP 0, holds Infinite HP off and
 answers YES on the CONTINUE prompt by writing the prompt's state (no button
 is pressed: a pressed Cross made the standing hero jump), and its pad
 transform gives the guest a neutral pad until the stage runs again.
@@ -22,9 +24,12 @@ Go now trip (a debug-server input override would bypass the pad transform).
 
   run 1, no cheats:
   1. slot 9 (Kodel, area 3 / stage 1): Right on the Area row -> area 4,
-     Left -> back to 3.
-  2. slot 0 (Clovis, area 0 / stage 2): Right leaves the area at 0 (stage 2
-     is a scene in areas 1..6 and the row refuses).
+     Left -> back to 3, the stage staying 1.
+  2. slot 0 (Clovis, area 0 / stage 2): the Stage row steps 2 -> 3 -> 2 and
+     the running stage (0x800A2F1A) is not touched; Area Right -> area 1
+     moves the stage to 1 (stage 2 is a scene there); Stage Right in area 1
+     skips the scene stage 2 -> 3; Area Left -> 0 keeps 3. Then Go now with
+     Stage Right from the slot: area 0 / stage 3 loads with no input.
   3. --reloads: from slot 9, every allowed area for stage 1 (0..6) is
      written and reloaded through GAME OVER > CONTINUE (Cross pressed by the
      test); each must come back to the action stage, running 8 s later.
@@ -49,8 +54,9 @@ from dvdbg import rpc, port_from_args  # noqa: E402
 
 DV = str(ROOT / "tools" / "dvdbg.py")
 AREA, STAGE, HP, HPMAX, MODE, VAL = 0x800A2F18, 0x800A2F1A, 0x8008A5AE, 0x8008A5B0, 0x8008634C, 0x800A2DD0
+RECORD = 0x8007D9C6   # stage-start record +0xF6: the stage the next Continue loads
 SECTIONS = ["Display", "Graphics", "Audio", "System", "Cheats", "Game"]
-AREA_ROW = 9   # Cheats: Infinite HP, Infinite MP, Gem every, Scroll every, Val, Max HP, Max MP, STR, DEF, Area, Go now
+AREA_ROW = 9   # Cheats: Infinite HP, Infinite MP, Gem every, Scroll every, Val, Max HP, Max MP, STR, DEF, Area, Stage, Go now
 STATE_PLAIN = "format_version = 2\n"
 STATE_INFINITE_HP = """format_version = 2
 
@@ -117,11 +123,11 @@ def main(argv):
         time.sleep(4)
         return out
 
-    def in_cheats(keys):
-        """Open the menu, go to the Area row, run keys, close."""
+    def in_cheats(keys, row=AREA_ROW):
+        """Open the menu, go to a Cheats row, run keys, close."""
         key("Escape"); time.sleep(0.4)
         key("Down", SECTIONS.index("Cheats")); key("Return")
-        key("Down", AREA_ROW)
+        key("Down", row)
         for k in keys:
             key(k)
         key("Escape", 2); time.sleep(0.4)
@@ -130,12 +136,19 @@ def main(argv):
         in_cheats([direction])
         return rd16(AREA)
 
-    def go_now(area_keys):
-        """Area row keys, then Down to Go now and Enter (the menu closes itself)."""
+    def stage_step(direction):
+        in_cheats([direction], AREA_ROW + 1)
+        return rd16(RECORD)
+
+    def go_now(area_keys, stage_keys=()):
+        """Area row keys, Stage row keys, then Down to Go now and Enter (the menu closes itself)."""
         key("Escape"); time.sleep(0.4)
         key("Down", SECTIONS.index("Cheats")); key("Return")
         key("Down", AREA_ROW)
         for k in area_keys:
+            key(k)
+        key("Down")
+        for k in stage_keys:
             key(k)
         key("Down"); key("Return")
         time.sleep(0.5)
@@ -143,7 +156,7 @@ def main(argv):
     def guest_pad():
         return int(rpc(port, "pad_status")["slot0"]["buttons"], 16)
 
-    def wait_reload(target_area, limit=60, hold_x=False):
+    def wait_reload(target_area, limit=60, hold_x=False, target_stage=None):
         """No input from the test (unless hold_x: Cross held for 1.5 s on the
         debug server's host layer, which the pad transform sees like a real
         pad, during the GAME OVER): wait for the automatic Continue and the
@@ -161,7 +174,7 @@ def main(argv):
             if held and held > 0 and time.time() - held > 1.5:
                 rpc(port, "clear_input")
                 held = -1
-            if seen9 and m == 8 and rd16(AREA) == target_area:
+            if seen9 and m == 8 and rd16(AREA) == target_area and target_stage in (None, rd16(STAGE)):
                 time.sleep(2)
                 return rd8(MODE) == 8, round(time.time() - t0, 1), pads
             time.sleep(0.1)
@@ -186,13 +199,24 @@ def main(argv):
         print("1. slot 9:", load(9))
         a0, s0 = rd16(AREA), rd16(STAGE)
         check("slot 9 is area 3 / stage 1", (a0, s0) == (3, 1), f"{a0}/{s0}")
-        check("Right steps to area 4 (stage 1 is an action stage there)", area_step("Right") == 4, str(rd16(AREA)))
-        check("Left steps back to area 3", area_step("Left") == 3, str(rd16(AREA)))
+        check("Right steps to area 4 (stage 1 is an action stage there)", area_step("Right") == 4 and rd16(RECORD) == 1, f"{rd16(AREA)}/{rd16(RECORD)}")
+        check("Left steps back to area 3", area_step("Left") == 3 and rd16(RECORD) == 1, f"{rd16(AREA)}/{rd16(RECORD)}")
 
         print("2. slot 0:", load(0))
-        a0, s0 = rd16(AREA), rd16(STAGE)
-        check("slot 0 is area 0 / stage 2", (a0, s0) == (0, 2), f"{a0}/{s0}")
-        check("Right is refused (stage 2 is a scene in areas 1..6)", area_step("Right") == 0, str(rd16(AREA)))
+        a0, s0, r0 = rd16(AREA), rd16(STAGE), rd16(RECORD)
+        check("slot 0 is area 0 / stage 2, recorded", (a0, s0, r0) == (0, 2, 2), f"{a0}/{s0}, record {r0}")
+        check("Stage Right -> 3, the running stage untouched", stage_step("Right") == 3 and rd16(STAGE) == 2, f"record {rd16(RECORD)}, stage {rd16(STAGE)}")
+        check("Stage Left -> 2", stage_step("Left") == 2, f"record {rd16(RECORD)}")
+        check("Area Right -> 1 moves the stage to 1 (2 is a scene there)", area_step("Right") == 1 and rd16(RECORD) == 1, f"{rd16(AREA)}/{rd16(RECORD)}")
+        check("Stage Right in area 1 skips the scene stage 2 -> 3", stage_step("Right") == 3, f"record {rd16(RECORD)}")
+        check("Area Left -> 0 keeps stage 3", area_step("Left") == 0 and rd16(RECORD) == 3, f"{rd16(AREA)}/{rd16(RECORD)}")
+
+        print("   Go now from slot 0 into stage 3:", load(0))
+        go_now([], ["Right"])
+        ok, secs, pads = wait_reload(0, target_stage=3)
+        check("Go now loaded area 0 / stage 3 with no input", ok and rd16(STAGE) == 3, f"{rd16(AREA)}/{rd16(STAGE)} after {secs} s")
+        time.sleep(4)   # the stage fades in
+        rpc(port, "present_shot", path=str(bdir / "test_area_row_stage3.png"))
 
         if reloads:
             print("3. reloads from slot 9 into every allowed area")
