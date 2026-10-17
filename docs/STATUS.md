@@ -57,6 +57,11 @@ the native 60 Hz version.
   elsewhere it boots at 60 fps with the bundled OpenBIOS and the tcc-based
   overlay autocompile (no compiler on the player's machine). `game.toml` names
   the discs by Redump file name only and `DISC.md` ships at the zip root.
+  CI: the release workflow's rehearsal (`publish=false`, 2026-10-17, the
+  third dispatch after two Windows fixes) builds all four platforms. The
+  zips are 31 MB (Windows), 52 MB (Linux) and 28 MB for each macOS build.
+  Nothing is published yet; the first-run wizard of the CI build is still
+  to be walked (BACKLOG).
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte

@@ -106,6 +106,15 @@ Notes:
   names are the framework's, so nothing else changes; a rebuild embeds the
   `.ico` (checked: all seven frames are in both exes). Explorer caches icons
   and can show the old one for a while (`ie4uinit.exe -show` refreshes it).
+- Release CI (first runs 2026-10-17): the Windows job compiles in MSYS2
+  with a minimal PATH. So the workflow installs MSYS2's `git` (CMakeLists
+  applies `patches/recomp-ui/` with it) and sets `core.autocrlf=false`
+  before checkout: `recomp-ui` has no `.gitattributes`, and a CRLF checkout
+  made the LF patches fail. Rehearse with
+  `gh workflow run release.yml -f version=X.Y.Z -f publish=false` and fetch
+  a zip with `gh run download <run> -n DragonValorRecompiled-windows-x64`.
+  Windows takes about 18 min, the others 1 to 4. 0.x versions publish as
+  pre-releases.
 
 ## Run
 
