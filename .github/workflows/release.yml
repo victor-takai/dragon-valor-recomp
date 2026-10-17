@@ -190,6 +190,15 @@ jobs:
       # Rename to match your packager (e.g. BPE_RELEASE_VERSION).
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
+      # The runner's Git for Windows checks out with core.autocrlf=true, so
+      # recomp-ui (no .gitattributes) arrived CRLF and MSYS2's git, which
+      # does not convert, refused the LF patches/recomp-ui. Check out LF as
+      # on Linux and macOS (.gitattributes still gives *.bat / *.ps1 CRLF).
+      - name: Check out with LF line endings (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.autocrlf false
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
