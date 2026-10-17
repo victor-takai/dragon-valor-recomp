@@ -10,6 +10,14 @@ recompiled to a native program with [psxrecomp](https://github.com/RetroPortingT
 You bring your own disc dumps; no BIOS is needed (the bundled OpenBIOS
 runs the game) and nothing has to be built.
 
+An unofficial fan project, free and non-commercial: not affiliated with,
+endorsed or sponsored by Bandai Namco Entertainment or Sony Interactive
+Entertainment. Dragon Valor belongs to Bandai Namco Entertainment
+(originally Namco); PlayStation is a trademark of Sony Interactive
+Entertainment. Apart from the game's program, recompiled, and the
+launcher's cover art, this download holds nothing of the game and does not
+run on its own: graphics, audio, video and levels are read from your discs.
+
 | Zip | Platform |
 |---|---|
 | `DragonValorRecompiled-<version>-windows-x64.zip` | Windows 10/11, x64 |

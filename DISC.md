@@ -1,7 +1,9 @@
 # Which disc images work
 
 Dragon Valor (USA) Recompiled runs from **your own dumps** of the two USA discs.
-Nothing from the game is included in this download.
+Apart from the game's program, recompiled, and the launcher's cover art,
+nothing of the game is in this download: graphics, audio, video and levels
+are read from the discs, and without them it does not start.
 
 | Disc | Serial | Redump name | Data track (Track 1) |
 |---|---|---|---|

@@ -105,6 +105,13 @@ the native 60 Hz version.
   glint, after the idea of the game's memory-card save icon (drawn anew;
   `tools/make_app_icon.py`). Both builds embed it; the debug build starts
   from slot 0 with it (no unknown dispatches).
+- **Fan-project notice** (2026-10-17, the player's request before a first
+  GitHub release): README (top and *Legal*), `RELEASE_NOTES.md`, `DISC.md`
+  and `THIRD_PARTY_NOTICES.md` say the project is unofficial and
+  non-commercial, unaffiliated with Bandai Namco or Sony, and name the two
+  things of the game a download does carry (the recompiled program and the
+  launcher's cover art); "nothing from the game is included" was too broad.
+  The GitHub repository description says the same in one line.
 - **Stage warp** (2026-10-16): after the player asked why the Area row
   only offered areas 3 and 6 (their stage number, 21, is an action stage
   only there), the stage the Continue reloads was found in the stage-start

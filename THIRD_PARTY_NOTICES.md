@@ -33,6 +33,10 @@ Public cheat-code lists were consulted only to cross-check RAM addresses
 (`docs/DEVELOPMENT.md`, *Public cheat codes*); no code list is reproduced
 or shipped.
 
-Dragon Valor, its characters, art, music and game data are copyright Namco.
-You must own the game; no disc data is included, and the screenshots in
-`docs/` show the game only to document this project.
+This is an unofficial fan project, not affiliated with, endorsed or
+sponsored by Bandai Namco Entertainment or Sony Interactive Entertainment.
+Dragon Valor, its characters, art, music and game data are copyright Bandai
+Namco Entertainment (originally Namco); PlayStation is a trademark of Sony
+Interactive Entertainment. You must own the game; no disc data is included
+(the release carries the game's program recompiled, and the box art above),
+and the screenshots in `docs/` show the game only to document this project.

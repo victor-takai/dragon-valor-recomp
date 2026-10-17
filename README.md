@@ -12,6 +12,15 @@ Static recompilation of **Dragon Valor** (USA) built on
 
 Action RPG by Namco; two-disc NTSC-U release.
 
+> **Unofficial fan project.** Not affiliated with, endorsed or sponsored by
+> Bandai Namco Entertainment or Sony Interactive Entertainment. Dragon Valor,
+> its characters, art and music belong to Bandai Namco Entertainment
+> (originally Namco); PlayStation is a trademark of Sony Interactive
+> Entertainment. Free and non-commercial. Apart from the game's program,
+> recompiled, and the launcher's cover art, the download holds nothing of the
+> game and does not run on its own: graphics, audio, video and levels are
+> read from your own discs ([`DISC.md`](DISC.md)).
+
 | | |
 |---|---|
 | Players | 1 |
@@ -108,7 +117,8 @@ BIOS/ROM/save plumbing so you are not stuck repeating each game’s first run by
 
 ## Legal
 
-You must own the original game. Disc images under `disc/` are gitignored and
+An unofficial fan project (notice at the top). You must own the original
+game. Disc images under `disc/` are gitignored and
 must never be committed. Retail BIOS dumps are not redistributed and no C
 derived from one may be committed; releases run on the bundled MIT OpenBIOS.
 
@@ -124,14 +134,17 @@ Optional box art under `launcher_assets/img/` may come from
 
 ## Licensing
 
-Our own files (`tools/`, `scripts/`, `tests/`, `docs/`, `mods/`, `patches/`,
+Our own files (`tools/`, `scripts/`, `tests/`, `docs/`, `assets/` (the app
+icon), `mods/`, `patches/`,
 `aot/`, `seeds/`, `codegen_setup.c`, the CMake and config files) are MIT, see
 [`LICENSE`](LICENSE). The committed
 `generated/` tree is machine output derived from the game's code and carries
 no licence grant from us. The framework (`psxrecomp/`) is PolyForm
 Noncommercial 1.0.0 and the launcher (`recomp-ui/`) is MIT, so a built
-executable inherits the framework's noncommercial terms. No game data is
-included. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists every
+executable inherits the framework's noncommercial terms. Apart from that
+code and the launcher's cover art (`launcher_assets/img/`, see
+`BOXART_SOURCE.txt`), nothing of the game is included: its graphics, audio,
+video and levels come from the player's discs. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists every
 component that ships and its licence.
 
 ## Quick start (dev)
