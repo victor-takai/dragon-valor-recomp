@@ -117,13 +117,6 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP.", 1, 999, 10),
     DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power.", 0, 999, 5),
     DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense.", 0, 999, 5),
-    DV_ROW_INT("dv.ram.area", "Cheats", "Area (next Continue)",
-               "Area the next GAME OVER > Continue loads (0-1 Clovis, 3 Kodel). Areas of this disc only; if the stage below is not an action stage there, it moves to the nearest one that is. Then use Go now below.", 0, 12, 1),
-    DV_ROW_INT("dv.ram.stage", "Cheats", "Stage (next Continue)",
-               "Stage the next Continue loads in the area above; only action stages are offered. A stage that opens with a story scene shows that scene's text as garbage after the jump, but the scene plays and can move the story on.", 0, 47, 1),
-    {DV_KEY_GO_NOW, "Cheats", "Go now (Game Over)",
-     "Ends the stage with a Game Over and answers Continue for you: the area and stage above load in about 10 s. The pad is ignored meanwhile (a dialogue on screen holds the Game Over back until you finish it) and Infinite HP pauses; the 50 Val the Continue costs is given back.",
-     RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
     DV_ROW_MAGIC("dv.ram.magic0", "Heal", "Recovers HP and damages undead."),
     DV_ROW_MAGIC("dv.ram.magic1", "Defense", "Raises defense and weapon range."),
     DV_ROW_MAGIC("dv.ram.magic2", "Fire", "Fireball; also ignites devices."),
@@ -155,6 +148,16 @@ const RecompRuntimeUiItem kExtraItems[] = {
     {DV_KEY_DISC1, "Game", "Insert disc 1", "Swap to Dragon Valor disc 1.",
      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
     {DV_KEY_DISC2, "Game", "Insert disc 2", "Swap to Dragon Valor disc 2.",
+     RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
+    /* Last section: the stage warp works, but it has known limits (garbage
+     * text in story scenes, skipped stages' items and keys), so it sits apart
+     * from the cheats (player's choice, 2026-10-16). */
+    DV_ROW_INT("dv.ram.area", "Experimental", "Area (next Continue)",
+               "Area the next GAME OVER > Continue loads; the hero follows it (0-1 Clovis, 3 Kodel). Areas of this disc only; if the stage below is not an action stage there, it moves to the nearest one that is. Then use Go now below.", 0, 12, 1),
+    DV_ROW_INT("dv.ram.stage", "Experimental", "Stage (next Continue)",
+               "Stage the next Continue loads in the area above; only action stages are offered. A stage that opens with a story scene shows that scene's text as garbage after the jump, but the scene plays and can move the story on.", 0, 47, 1),
+    {DV_KEY_GO_NOW, "Experimental", "Go now (Game Over)",
+     "Ends the stage with a Game Over and answers Continue for you: the area and stage above load in about 10 s. Make a save state first: skipped stages can leave items and keys behind. The pad is ignored meanwhile (a dialogue on screen holds the Game Over back until you finish it) and Infinite HP pauses; the 50 Val the Continue costs is given back.",
      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
 };
 

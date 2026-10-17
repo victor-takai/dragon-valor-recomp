@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check the in-game menu's "Area (next Continue)", "Stage (next Continue)"
-and "Go now" rows on a debug build.
+and "Go now" rows (the menu's Experimental section) on a debug build.
 
   python tests/test_area_row.py [--reloads] [--build build-debug] [--port N]
 
@@ -55,8 +55,7 @@ from dvdbg import rpc, port_from_args  # noqa: E402
 DV = str(ROOT / "tools" / "dvdbg.py")
 AREA, STAGE, HP, HPMAX, MODE, VAL = 0x800A2F18, 0x800A2F1A, 0x8008A5AE, 0x8008A5B0, 0x8008634C, 0x800A2DD0
 RECORD = 0x8007D9C6   # stage-start record +0xF6: the stage the next Continue loads
-SECTIONS = ["Display", "Graphics", "Audio", "System", "Cheats", "Game"]
-AREA_ROW = 9   # Cheats: Infinite HP, Infinite MP, Gem every, Scroll every, Val, Max HP, Max MP, STR, DEF, Area, Stage, Go now
+AREA_ROW = 0   # Experimental, the menu's last section (Up from the first one): Area, Stage, Go now
 STATE_PLAIN = "format_version = 2\n"
 STATE_INFINITE_HP = """format_version = 2
 
@@ -123,27 +122,29 @@ def main(argv):
         time.sleep(4)
         return out
 
-    def in_cheats(keys, row=AREA_ROW):
-        """Open the menu, go to a Cheats row, run keys, close."""
+    def open_experimental():
         key("Escape"); time.sleep(0.4)
-        key("Down", SECTIONS.index("Cheats")); key("Return")
+        key("Up"); key("Return")   # the section list wraps: Up from the first is the last
+
+    def in_experimental(keys, row=AREA_ROW):
+        """Open the menu, go to an Experimental row, run keys, close."""
+        open_experimental()
         key("Down", row)
         for k in keys:
             key(k)
         key("Escape", 2); time.sleep(0.4)
 
     def area_step(direction):
-        in_cheats([direction])
+        in_experimental([direction])
         return rd16(AREA)
 
     def stage_step(direction):
-        in_cheats([direction], AREA_ROW + 1)
+        in_experimental([direction], AREA_ROW + 1)
         return rd16(RECORD)
 
     def go_now(area_keys, stage_keys=()):
         """Area row keys, Stage row keys, then Down to Go now and Enter (the menu closes itself)."""
-        key("Escape"); time.sleep(0.4)
-        key("Down", SECTIONS.index("Cheats")); key("Return")
+        open_experimental()
         key("Down", AREA_ROW)
         for k in area_keys:
             key(k)
