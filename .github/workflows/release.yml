@@ -252,6 +252,7 @@ jobs:
             curl
             zip
             unzip
+            git
 
       - name: Install deps (Linux)
         if: runner.os == 'Linux'

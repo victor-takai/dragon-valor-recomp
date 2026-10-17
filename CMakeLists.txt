@@ -13,14 +13,20 @@ project(DragonValorRecomp LANGUAGES C CXX)
 
 # Local patches to the submodules (patches/README.md): applied with git apply
 # at configure time when not applied yet, so clones and CI build the same code.
+# Needs git on the configure shell's PATH (CI's MSYS2 installs it: its
+# minimal PATH has none, and a missing git read as "does not apply").
+find_package(Git QUIET)
+if(NOT GIT_FOUND)
+    message(FATAL_ERROR "git not found: it applies patches/ to the submodules at configure time")
+endif()
 foreach(_dv_sub recomp-ui)
     file(GLOB _dv_patches "${CMAKE_CURRENT_SOURCE_DIR}/patches/${_dv_sub}/*.patch")
     foreach(_dv_patch ${_dv_patches})
-        execute_process(COMMAND git apply --check --reverse "${_dv_patch}"
+        execute_process(COMMAND "${GIT_EXECUTABLE}" apply --check --reverse "${_dv_patch}"
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${_dv_sub}"
             RESULT_VARIABLE _dv_applied OUTPUT_QUIET ERROR_QUIET)
         if(NOT _dv_applied EQUAL 0)
-            execute_process(COMMAND git apply "${_dv_patch}"
+            execute_process(COMMAND "${GIT_EXECUTABLE}" apply "${_dv_patch}"
                 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${_dv_sub}"
                 RESULT_VARIABLE _dv_rc)
             if(NOT _dv_rc EQUAL 0)
