@@ -87,7 +87,7 @@ def main(argv):
         try:
             print("launch:", cli("launch", "--state", "0", "--build", str(ROOT / build)))
             time.sleep(9)
-            return run(port, attach=False, exe=ROOT / build / "DragonValorUS_Recompiled.exe")
+            return run(port, attach=False, exe=ROOT / build / "DragonValorRecompiled.exe")
         finally:
             print("kill:", cli("kill"))
             for f, b in settings.items():

@@ -12,12 +12,12 @@ runs the game) and nothing has to be built.
 
 | Zip | Platform |
 |---|---|
-| `dvus-<version>-windows-x64.zip` | Windows 10/11, x64 |
-| `dvus-<version>-linux-x64.zip` | Linux x64 (glibc) |
-| `dvus-<version>-macos-arm64.zip` | macOS, Apple Silicon |
-| `dvus-<version>-macos-x64.zip` | macOS, Intel |
+| `DragonValorRecompiled-<version>-windows-x64.zip` | Windows 10/11, x64 |
+| `DragonValorRecompiled-<version>-linux-x64.zip` | Linux x64 (glibc) |
+| `DragonValorRecompiled-<version>-macos-arm64.zip` | macOS, Apple Silicon |
+| `DragonValorRecompiled-<version>-macos-x64.zip` | macOS, Intel |
 
-Unpack anywhere, run `DragonValorUS_Recompiled` (Windows: the `.exe`), point
+Unpack anywhere, run `DragonValorRecompiled` (Windows: the `.exe`), point
 the launcher at `Dragon Valor (USA) (Disc 1).cue` (see `DISC.md` for the
 dumps that work), Play. Controls are in `CONTROLS.md`.
 

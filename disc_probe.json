@@ -11,7 +11,7 @@
   "serial": "SLUS-01092",
   "serial_exe": "SLUS_010.92",
   "volume_id": "DRAGONVALOR1",
-  "display_name": "DragonValorUS",
+  "display_name": "Dragon Valor",
   "load_address": "0x80010000",
   "entry_pc": "0x80012EA0",
   "text_size": "0x00067800",

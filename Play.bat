@@ -1,6 +1,6 @@
 @echo off
-REM Dragon Valor (USA) Recompiled - player launch (release build).
-REM   Play.bat [args]        -> build-release\DragonValorUS_Recompiled.exe [args]
+REM Dragon Valor Recompiled - player launch (release build).
+REM   Play.bat [args]        -> build-release\DragonValorRecompiled.exe [args]
 REM   Play.bat -dbg [args]   -> build-debug\  (PSX_DEBUG_TOOLS=ON, TCP debug server on 127.0.0.1:4370)
 REM Build: docs\DEVELOPMENT.md, "Build".
 REM
@@ -11,7 +11,7 @@ REM psx_last_run_report.json next to the exe. Double-clicking the exe works
 REM just as well. PlayDebug.bat sets PLAY_WAIT=1 to run the game in the
 REM foreground instead and keep its window.
 setlocal
-set "EXE=DragonValorUS_Recompiled.exe"
+set "EXE=DragonValorRecompiled.exe"
 set "GAMEDIR=%~dp0build-release"
 if /I "%~1"=="-dbg" (
     set "GAMEDIR=%~dp0build-debug"

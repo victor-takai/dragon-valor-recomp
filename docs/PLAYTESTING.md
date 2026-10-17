@@ -12,7 +12,7 @@ want eyes on, and which files to send with a report. Controls are in
    [releases page](https://github.com/victor-takai/dragon-valor-recomp/releases)
    and unpack it anywhere (a path without spaces is safest). Nothing is
    installed; delete the folder to remove it.
-2. Run `DragonValorUS_Recompiled` from the folder (Windows: the `.exe`). The
+2. Run `DragonValorRecompiled` from the folder (Windows: the `.exe`). The
    launcher opens.
 3. First run: browse to your own `Dragon Valor (USA) (Disc 1).cue` (the
    `.bin` must sit next to it with its Redump name). The launcher checks the

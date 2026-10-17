@@ -86,6 +86,12 @@ the native 60 Hz version.
   gives the game a neutral pad until the stage runs again.
   The blue status line now replaces the key hint in the footer and wraps
   before Resume instead of running under it (`patches/recomp-ui/0004`).
+- **Names** (2026-10-16, the player's request): the project folder is
+  now `Dragon Valor Recomp` and the game is "Dragon Valor Recompiled"
+  (window, launcher, release zips); the exe is `DragonValorRecompiled.exe`.
+  Builds reconfigured, `generated/` regenerates byte-identical, the
+  player's Memory Card and texture-pack paths re-pointed; tests pass
+  (`test_menu` 9/9, `test_area_row` 16/16, `test_manifests`).
 - **Stage warp** (2026-10-16): after the player asked why the Area row
   only offered areas 3 and 6 (their stage number, 21, is an action stage
   only there), the stage the Continue reloads was found in the stage-start

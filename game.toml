@@ -2,7 +2,7 @@
 # Review before shipping. Runtime quirks / overlay seeds still need hand work.
 
 [game]
-name = "DragonValorUS"
+name = "Dragon Valor"
 id = "SLUS-01092"
 players = 1
 exe = "disc/SLUS_010.92"
@@ -57,7 +57,7 @@ strict = true
 mod_function_entry_funcs = ["0x8006C250"]
 
 [runtime]
-window_title = "DragonValorUS Recompiled"
+window_title = "Dragon Valor Recompiled"
 memcard_dir = "saves"
 overlay_cache = true
 

@@ -1,4 +1,4 @@
-# Developing DragonValorUSRecomp
+# Developing Dragon Valor Recompiled
 
 How this repo is built, run and debugged on the machine it was brought up on
 (Windows 11). Project state and known issues live in [`STATUS.md`](STATUS.md).
@@ -45,11 +45,11 @@ bash psxrecomp/tools/ci/build_emitters.sh
 python psxrecomp/psxrecomp_cli.py generate --config game.toml --project-root . \
     --disc "../Dragon Valor (USA) (Disc 1)/Dragon Valor (USA) (Disc 1).cue"
 
-# 3a. player build (no debug server)            -> build-release/DragonValorUS_Recompiled.exe
+# 3a. player build (no debug server)            -> build-release/DragonValorRecompiled.exe
 python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . \
     --build-dir build-release --no-pgo
 
-# 3b. debug build (TCP debug server on :4370)   -> build-debug/DragonValorUS_Recompiled.exe
+# 3b. debug build (TCP debug server on :4370)   -> build-debug/DragonValorRecompiled.exe
 python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . \
     --build-dir build-debug --no-pgo --cmake-extra=-DPSX_DEBUG_TOOLS=ON
 ```
@@ -78,6 +78,18 @@ Notes:
   `settings.toml` (`[memcard]` dir / card1 / card2) and `mods/state.toml`
   (texture pack path) also hold absolute paths: point them at the new
   folder, or the game opens empty Memory Cards.
+- Names (2026-10-16, the player's choice): the window title and the
+  packager's display name are "Dragon Valor Recompiled", the exe
+  `DragonValorRecompiled` (CMake `EXE_NAME`; without it the framework
+  derives `Dragon_Valor_Recompiled` from the title), release zips
+  `DragonValorRecompiled-<version>-<platform>.zip`, `game.toml [game] name`
+  "Dragon Valor" (shown by the launcher and the in-game menu; no file path
+  depends on it, so saves and settings are untouched) and the CMake project
+  `DragonValorRecomp`. The exe name is repeated in `Play.bat`,
+  `tools/dvdbg.py`, `tests/test_menu.py`, `scripts/package_release.sh` and
+  `codegen_setup.c`; the release workflow takes the zip prefix from the
+  packager (it was renamed in place: `generate_ci.py --force` would drop
+  this project's manifest-test step and release-notes body).
 
 ## Run
 

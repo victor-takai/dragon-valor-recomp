@@ -1,5 +1,5 @@
 @echo off
-REM Dragon Valor (USA) Recompiled - debug launch.
+REM Dragon Valor Recompiled - debug launch.
 REM Same as "Play.bat -dbg" (build-debug\, PSX_DEBUG_TOOLS=ON, TCP debug server on
 REM 127.0.0.1:4370 for tools\dvdbg.py) with the FPS readout on from the start
 REM (F toggles it). PLAY_WAIT keeps the game in the foreground so this window

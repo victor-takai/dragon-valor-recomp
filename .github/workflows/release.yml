@@ -75,7 +75,7 @@ on:
       - 'v*'
 
 concurrency:
-  group: dvus-release-${{ github.event_name }}-${{ github.ref }}-${{ github.run_id }}
+  group: DragonValorRecompiled-release-${{ github.event_name }}-${{ github.ref }}-${{ github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -594,7 +594,7 @@ jobs:
           set -euo pipefail
           # Assert the artifact, not the intent: every rule below was once
           # "the packager does that by default" and shipped broken anyway.
-          ZIP=$(ls dist/dvus-*-"${{ matrix.artifact }}".zip | head -1)
+          ZIP=$(ls dist/DragonValorRecompiled-*-"${{ matrix.artifact }}".zip | head -1)
           echo "checking ${ZIP}"
           LIST="$(unzip -Z1 "${ZIP}")"
           # 1. It is a game: the executable, the bundled OpenBIOS, and the
@@ -670,8 +670,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           # Artifact name uses the title zip prefix (e.g. bpe, motk).
-          name: dvus-${{ matrix.artifact }}
-          path: dist/dvus-*-${{ matrix.artifact }}.zip
+          name: DragonValorRecompiled-${{ matrix.artifact }}
+          path: dist/DragonValorRecompiled-*-${{ matrix.artifact }}.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -696,7 +696,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          find artifacts -type f -name 'dvus-*.zip' -exec cp -v {} dist/ \;
+          find artifacts -type f -name 'DragonValorRecompiled-*.zip' -exec cp -v {} dist/ \;
           ls -la dist/
 
       - name: Ensure release tag exists
@@ -708,7 +708,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-            git tag -a "${TAG}" -m "DragonValorUS Recompiled ${TAG}"
+            git tag -a "${TAG}" -m "Dragon Valor Recompiled ${TAG}"
           fi
           if ! git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             git push origin "refs/tags/${TAG}"
@@ -719,9 +719,9 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           # Quoted: titles may contain ':' (e.g. "Marvel vs. Capcom: …").
-          name: "Dragon Valor (USA) Recompiled ${{ needs.prepare.outputs.tag }}"
+          name: "Dragon Valor Recompiled ${{ needs.prepare.outputs.tag }}"
           files: |
-            dist/dvus-*.zip
+            dist/DragonValorRecompiled-*.zip
           body_path: RELEASE_NOTES.md
           generate_release_notes: true
           fail_on_unmatched_files: true

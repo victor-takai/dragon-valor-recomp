@@ -2,7 +2,7 @@
 
 How a pad or the keyboard reaches the game, what the game does with each
 PlayStation button, and the host hotkeys. Settings pages are the launcher's
-(it opens when you start `DragonValorUS_Recompiled`) and the in-game menu's.
+(it opens when you start `DragonValorRecompiled`) and the in-game menu's.
 
 ## Pads
 

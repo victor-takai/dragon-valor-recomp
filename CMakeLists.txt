@@ -9,7 +9,7 @@ if(NOT EXISTS "${PSXRECOMP_ROOT}/runtime/runtime.cmake")
         "If psxrecomp/ is not a submodule, set -DPSXRECOMP_ROOT=<path-to-psxrecomp>.")
 endif()
 
-project(DragonValorUSRecomp LANGUAGES C CXX)
+project(DragonValorRecomp LANGUAGES C CXX)
 
 # Local patches to the submodules (patches/README.md): applied with git apply
 # at configure time when not applied yet, so clones and CI build the same code.
@@ -43,7 +43,7 @@ if(EXISTS "${DV_BOXART}")
     set(DV_BOXART_ARG LAUNCHER_BOXART "${DV_BOXART}")
 else()
     set(DV_BOXART_ARG "")
-    message(STATUS "DragonValorUS: no launcher boxart at ${DV_BOXART}")
+    message(STATUS "Dragon Valor: no launcher boxart at ${DV_BOXART}")
 endif()
 
 # This project's own mod catalog. The FRAMEWORK stages it -- together with its
@@ -70,7 +70,11 @@ psxrecomp_add_game_runtime(psx-runtime
     # ENABLE_NETPLAY_IF_PRESENT
     # NETPLAY_LOBBY_URL ws://netplay.retcomm.net:8765
     # ENABLE_SETUP_WIZARD
-    WINDOW_TITLE "DragonValorUS Recompiled"
+    WINDOW_TITLE "Dragon Valor Recompiled"
+    # Without it the exe would be Dragon_Valor_Recompiled (MAKE_C_IDENTIFIER of
+    # the title); Play.bat, tools/dvdbg.py, tests/test_menu.py,
+    # scripts/package_release.sh and codegen_setup.c name it too.
+    EXE_NAME DragonValorRecompiled
     DEFAULT_GAME_CONFIG_PATH "game.toml"
     MAX_PLAYERS 1
     ${DV_BOXART_ARG}

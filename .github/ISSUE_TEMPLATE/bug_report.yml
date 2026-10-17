@@ -13,7 +13,7 @@ body:
     attributes:
       label: Release
       description: The zip name or tag, or the contents of `psx_game_version.txt` next to the executable. For a local build, `git rev-parse --short HEAD`.
-      placeholder: dvus-0.1.0-windows-x64.zip
+      placeholder: DragonValorRecompiled-0.1.0-windows-x64.zip
     validations:
       required: true
   - type: dropdown

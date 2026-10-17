@@ -1,4 +1,4 @@
-# DragonValorUS Recompiled
+# Dragon Valor Recompiled
 
 <!-- retcomm-readme-metrics -->
 [![GitHub downloads (all assets, all releases)](https://img.shields.io/github/downloads/victor-takai/dragon-valor-recomp/total)](https://github.com/victor-takai/dragon-valor-recomp/releases)
@@ -6,7 +6,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/victor-takai/dragon-valor-recomp)](https://github.com/victor-takai/dragon-valor-recomp/releases/latest)
 <!-- /retcomm-readme-metrics -->
 
-Static recompilation of **DragonValorUS** built on
+Static recompilation of **Dragon Valor** (USA) built on
 [psxrecomp](https://github.com/RetroPortingToolKit/psxrecomp) and
 [recomp-ui](https://github.com/RetroPortingToolKit/recomp-ui).
 
@@ -31,7 +31,7 @@ Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
 
 ## Playing
 
-1. Unpack a release and run **`DragonValorUS_Recompiled`** (Windows: the
+1. Unpack a release and run **`DragonValorRecompiled`** (Windows: the
    `.exe`; it opens no console window). From a build tree, `Play.bat` does
    the same for `build-release`.
 2. The launcher opens. On the first run browse to your own `Dragon Valor (USA)
@@ -152,7 +152,7 @@ python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . --
 Releases: tag `vX.Y.Z` or run the *Release builds* workflow
 (`.github/workflows/release.yml`, generated from the framework template). CI
 builds the committed `generated/` C on Linux, Windows and macOS and attaches
-`dvus-<version>-<platform>.zip`, the compiled game. Locally:
+`DragonValorRecompiled-<version>-<platform>.zip`, the compiled game. Locally:
 `scripts/package_release.sh build-release windows-x64`.
 
 ## Symbols

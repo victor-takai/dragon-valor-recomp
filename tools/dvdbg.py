@@ -29,7 +29,7 @@ in-process, so it is safe from any shell.
         fulfilled at the next composed present: after a stage reload it can
         stay pending and be written with a later frame; poll present_shot_seq
         or use `shot` (VRAM) when the timing matters.
-  python tools/dvdbg.py kill              stop every DragonValorUS_Recompiled.exe
+  python tools/dvdbg.py kill              stop every DragonValorRecompiled.exe
 
 PORT env or --port selects another instance (--renderer software runs are
 started on 4371 by `launch --sw`).
@@ -45,7 +45,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXE_NAME = "DragonValorUS_Recompiled.exe"
+EXE_NAME = "DragonValorRecompiled.exe"
 
 
 def _entry_pc():

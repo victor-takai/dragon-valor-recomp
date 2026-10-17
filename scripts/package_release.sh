@@ -10,7 +10,7 @@
 #   scripts/package_release.sh <build-dir> <artifact-tag> [recompiler-build-dir]
 #   e.g. scripts/package_release.sh build-release windows-x64
 #
-# Writes: dist/dvus-<VERSION>-<artifact-tag>.zip. Side effect: the packager
+# Writes: dist/DragonValorRecompiled-<VERSION>-<artifact-tag>.zip. Side effect: the packager
 # rewrites the tracked VERSION file with the stamp embedded in the binary.
 # On this machine it also needs PSX_RELEASE_STAGE_PYTHON=<python.exe>.
 set -euo pipefail
@@ -54,9 +54,9 @@ exec bash "${PACKAGER}" \
   --root "${ROOT}" \
   --build-dir "${BUILD_DIR}" \
   --artifact "${ARTIFACT_TAG}" \
-  --zip-prefix dvus \
-  --exe-name DragonValorUS_Recompiled \
-  --display-name "Dragon Valor (USA) Recompiled" \
+  --zip-prefix DragonValorRecompiled \
+  --exe-name DragonValorRecompiled \
+  --display-name "Dragon Valor Recompiled" \
   --recompiler-build "${RECOMPILER_BUILD}" \
   --version-env RELEASE_VERSION \
   --disc-hint "your legally owned Dragon Valor (USA) discs" \
