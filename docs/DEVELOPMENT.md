@@ -94,6 +94,18 @@ Notes:
   `codegen_setup.c`; the release workflow takes the zip prefix from the
   packager (it was renamed in place: `generate_ci.py --force` would drop
   this project's manifest-test step and release-notes body).
+- App icon (2026-10-17, the player's choice of three candidates): a
+  pixel-art sword on crimson with a cyan glint, after the idea of the
+  game's memory-card save icon (16x16, 3 frames, the same for every save;
+  read from `saves/card1.mcd`) but drawn anew: no pixel of it is used.
+  It replaced the framework's default controller. `tools/make_app_icon.py`
+  writes `assets/psxrecomp.ico` with hand-sized 16, 24 and 32 px frames
+  (48 = the 24 doubled, 64/128/256 = the 32 enlarged, so pixels stay
+  square), `assets/psxrecomp.png` (512 px, the 32 x16; the runtime sets it
+  as the window icon and recomp-ui as the launcher's) and the `.svg`. The
+  names are the framework's, so nothing else changes; a rebuild embeds the
+  `.ico` (checked: all seven frames are in both exes). Explorer caches icons
+  and can show the old one for a while (`ie4uinit.exe -show` refreshes it).
 
 ## Run
 
@@ -1156,13 +1168,14 @@ generated/            recompiled game C + static AOT shard (committed)
 aot/overlays.json     AOT profile for the five BIN/*.BIN modules (docs/AOT.md)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
-launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon
+launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon (tools/make_app_icon.py)
 mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen; the psx.enhancement.pgxp override)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonvalor_menu.cpp = in-game menu provider
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
 tools/bin_listing.py  BIN/*.BIN from the disc -> listings at 0x800BBEF0 (whole modules, not only executed pages)
 tools/datacdr.py      DATA.CDR areas / stages / files, action stages vs scenes (`kinds`), a stage's hero entries (read-only)
+tools/make_app_icon.py  draws the app icon into assets/ (.ico, .png, .svg; needs Pillow)
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
 tests/states/         committed save states slot 0 and slot 10 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)

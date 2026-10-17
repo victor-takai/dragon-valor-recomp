@@ -1,7 +1,7 @@
 # Third-party notices
 
 The root [MIT license](LICENSE) covers this project's own files: `tools/`,
-`scripts/`, `tests/`, `docs/`, `mods/`, `patches/`, `aot/`, `seeds/`,
+`scripts/`, `tests/`, `docs/`, `assets/` (the app icon), `mods/`, `patches/`, `aot/`, `seeds/`,
 `codegen_setup.c`, the CMake and config files. It does not relicense the submodules, the third-party code
 they carry, Dragon Valor, the recompiled game code in `generated/` (machine
 output derived from the game, no licence grant from us) or the game imagery
@@ -19,7 +19,7 @@ in screenshots.
 | TinyCC, shipped in `overlay_toolchain/` to compile overlay code on the player's machine | [LGPL-2.1](psxrecomp/overlay_toolchain/tcc/COPYING) |
 | Embedded Python, shipped in `overlay_toolchain/` | [PSF licence](psxrecomp/overlay_toolchain/python/LICENSE.txt) |
 | Recompiler build dependencies (ELFIO, fmt, rabbitizer, toml11) | Their licences under `psxrecomp/recompiler/lib/`; build-time only, not in the release |
-| Application icon | `psxrecomp/assets/` (Retro controller mark), embedded as `assets/psxrecomp.ico` |
+| Application icon | This project's (MIT): our own pixel art, a sword on a crimson field with a cyan glint, after the idea of the game's memory-card save icon (no pixel of it is used), drawn by `tools/make_app_icon.py`; embedded as `assets/psxrecomp.ico`, `assets/psxrecomp.png` beside the exe |
 | Box art under `launcher_assets/img/`, when present | [libretro-thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails) (`Named_Boxarts`); see `BOXART_SOURCE.txt` next to it |
 
 The release zip stages these texts beside the executable: `licenses/`

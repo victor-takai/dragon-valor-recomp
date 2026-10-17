@@ -116,7 +116,7 @@ derived from one may be committed; releases run on the bundled MIT OpenBIOS.
 compiled game, built by CI from that tree. Regenerate and commit it whenever
 seeds or the framework pin change.
 
-Default app icon: `assets/psxrecomp.ico` (and `.png` / `.svg`) — Retro-themed controller mark from `psxrecomp/assets/`. Windows builds embed it via `APP_ICON`.
+App icon: `assets/psxrecomp.ico` (and `.png` / `.svg`), our own pixel art, a sword on a crimson field with a cyan glint, after the idea of the game's memory-card save icon (no pixel of it is used); `tools/make_app_icon.py` draws all three. Windows builds embed the `.ico` via `APP_ICON`; the `.png` beside the exe is the window, taskbar and launcher icon.
 
 Optional box art under `launcher_assets/img/` may come from
 [libretro-thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails)

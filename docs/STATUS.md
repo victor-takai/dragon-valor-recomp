@@ -94,6 +94,11 @@ the native 60 Hz version.
   Builds reconfigured, `generated/` regenerates byte-identical, the
   player's Memory Card and texture-pack paths re-pointed; tests pass
   (`test_menu` 9/9, `test_area_row` 16/16, `test_manifests`).
+- **App icon** (2026-10-17, the player's choice): the framework's
+  controller gave way to our own pixel-art sword on crimson with a cyan
+  glint, after the idea of the game's memory-card save icon (drawn anew;
+  `tools/make_app_icon.py`). Both builds embed it; the debug build starts
+  from slot 0 with it (no unknown dispatches).
 - **Stage warp** (2026-10-16): after the player asked why the Area row
   only offered areas 3 and 6 (their stage number, 21, is an action stage
   only there), the stage the Continue reloads was found in the stage-start
