@@ -67,6 +67,17 @@ Notes:
 - Only OpenBIOS is linked (no retail BIOS C is generated).
 - `generated/overlays_static*.c` is the AOT shard for the `BIN/*.BIN` mode
   modules; `generate` rebuilds it from `aot/overlays.json` (see [`AOT.md`](AOT.md)).
+- The checkout folder's name is free; spaces work (this machine:
+  `F:/dragon-valor-recomp/Dragon Valor Recomp`, renamed from
+  `DragonValorUSRecomp` on 2026-10-16; `rebuild`, `generate` and the tests
+  all ran there, `generated/` came out byte-identical). Build trees hold
+  absolute paths, so after moving or renaming a checkout delete
+  `CMakeCache.txt`, `CMakeFiles/` and `_deps/` in `build-release`,
+  `build-debug` and `build-recompiler` (a stale `_deps/*-subbuild` cache
+  stops the configure) and run steps 1 and 3 again. The player's
+  `settings.toml` (`[memcard]` dir / card1 / card2) and `mods/state.toml`
+  (texture pack path) also hold absolute paths: point them at the new
+  folder, or the game opens empty Memory Cards.
 
 ## Run
 
