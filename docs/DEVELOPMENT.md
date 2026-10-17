@@ -85,7 +85,11 @@ Notes:
   `DragonValorRecompiled-<version>-<platform>.zip`, `game.toml [game] name`
   "Dragon Valor" (shown by the launcher and the in-game menu; no file path
   depends on it, so saves and settings are untouched) and the CMake project
-  `DragonValorRecomp`. The exe name is repeated in `Play.bat`,
+  `DragonValorRecomp`. The launch scripts are `DragonValor.bat` and
+  `DragonValorDebug.bat` (`Play.bat` and `PlayDebug.bat` until 2026-10-17,
+  renamed at the player's request; other psxrecomp titles ship no script
+  at all, their players run the exe, and neither script is in the release
+  zip). The exe name is repeated in `DragonValor.bat`,
   `tools/dvdbg.py`, `tests/test_menu.py`, `scripts/package_release.sh` and
   `codegen_setup.c`; the release workflow takes the zip prefix from the
   packager (it was renamed in place: `generate_ci.py --force` would drop
@@ -93,16 +97,16 @@ Notes:
 
 ## Run
 
-- `Play.bat` — player launch (`build-release`). `Play.bat -dbg` uses `build-debug`.
+- `DragonValor.bat` — player launch (`build-release`). `DragonValor.bat -dbg` uses `build-debug`.
   The executable is a Windows-subsystem program (the framework links Release
   builds with `-mwindows`, `runtime.cmake`), so it opens no console of its
   own and double-clicking it is enough; the script starts it detached and
   closes its window at once (2026-10-15). `PLAY_WAIT=1` runs it in the
-  foreground instead (`PlayDebug.bat` does, to keep a window with the exit
+  foreground instead (`DragonValorDebug.bat` does, to keep a window with the exit
   code). The runtime never attaches to a parent console, so its stdout is
   only seen when redirected (`tools/dvdbg.py launch` writes `dvdbg_4370.log`);
   the exit report `psx_last_run_report.json` is the channel otherwise.
-- `PlayDebug.bat` — debug build with the debug server and the FPS readout on.
+- `DragonValorDebug.bat` — debug build with the debug server and the FPS readout on.
 - Frame generation (`[video] render_thread` / `frame_generation`, or
   `PSX_RENDER_THREAD=1 PSX_FRAME_GEN=1`) is of no use on this 60 Hz title and
   its launcher script was removed on 2026-10-14; the Settings page still
@@ -121,7 +125,7 @@ Files the runtime writes, all gitignored:
 | Keyboard binds | `keybinds.ini` next to the exe (generated on first run) |
 | Host hotkeys / pad mapping | `config.ini` next to the exe (`[KeyMap]`, `[controller]`, `[mapping]`) |
 | Overlay captures + native shards | `overlay_captures.json(.d)` and `cache/` next to the exe |
-| Exit report / watchdog | `psx_last_run_report.json` (unknown dispatches, segment misses, overlay loader counters, CPU state at exit), `psx_freeze_heartbeat.json`, boot-time `psx_freeze_dump_*.json` (false positives, ~35 MB each on the debug build; `tools/dvdbg.py launch` and `Play.bat` delete the existing ones before each start, since 2026-10-15) |
+| Exit report / watchdog | `psx_last_run_report.json` (unknown dispatches, segment misses, overlay loader counters, CPU state at exit), `psx_freeze_heartbeat.json`, boot-time `psx_freeze_dump_*.json` (false positives, ~35 MB each on the debug build; `tools/dvdbg.py launch` and `DragonValor.bat` delete the existing ones before each start, since 2026-10-15) |
 
 ## Bumping the framework
 
@@ -979,7 +983,7 @@ out too (the player's choice, 2026-10-14): `antialiasing = true`, linear
 filtering of the final image (the in-game menu's *Linear filter* row), and
 `texture_filtering = "nearest"`, the game's own textures keep their texels
 (bilinear and xBR are one row away in the menu, Graphics > Texture filtering,
-for the run). Both are the framework defaults; `Play.bat` no longer forces
+for the run). Both are the framework defaults; `DragonValor.bat` no longer forces
 xBR. How the rest was decided, on build-debug from slot 0:
 
 - **Mipmap + anisotropic** (live `texture_lod mode=1 aniso=8` at 1440p):
@@ -1070,7 +1074,7 @@ player's choice, `game.toml`); xBR is a per-run choice: the in-game menu's
 Graphics > Texture filtering row, or `PSX_TEXTURE_FILTER=3` in the
 environment (read after the launcher). It cannot be made to stick through
 the launcher, which clamps the filter to nearest/bilinear on every start and
-persists that to `settings.toml` (`Play.bat` forced the env override until
+persists that to `settings.toml` (`DragonValor.bat` forced the env override until
 2026-10-14). OpenGL only; it acts wherever a texel covers two or more output
 pixels. Compared 2026-10-14 at 1080p with
 the live `texture_filter` command (modes 0/1/3) and `present_shot`: nearest
@@ -1091,7 +1095,7 @@ modules (the pages the runtime has executed only; `tools/bin_listing.py OUT
 
 ### Play sessions
 
-Start `PlayDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
+Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: every
 30 s it logs frame, fps, unknown dispatches, segment misses and pad mode to
 `monitor.csv`, dumps the unknown-dispatch tail whenever a new address appears
 (seed material), screenshots every 5 min, and stops when the game closes.
@@ -1162,7 +1166,7 @@ tools/datacdr.py      DATA.CDR areas / stages / files, action stages vs scenes (
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
 tests/states/         committed save states slot 0 and slot 10 (+ README);  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (wraps the framework packager)
-Play.bat, PlayDebug.bat     player / debug launch
+DragonValor.bat, DragonValorDebug.bat  player / debug launch (were Play.bat, PlayDebug.bat)
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
 CONTROLS.md           pads, keyboard binds, the game's default buttons, host hotkeys
 THIRD_PARTY_NOTICES.md  what ships and under which licence (framework, launcher, toolchain, art)

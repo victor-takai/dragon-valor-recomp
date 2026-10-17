@@ -1,7 +1,7 @@
 """Passive monitor for a human play session on the debug build.
 
 Usage: python tools/session_monitor.py <out_dir> [--port N]
-       (start the game with PlayDebug.bat first; PORT env also works)
+       (start the game with DragonValorDebug.bat first; PORT env also works)
 
 Every 30 s: frame, fps (delta), unknown dispatches, segment misses, pad mode,
 appended to <out_dir>/monitor.csv. Dumps the unknown-dispatch tail whenever

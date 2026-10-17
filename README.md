@@ -32,7 +32,7 @@ Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
 ## Playing
 
 1. Unpack a release and run **`DragonValorRecompiled`** (Windows: the
-   `.exe`; it opens no console window). From a build tree, `Play.bat` does
+   `.exe`; it opens no console window). From a build tree, `DragonValor.bat` does
    the same for `build-release`.
 2. The launcher opens. On the first run browse to your own `Dragon Valor (USA)
    (Disc 1).cue` (see [`DISC.md`](DISC.md) for the dumps that work); it checks

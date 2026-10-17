@@ -89,6 +89,8 @@ the native 60 Hz version.
 - **Names** (2026-10-16, the player's request): the project folder is
   now `Dragon Valor Recomp` and the game is "Dragon Valor Recompiled"
   (window, launcher, release zips); the exe is `DragonValorRecompiled.exe`.
+  On 2026-10-17 the launch scripts followed: `Play.bat` and `PlayDebug.bat`
+  are now `DragonValor.bat` and `DragonValorDebug.bat`.
   Builds reconfigured, `generated/` regenerates byte-identical, the
   player's Memory Card and texture-pack paths re-pointed; tests pass
   (`test_menu` 9/9, `test_area_row` 16/16, `test_manifests`).
@@ -135,7 +137,7 @@ the native 60 Hz version.
    a human play session.
 4. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
    beside the exe on every boot (false positive on statically compiled code).
-   Upstream PR #646 fixes it; until the pin includes it, `Play.bat` and
+   Upstream PR #646 fixes it; until the pin includes it, `DragonValor.bat` and
    `tools/dvdbg.py launch` delete the existing dumps before each start (no
    config switch exists; 58 of them, 2 GB, had piled up in one afternoon of
    scripted runs).
@@ -152,7 +154,7 @@ has been applied since.
 
 ## Tooling
 
-`Play.bat`, `PlayDebug.bat` (`PlaySmooth.bat` was dropped on 2026-10-14: frame
+`DragonValor.bat`, `DragonValorDebug.bat` (`PlaySmooth.bat` was dropped on 2026-10-14: frame
 generation adds nothing at 60 Hz), `tools/dvdbg.py`, `tools/session_monitor.py`. See [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 Automated tests start from save state slot 0 (first screen of gameplay) or
@@ -185,7 +187,7 @@ measured the same day: mipmapped 3D textures with 4 anisotropic taps ship in `ga
 90 ms audio buffer was tried and reverted: choppy sound on the title screen); FXAA and CD Speed do not help here
 (see `DEVELOPMENT.md`, *Video and audio defaults*); linear filtering of the
 final image and nearest texture filtering are the written-out defaults (the
-player's choice; `Play.bat` no longer forces xBR). The runtime is the PGXP
+player's choice; `DragonValor.bat` no longer forces xBR). The runtime is the PGXP
 hook flavour and PGXP ships on by default (66 % of vertices corrected, 60
 fps kept; `DEVELOPMENT.md`, *PGXP*). The
 framework's HD texture dumper works on this game once a stage reloads

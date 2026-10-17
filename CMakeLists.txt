@@ -72,7 +72,7 @@ psxrecomp_add_game_runtime(psx-runtime
     # ENABLE_SETUP_WIZARD
     WINDOW_TITLE "Dragon Valor Recompiled"
     # Without it the exe would be Dragon_Valor_Recompiled (MAKE_C_IDENTIFIER of
-    # the title); Play.bat, tools/dvdbg.py, tests/test_menu.py,
+    # the title); DragonValor.bat, tools/dvdbg.py, tests/test_menu.py,
     # scripts/package_release.sh and codegen_setup.c name it too.
     EXE_NAME DragonValorRecompiled
     DEFAULT_GAME_CONFIG_PATH "game.toml"
