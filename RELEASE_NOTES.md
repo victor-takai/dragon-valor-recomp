@@ -32,6 +32,9 @@ Unpack anywhere, run `DragonValorRecompiled` (Windows: the `.exe`), point
 the launcher at `Dragon Valor (USA) (Disc 1).cue` (see `DISC.md` for the
 dumps that work), Play. Controls are in `CONTROLS.md`.
 
+The executable is not signed, so Windows may say it protected your PC the
+first time: *More info*, then *Run anyway*.
+
 ## What was verified on this build
 
 - Boot, intro movie (Start skips it), title and menus, New Game, the first
@@ -59,16 +62,25 @@ dumps that work), Play. Controls are in `CONTROLS.md`.
 
 ## Reporting
 
-Most wanted: chapter 3 onwards, the disc change in play, Load Game after a
-restart, rumble, and any run of the Linux or macOS zips. Open an issue at
-<https://github.com/victor-takai/dragon-valor-recomp/issues> with what you
-did and what happened (a screenshot helps), plus these files from the
-game's folder:
+The tester's guide is
+[`docs/PLAYTESTING.md`](https://github.com/victor-takai/dragon-valor-recomp/blob/master/docs/PLAYTESTING.md):
+what we most want tested, how to report, which files to attach. In short,
+most wanted are a full playthrough (nobody has played past chapter 2 on
+this build), the disc change, Load Game after a restart, rumble, and any run
+of the Linux or macOS zips. Try the problem again from a fresh boot, then
+use the [bug report form](https://github.com/victor-takai/dragon-valor-recomp/issues/new/choose),
+one problem per issue, with what you did and what happened (a screenshot
+helps) and these files from the game's folder:
 
-- `psx_last_run_report.json` (written when the game closes);
+- `psx_last_run_report.json`, written when the game exits, crash included
+  (the most useful single file);
 - `psx_crash.txt`, when there is one;
-- `settings.toml`;
-- for a problem at one place in the game, the memory card from `saves/`
-  with a save near it.
+- `settings.toml` and `mods/state.toml` (what was on);
+- `psx_game_version.txt` (which build you ran);
+- `psx_freeze_heartbeat.json` if the game froze rather than exited;
+- a save state taken just before the spot (`F7`, then `S`; the file is
+  `saves/openbios/state_*_slotNN.pst`) or the Memory Card
+  (`saves/card1.mcd`) with a save near it.
 
-The `psx_freeze_dump_*.json` files are not needed (see Known issues).
+Never send disc images. The `psx_freeze_dump_*.json` files are not needed
+(see Known issues).

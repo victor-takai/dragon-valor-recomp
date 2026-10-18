@@ -13,7 +13,8 @@ want eyes on, and which files to send with a report. Controls are in
    and unpack it anywhere (a path without spaces is safest). Nothing is
    installed; delete the folder to remove it.
 2. Run `DragonValorRecompiled` from the folder (Windows: the `.exe`). The
-   launcher opens.
+   launcher opens. The executable is not signed, so Windows may say it
+   protected your PC the first time: *More info*, then *Run anyway*.
 3. First run: browse to your own `Dragon Valor (USA) (Disc 1).cue` (the
    `.bin` must sit next to it with its Redump name). The launcher checks the
    serial and remembers the location in `settings.toml`. Disc 2 is picked
@@ -62,6 +63,9 @@ Nobody has played the game through on this build yet. In rough priority:
    N magic kills", and the in-game
    menu's Val / stats / spell / item editors: anything that does not take
    effect or breaks a later screen.
+9. **Linux and macOS.** Only the Windows build has been played; the other
+   zips come from the same CI and code, but nobody has run them yet. Does
+   it start, find the disc and reach gameplay?
 
 Anything else counts: crashes, freezes, sound dropouts, a controller that
 stops responding, a stage that runs slow. Note the chapter and the moment.
@@ -78,6 +82,7 @@ stops responding, a stage that runs slow. Note the chapter and the moment.
 - **Collect the files** from the folder with the executable:
   - `psx_last_run_report.json`: written when the game exits, crash
     included. The most useful single file.
+  - `psx_crash.txt`, when there is one (the runtime writes it on a crash).
   - `settings.toml` and `mods/state.toml`: what was on.
   - `psx_game_version.txt`: which build you ran.
   - `psx_freeze_heartbeat.json` if the game froze rather than exited.
