@@ -126,8 +126,8 @@ Notes:
   `tests/states/*.pst` were removed from every commit, since a state holds
   the game's RAM, VRAM and sound RAM. The author and committer email became
   the GitHub noreply address, now this repository's `user.email`. The
-  repository was then re-created from that history; the first one, which
-  keeps the old commits, is the private `dragon-valor-recomp-old`. So
+  repository was then re-created from that history, and the first one,
+  which held the old commits, was deleted the same day. So
   commit ids cited in messages written before 2026-10-21 (such as
   "Correction to b962176") are pre-rewrite ids and resolve nowhere here.
   A force-pushed `v*` tag starts the release workflow (`push: tags`):
