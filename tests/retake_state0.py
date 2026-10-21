@@ -12,8 +12,8 @@ slot. Expects a debug build with the skip-intro feature ENABLED in
 Route (mode byte 0x8008634C, see docs/DEVELOPMENT.md): title menu ready
 (5/2) -> Start = New Game (6) -> Start skips the prologue text and the
 opening cutscene -> action stage (8) with the stage id 0x800A2F1A == 2 ->
-a few seconds for the HUD -> `state save 0` -> `state keep 0`. Commit
-tests/states/ afterwards and note the pin in tests/states/README.md.
+a few seconds for the HUD -> `state save 0` -> `state keep 0`. Note the pin in
+tests/states/README.md (the states themselves stay out of git).
 """
 import sys
 import time
@@ -67,7 +67,7 @@ def main(argv):
     disc = os.environ.get("DVDBG_DISC") or DEFAULT_DISC
     cmd_state(port, ["save", "0"], disc)
     cmd_state(port, ["keep", "0"], disc)
-    print("done: commit tests/states/ and update its README")
+    print("done: tests/states/ updated (not in git); note the pin in its README")
     return 0
 
 

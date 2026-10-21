@@ -78,7 +78,7 @@ the native 60 Hz version.
   dragonvalor.enhancement.widescreen*.
 - **Chapter 2 reached** (2026-10-16): the player finished chapter 1 (Clovis)
   on this build and plays chapter 2 as Kodel at 60 fps; their save state at
-  its first stage (area 3 / stage 1) is the third committed test state
+  its first stage (area 3 / stage 1) is the third test state
   (`tests/states/`, menu slot 10) and gave the hero finding in
   `DEVELOPMENT.md`, *Character and weapon*: the hero follows the area, so
   the Cheats page gained an **Area (next Continue)** row that reloads
@@ -184,7 +184,7 @@ generation adds nothing at 60 Hz), `tools/dvdbg.py`, `tools/session_monitor.py`.
 
 Automated tests start from save state slot 0 (first screen of gameplay) or
 slot 10 (a town stage with Fire selected and an enemy in front, for spell
-and magic-kill tests); both are committed in `tests/states/` and restored
+and magic-kill tests); both are kept in `tests/states/` (local, out of git since 2026-10-21) and restored
 into `saves/openbios/` by `python tools/dvdbg.py launch --state N`. RAM addresses for HP/MP/STR/DEF, Val and
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
 

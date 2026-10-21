@@ -2,8 +2,8 @@
 
 <!-- retcomm-readme-metrics -->
 [![GitHub downloads (all assets, all releases)](https://img.shields.io/github/downloads/victor-takai/dragon-valor-recomp/total)](https://github.com/victor-takai/dragon-valor-recomp/releases)
-[![GitHub downloads (latest release)](https://img.shields.io/github/downloads/victor-takai/dragon-valor-recomp/latest/total)](https://github.com/victor-takai/dragon-valor-recomp/releases/latest)
-[![GitHub release](https://img.shields.io/github/v/release/victor-takai/dragon-valor-recomp)](https://github.com/victor-takai/dragon-valor-recomp/releases/latest)
+[![GitHub downloads (latest release)](https://img.shields.io/github/downloads-pre/victor-takai/dragon-valor-recomp/latest/total)](https://github.com/victor-takai/dragon-valor-recomp/releases)
+[![GitHub release](https://img.shields.io/github/v/release/victor-takai/dragon-valor-recomp?include_prereleases)](https://github.com/victor-takai/dragon-valor-recomp/releases)
 <!-- /retcomm-readme-metrics -->
 
 Static recompilation of **Dragon Valor** (USA) built on

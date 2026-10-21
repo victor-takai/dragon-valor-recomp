@@ -1,10 +1,15 @@
 # Test save states
 
-Committed copies of the runtime save states the automated tests start from.
+Local copies of the runtime save states the automated tests start from.
+They are **not in git** (`.gitignore`, since 2026-10-21): a state is a
+snapshot of the whole console, game code, textures and sound included, so
+it may not be published with the repository, and the three below were
+removed from its history before it went public. A fresh clone has none:
+take them again (below) or copy them from a machine that has them.
 The runtime reads and writes slots under `saves/openbios/` (gitignored);
 `tools/dvdbg.py state load N` copies the file from here when that slot is
 missing, and `tools/dvdbg.py state keep N` copies a freshly saved slot back
-here so it can be committed.
+here.
 
 | File | Slot | Where | Notes |
 |---|---|---|---|
@@ -27,7 +32,7 @@ Menu slot numbers are 1-based, file names 0-based (menu slot 1 =
 
 | Menu slot | File | Who writes it |
 |---|---|---|
-| 1 | `slot00` | `dvdbg.py launch --state 0` / `state load 0` restore it from this directory when it is missing, a different size or older than the committed copy; `tests/retake_state0.py` re-takes it on purpose. |
+| 1 | `slot00` | `dvdbg.py launch --state 0` / `state load 0` restore it from this directory when it is missing, a different size or older than the copy here; `tests/retake_state0.py` re-takes it on purpose. |
 | 10 | `slot09` | The third test state (chapter 2, Kodel), restored from this directory the same way. |
 | 11 | `slot10` | The second test state (spells), restored from this directory the same way. |
 | 12 | `slot11` | `tests/test_menu.py` saves into it through the in-game menu and puts the previous file back afterwards (before 2026-10-15 the test wrote menu slot 2 and left it there). Developer A/B scripts in the scratchpad also use it. |

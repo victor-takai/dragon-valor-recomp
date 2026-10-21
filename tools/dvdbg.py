@@ -21,7 +21,7 @@ in-process, so it is safe from any shell.
   python tools/dvdbg.py health            unknown dispatches + segment misses
   python tools/dvdbg.py state save|load|keep [N]
         runtime save state in slot N (saves/openbios/, restored from the
-        committed tests/states/ copy when missing); keep copies the slot into
+        local tests/states/ copy when missing); keep copies the slot into
         tests/states/. Slot 0 = first screen of gameplay (skips the 5 min intro),
         9 = chapter 2 (Kodel, ship's hold), 10 = town stage with Fire selected.
   python tools/dvdbg.py raw <cmd> [k=v ...]
@@ -59,7 +59,7 @@ def _entry_pc():
 
 
 ENTRY_PC = _entry_pc()
-STATES_DIR = ROOT / "tests" / "states"            # committed test states
+STATES_DIR = ROOT / "tests" / "states"            # test states (local, not in git)
 SAVES_STATES_DIR = ROOT / "saves" / "openbios"    # where the runtime reads/writes slots
 DEFAULT_DISC = str(ROOT.parent / "Dragon Valor (USA) (Disc 1)" / "Dragon Valor (USA) (Disc 1).cue")
 BUTTONS = {
@@ -210,7 +210,7 @@ def cmd_state(port, args, disc_path):
             sys.exit(f"no local slot {slot}: {local}")
         STATES_DIR.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(local, kept)
-        print(f"kept {kept} ({kept.stat().st_size} bytes); commit tests/states/")
+        print(f"kept {kept} ({kept.stat().st_size} bytes)")
         return
     if op not in ("save", "load"):
         sys.exit("state save|load|keep [slot]")

@@ -28,6 +28,10 @@
 /disc/
 .settings/
 
+# Test save states: whole-machine snapshots that hold the game's RAM, VRAM
+# and sound RAM, so they stay local (tests/states/README.md).
+/tests/states/*.pst
+
 # Disc / image / memcard formats
 *.bin
 *.cue

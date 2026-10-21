@@ -209,20 +209,21 @@ boot or the menus starts from slot 0** (slot 10 for the spell tests):
 python tools/dvdbg.py launch --state 0  # boot, then load slot 0 and wait for it
 python tools/dvdbg.py state load 0      # same thing on a running instance
 python tools/dvdbg.py state save 0      # overwrite the slot from the running game
-python tools/dvdbg.py state keep 0      # copy the slot into tests/states/ (committed)
+python tools/dvdbg.py state keep 0      # copy the slot into tests/states/ (local, not in git)
 ```
 
 Slot 0 is the first screen of gameplay (New Game → prologue → opening
 cutscene → first enemy in Brize Forest; HP 030/030, MP 020/020). The runtime
-reads slots from `saves/openbios/` (gitignored); the committed copy lives in
+reads slots from `saves/openbios/` (gitignored); the test copy lives in
 [`tests/states/`](../tests/states/README.md) and `state load` restores it
-from there when the local slot is missing, so a fresh clone needs nothing
-else. The state carries the loaded `ACTION.BIN`, so no part of the menu
+from there when the local slot is missing. Those copies are not in git
+(since 2026-10-21: a state holds the game's RAM and VRAM, so it may not
+be published), and a fresh clone has to take them again. The state carries the loaded `ACTION.BIN`, so no part of the menu
 route is replayed. States are whole-machine state: same BIOS (OpenBIOS),
 same disc, and a runtime update that changes the format means re-taking
 them (`state save`, then `state keep`).
 
-A second committed state, **slot 10** (menu slot 11; `launch --state 10`),
+A second test state, **slot 10** (menu slot 11; `launch --state 10`),
 is a town stage of area 1 / stage 7 with Fire selected (level 1) and an
 enemy of 15 HP in front of the hero (HP 38/38, MP 38/38, Earrings 0, Val
 1014): the start point for anything that needs a spell or a magic kill
@@ -1195,7 +1196,7 @@ tools/bin_listing.py  BIN/*.BIN from the disc -> listings at 0x800BBEF0 (whole m
 tools/datacdr.py      DATA.CDR areas / stages / files, action stages vs scenes (`kinds`), a stage's hero entries (read-only)
 tools/make_app_icon.py  draws the app icon into assets/ (.ico, .png, .svg; needs Pillow)
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
-tests/states/         committed save states slot 0 and slot 10 (+ README);  tests/test_*.py  checks
+tests/states/         save states 0, 9 and 10, local only (not in git) + README;  tests/test_*.py  checks
 scripts/package_release.sh  local release zip (framework packager with --stage-only, minus mods/texture-packs, then its create_release_zip.py)
 DragonValor.bat, DragonValorDebug.bat  player / debug launch (were Play.bat, PlayDebug.bat)
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
