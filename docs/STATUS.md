@@ -62,8 +62,10 @@ the native 60 Hz version.
   zips are 31 MB (Windows), 52 MB (Linux) and 28 MB for each macOS build.
   The player played the CI Windows build from a clean folder, first-run
   screen included. **v0.1.0 was published on 2026-10-21** as a GitHub
-  pre-release with the four zips (tag `v0.1.0` at `25f5dd6`). The
-  repository is private, so only its owner sees it.
+  pre-release with the four zips (tag `v0.1.0` at `362efef`). The
+  repository is private, so only its owner sees it. Before it goes public
+  the history was rewritten (test states out, noreply email) and the
+  repository re-created with the same release and zips (DEVELOPMENT).
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte

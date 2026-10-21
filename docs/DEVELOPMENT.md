@@ -122,6 +122,16 @@ Notes:
   body as a line break, so the 75-column wrap of the other docs broke
   v0.1.0's page mid-sentence (fixed 2026-10-21 with `gh release edit
   v0.1.0 --notes-file`; the 0.1.0 zip keeps the long notes).
+- History rewrite (2026-10-21, before the repository went public):
+  `tests/states/*.pst` were removed from every commit, since a state holds
+  the game's RAM, VRAM and sound RAM. The author and committer email became
+  the GitHub noreply address, now this repository's `user.email`. The
+  repository was then re-created from that history; the first one, which
+  keeps the old commits, is the private `dragon-valor-recomp-old`. So
+  commit ids cited in messages written before 2026-10-21 (such as
+  "Correction to b962176") are pre-rewrite ids and resolve nowhere here.
+  A force-pushed `v*` tag starts the release workflow (`push: tags`):
+  disable it first (`gh workflow disable release.yml`) when moving a tag.
 
 ## Run
 
