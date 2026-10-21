@@ -154,8 +154,14 @@ non-UTF-8 code pages (pt-BR Windows is cp1252: test accented paths), #443
 licensing provenance of code ported from Beetle/DuckStation, #368/#571
 widescreen gaps. Community: Discord <https://discord.gg/Ad9BwSzctP>, docs
 <https://retroportingtoolkit.com/docs> (guides: port, mod, translate,
-widescreen, release), contact hello@retroportingtoolkit.com. Dragon Valor is
-in no catalog (Retro-Catalog, recomp.board) and has no other recomp.
+widescreen, release), contact hello@retroportingtoolkit.com. Dragon Valor has
+no other recomp. Retro-Catalog: submitted on 2026-10-21 through its form
+(<https://retroportingtoolkit.github.io/Retro-Catalog/submit/>), issue
+[#54](https://github.com/RetroPortingToolKit/Retro-Catalog/issues/54), awaiting
+approval: two US discs, pre-release allowed, no netplay, no build recipe. The
+form's MD5 is wrong for files over 512 MiB (both Track 1 files; CRC32, SHA-1
+and SHA-256 match Redump) and it overwrote the hand-corrected value on submit,
+so the right MD5s are in a comment on the issue.
 
 | P | Idea | Source | Notes |
 |---|---|---|---|

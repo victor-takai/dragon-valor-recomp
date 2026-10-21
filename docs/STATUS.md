@@ -66,6 +66,8 @@ the native 60 Hz version.
   repository is private, so only its owner sees it. Before it goes public
   the history was rewritten (test states out, noreply email) and the
   repository re-created with the same release and zips (DEVELOPMENT).
+  Public since 2026-10-21, and submitted to the Retro Launcher catalog the
+  same day (Retro-Catalog issue #54, awaiting approval; BACKLOG).
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
