@@ -115,6 +115,13 @@ Notes:
   a zip with `gh run download <run> -n DragonValorRecompiled-windows-x64`.
   Windows takes about 18 min, the others 1 to 4. 0.x versions publish as
   pre-releases.
+- `RELEASE_NOTES.md` is the GitHub release text (and ships in the zip).
+  Keep it short: what it is, how to run, features, known issues; details
+  live in `DISC.md`, `CONTROLS.md` and `docs/PLAYTESTING.md`. Write one
+  line per paragraph or bullet. GitHub renders every newline of a release
+  body as a line break, so the 75-column wrap of the other docs broke
+  v0.1.0's page mid-sentence (fixed 2026-10-21 with `gh release edit
+  v0.1.0 --notes-file`; the 0.1.0 zip keeps the long notes).
 
 ## Run
 
