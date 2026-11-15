@@ -6,11 +6,12 @@
 [![GitHub release](https://img.shields.io/github/v/release/victor-takai/dragon-valor-recomp?include_prereleases)](https://github.com/victor-takai/dragon-valor-recomp/releases)
 <!-- /retcomm-readme-metrics -->
 
-Static recompilation of **Dragon Valor** (USA) built on
+**Dragon Valor**, Namco's PlayStation action RPG, running natively on PC: a
+static recompilation of the USA release, built on
 [psxrecomp](https://github.com/RetroPortingToolKit/psxrecomp) and
-[recomp-ui](https://github.com/RetroPortingToolKit/recomp-ui).
-
-Action RPG by Namco; two-disc NTSC-U release.
+[recomp-ui](https://github.com/RetroPortingToolKit/recomp-ui). The game's
+code is translated to C ahead of time; you bring the discs, no BIOS dump
+needed.
 
 > **Unofficial fan project.** Not affiliated with, endorsed or sponsored by
 > Bandai Namco Entertainment or Sony Interactive Entertainment. Dragon Valor,
@@ -24,73 +25,49 @@ Action RPG by Namco; two-disc NTSC-U release.
 | | |
 |---|---|
 | Players | 1 |
-| Region | USA |
+| Discs | SLUS-01092 (disc 1), SLUS-01164 (disc 2), USA |
 | Publisher | Namco |
 | Year | 2000 |
 
-Supported discs: **SLUS-01092** (disc 1) and **SLUS-01164** (disc 2), USA.
-Both boot the same executable; the launcher lets you pick the disc. This is
-the native 60 Hz version; the PAL bring-up that preceded it is recorded in
-[`docs/HISTORY.md`](docs/HISTORY.md).
+**Status:** playable preview, played into chapter 2 on Windows. Disc 2, the
+ending and the Linux / macOS builds are untested
+([`docs/STATUS.md`](docs/STATUS.md)).
 
-State, open issues and pitfalls: [`docs/STATUS.md`](docs/STATUS.md). Build /
-debug workflow: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Ahead-of-time
-overlays: [`docs/AOT.md`](docs/AOT.md). Controls: [`CONTROLS.md`](CONTROLS.md).
-Testing the game and reporting: [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md).
+## Features
+
+- Native 60 fps, 1080p by default, PGXP for steadier 3D
+- In-game menu: pause, save states, video and audio settings
+- Cheats: infinite HP / MP, more drops, Val, stats, spells and items
+- Widescreen (experimental), Skip Intro, rewind and turbo
+- Xbox, PlayStation and Switch pads, or the keyboard
 
 ## Playing
 
-1. Unpack a release and run **`DragonValorRecompiled`** (Windows: the
-   `.exe`; it opens no console window). From a build tree, `DragonValor.bat` does
-   the same for `build-release`.
-2. The launcher opens. On the first run browse to your own `Dragon Valor (USA)
-   (Disc 1).cue` (see [`DISC.md`](DISC.md) for the dumps that work); it checks
-   the serial, region and ISO header and remembers the location. The same
-   screen has the Disc 1 / Disc 2 choice, controller and its mode (Analog /
-   D-Pad), memory cards, video and audio settings and mods.
-3. **Play.** Press Start during the intro movie to skip it.
-4. **Escape** (or **Select+Start** on the pad) opens the in-game menu: pause,
-   cheats (infinite HP/MP, a gem or scroll every N kills, Val, stats,
-   spell levels, items), texture
-   filtering, scanlines, fullscreen, volume, save/load state, disc change,
-   back to the launcher. Arrows / D-pad move, Enter / Cross selects,
-   Escape / Circle goes back; the mouse works too (hover, click, wheel,
-   right button = back). Every row is remembered between runs (video rows
-   in `settings.toml`, mods in `mods/state.toml`, volume and the menu's own
-   look in `dragonvalor_settings.toml`, all next to the exe).
+1. Download the zip for your system from
+   [Releases](https://github.com/victor-takai/dragon-valor-recomp/releases)
+   and unpack it anywhere.
+2. Run `DragonValorRecompiled`. It is not signed, so Windows may warn you:
+   *More info*, then *Run anyway*.
+3. In the launcher, point it at your `Dragon Valor (USA) (Disc 1).cue`
+   ([`DISC.md`](DISC.md) lists the dumps that work) and press **Play**.
 
-Xbox / PlayStation / Switch pads work out of the box; the game reads the
-analog stick. Memory cards live in `saves/`.
+In the game, **Esc** (or **Select + Start** on the pad) opens the menu.
+Cheats, Skip Intro, widescreen and HD texture packs are switched on in the
+launcher's **Mods** page. Keys and buttons: [`CONTROLS.md`](CONTROLS.md).
+Memory card saves live in `saves/`.
 
-The launcher's **Mods** page lists the bundled features, off by default
-except PGXP (on) and the Cheats holder (on, with every option off):
-the framework's enhancements (HD texture packs, PGXP, CD speed, 8 MB RAM,
-bezel) and this project's packages: **Dragon Valor Cheats** (Infinite HP,
-Infinite MP, a gem or scroll every N kills; also switchable in-game, where
-Val, stats, spells and items can be edited too) and **Dragon Valor Skip
-Intro** (presses Start for you as soon as the intro movie starts) and
-**Dragon Valor Widescreen** (experimental: the stages render at 16:9 or
-wider with real scenery at the sides; title, menus and movies stay 4:3).
-Tick a feature, set its options, Play. See
-[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#modding-what-the-framework-offers).
+Found a bug? [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md) says what to test
+and what to attach.
 
-| PlayStation | Keyboard | | PlayStation | Keyboard |
-|---|---|---|---|---|
-| D-pad | Arrow keys | | L1 / R1 | `Q` / `W` |
-| Cross | `X` | | L2 / R2 | `E` / `R` |
-| Circle | `S` | | L3 / R3 | `T` / `Y` |
-| Square | `Z` | | Start | `Enter` |
-| Triangle | `A` | | Select | `Right Shift` |
+## Documentation
 
-| Key | Action |
+| | |
 |---|---|
-| `F` | FPS readout |
-| `F7` | Save-state slot picker: Left / Right pick the slot, `S` saves, `L` loads, `F7` / `Esc` close |
-| `F8` | Rewind (hold; only when Rewind is on in the launcher) |
-| `F6` | Scanlines |
-| Numpad `+` / `-` | Volume |
-| `Tab` (hold) / `F9` | Turbo |
-| `Alt`+`Enter`, `Ctrl`+`F` | Fullscreen |
+| [`docs/STATUS.md`](docs/STATUS.md) | What works, open issues, pitfalls |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Build, debugging, mods, game research (RAM map, drops, heroes) |
+| [`docs/AOT.md`](docs/AOT.md) | Ahead-of-time overlays (`BIN/*.BIN`) |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Planned work and upstream reports |
+| [`docs/HISTORY.md`](docs/HISTORY.md) | The PAL bring-up that preceded this version |
 
 <!-- retcomm-readme-launcher -->
 ## Retro Launcher
@@ -161,6 +138,8 @@ python psxrecomp/psxrecomp_cli.py rebuild --config game.toml --project-root . --
 ```
 
 `generated/` is committed, so a fresh clone needs no disc to build.
+`DragonValor.bat` runs the `build-release` exe (`DragonValorDebug.bat` the
+debug one).
 
 Releases: tag `vX.Y.Z` or run the *Release builds* workflow
 (`.github/workflows/release.yml`, generated from the framework template). CI
