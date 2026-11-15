@@ -271,8 +271,8 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x8008633E` | u16 | MP cost of the spell being cast: the spell's script stores it through native handler 30 (`func_80029BAC`: cost − Earrings count) and spends it through handler 31 (`func_80029BDC`: MP −= it). The setter does not clamp at 0 | `func_80029BAC` (W), `func_80029BDC` (R) |
 | `0x80086336` | u16 | +20 per **Bracelet** obtained (−20 on the undo, `func_80029098`); the game's own text for the Bracelet is "Reduces fatigue". Read by nothing in the EXE or the five BIN modules, and no data on disc 1 holds the address, so whatever fatigue is, the action module does not drive it from here. (Attributed to Pepper until 2026-10-15 through the one-slot-off item table below.) | `func_80028940` pc `0x80028F88`, `FloorPickup` pc `0x80035434` |
 | `0x80086318` | struct | Stage / HUD state block the rows above belong to: `+0x00` hero index (u8, `table[area]`, see *Character and weapon*: 0 Clovis, 2 Kodel), `+0x06` / `+0x08` HP / MP mirrors, `+0x0C`‥`+0x14` attack table, `+0x1A` the 1200-frame timer of pickup 9, `+0x1E` the Bracelet (fatigue) counter, `+0x22` a mode byte (0 in play, 1 once the HUD's enemy counter is up), `+0x24` drop flag, `+0x26` spell cost | |
-| `0x800A2D99` | u8 | Selected spell of the hero (0xFF = none; slot 0 has none and every level 0). `func_80037D94` SetCurrentSpell copies it into the HUD icon state (`0x800A2C0C` = 1, `0x800A2C10` = (3 × spell + level) × 2 + 15) | `func_80037D94`, ACTION.BIN `0x800BFFE4` |
-| `0x8009FAF8` | struct | Spell ring of the action HUD (ACTION.BIN `0x800BFFE4`, pointer at `0x800C5E48`): `+0` current spell, `+1` state, `+2` ring index (u16; the D-pad moves it, action `0x100` confirms, action `0x80` selects), `+0xC` countdown | ACTION.BIN |
+| `0x800A2D99` | u8 | Selected spell of the hero (0xFF = none; slot 0 has none and every level 0). `func_80037D94` SetCurrentSpell queues the spell's two stage files ((3 × spell + level) × 2 + 15 and + 16) in load row 3 of the stage loader: `0x800A2C0C` / `0x800A2C10` are that row's state (1 = requested) and file number, not a HUD icon | `func_80037D94`, ACTION.BIN `0x800BFFE4` |
+| `0x8009FAF8` | struct | Work area of the Triangle magic / item menu (mode 7; ACTION.BIN `0x800BFFE4`, pointer at `0x800C5E48`), the first 0x138 bytes of the per-screen work area: `+0` the spell selected when the menu opened, `+1` focus (0 spell grid, 1 item grid), `+2` cursor (u16; the D-pad moves it, action `0x100` confirms, action `0x80` selects), `+8` state, `+0xC` countdown | ACTION.BIN |
 | `0x800A2F64` / `0x800A2F68` / `0x800A2F80` | u32 ×3 | Pad words: held / newly pressed / repeat. High half = raw pad bits (D-pad 0x10 Up, 0x20 Right, 0x40 Down, 0x80 Left; 0x1000 Triangle … 0x8000 Square), low half = game actions after the button configuration. Slot 0's configuration, measured with `press` on 2026-10-15: Square 0x01 (attack), Circle 0x08, Cross 0x82 (0x80 = magic), Triangle 0x120, L1 / L2 0x10, R1 / R2 0x04, Start 0x40, Select nothing | ACTION.BIN, MAP.BIN |
 | `0x800A2D20`‥`0x800A2D5F` | u8 ×64 | **Save event flags**, the head of the save block (`0x800A2D20` is the base the code builds; selected spell is `+0x79`, play time `+0x7C`, Val `+0xB0`). A pickup object whose `+0x24C` is non-zero sets byte `[+0x24C]` to 1 when taken (`func_80034908`, pc `0x80034A94`‥`AB8`, then `+0x238` ← 0 retires the object); door scripts check these flags, not the key counts (2026-10-15, player's castle save: Gold Key object flag 1, a hand-written count opened nothing). Cleared with the save block by the routine at `0x80038B3C`‥`78`. | `func_80034908` (W) |
 | `0x800A6A98` | struct ×32 | Pickup pool, 32 objects of 0x250 bytes (entries 32‥45 hold unrelated data; the `li t7, 46` loop at `0x80033E4C` counts something else): `+0x238` active (counts down to 0 = free slot, the drop vanishes), `+0x244` pickup id, `+0x24C` save-flag index set on pickup (0 = none; coins carry one too) | `func_80034024` (spawn), `func_80034908` (pickup), `func_80035A5C` |
@@ -286,7 +286,7 @@ the same HP/MP addresses as GameShark codes for SLUS-01092 (`8008A5AE 03E7`,
 | `0x800A2DD4`‥`0x800A2DDE`, `0x800A2DF0`‥`0x800A2E04` | u16 ×17 | Inventory counts in the Status screen's grid order: Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings (`0x800A2DD4`‥`DE`), then Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key (`0x800A2DF0`‥`0x800A2E04`); `0x800A2DE0`‥`EE` between them count the eight spell books (ids 20‥27). Verified 2026-10-15 by setting each slot to 1 and reading the Status screen, which also gave the item texts the in-game menu shows (accessories, trade goods, keys; **no weapons**). Until that day the table started at `0x800A2DD2` and named the slots one off, so the menu's Items page edited the wrong count for everything but Earrings; Almar's CodeBreaker list had it right. | |
 | `0x800A2F18` / `0x800A2F1A` | u16 ×2 | Area and stage id of the stage to load (DEMO.BIN writes 0/6‥9 and 7/31‥34 before calling `func_8003A9B0`); slot 0 is 0/2 | `func_80025264` (W), `func_80038094`, … |
 | `0x8007D8D0` | struct | Stage-start record: `func_80038094` copies the hero's numbers into it when a stage starts, and the CONTINUE YES branch's `func_80038274` copies them back. `+0xF6` (`0x8007D9C6`, u16) is the stage id: `sh` at pc `0x80038158` stores `0x800A2F1A` there (skipped in areas 10‥12 below stage 29), `sh` at pc `0x80038298` writes it back to `0x800A2F1A`. The area is not in it, which is why only the area survived a Continue. The menu's Stage row writes it. | `func_80038094` (W), `func_80038274` (R) |
-| `0x8008634C` / `0x8008634D` | u8 ×2 | Game mode and sub-state: 8 = action stage, 9 = GAME OVER (sub 2 = the CONTINUE prompt), 10 = loading, 17 = attract demo and the CONTINUE reload | `func_8004BF84`, `func_80025264`, … |
+| `0x8008634C` / `0x8008634D` | u8 ×2 | Game mode and sub-state: 7 = the Triangle magic / item menu, 8 = action stage, 9 = GAME OVER (sub 2 = the CONTINUE prompt), 10 = MAP.BIN's world map (travel, Status, Save), 17 = loading and the hand-off between modules (the CONTINUE reload and the start of the attract demo pass through it) | `func_8004BF84`, `func_80025264`, … |
 | `0x8009FAF8` | struct | Work area of the current screen; in mode 9 / sub 2 it is the CONTINUE prompt (ACTION.BIN `0x800C51F0`, jump table `0x800BC1F4`): `+0` state (0 GAME OVER fades in, 1 CONTINUE? fades in, 2 waits for a button, 3 blinks the choice, 4 acts on it), `+0x0C` frames left in state 3, `+0x10` text brightness (128 = full), `+0x1A` cursor (s16, 0 = YES). State 2 tests `0x800A2F68` bit `0x80` (Cross or Circle; Start does nothing) and then writes cursor-blink 128 / timer 30 / state 3 (`0x800C58CC`); YES in state 4 (`0x800C55DC`) takes 50 Val, refills HP and sets mode 17. Sub-state 1 resets `+0` to 0. | ACTION.BIN (`tools/bin_listing.py`) |
 | `0x8008A4E0` | struct | Player object; the stats above are its `+0xCE`‥`+0xD8` fields. Objects are 0x250 bytes apart: slot 0 is the hero, enemies sit in later slots with the same layout (slot 0's first screen: the enemy is slot 5, `0x8008B070`, HP 15/15 at `+0xCE`). Enemy fields of the drop rule: `+0x7F` drop class (0 = never drops), `+0xBC` kind of the hit that last touched it (0‥4 sword, 5‥27 magic, copied from the hit object's `+0xC0`; 255 before any hit), `+0xC` kill credit (2 sword, 1 magic, 3 none) | |
 
@@ -330,7 +330,8 @@ listing cannot attribute:
   `func_800358A8`, which zeroes it and adds the five u16 at `0x80086324`;
   the only readers are the Status screen and the HUD digit painter in
   ACTION.BIN. Nothing in combat reads it.
-- `func_80040DCC` (hero combat) takes a hit's power from
+- `func_80040DCC` (the collision and hit resolution of every object, the
+  hero's attacks among them) takes a hit's power from
   `attack[0x8008632E]` at pc `0x80041798` (or, for non-sword hits, from the
   hit object's own byte). Damage = power `>>` the target's resistance entry
   (`+0x15F` table of the target object, 0 for the first enemy), plus an
@@ -355,14 +356,17 @@ The in-game menu's STR row therefore writes the five entries (spread in the
 game's proportion, the last one absorbing the rounding) and the STR field;
 `func_800358A8` later recomputes the same total. A written STR survives a
 save because the save path copies the entries (`func_80038094` /
-`func_80038274`). DEF is read on the hero-takes-damage path (`lh +0xD8` in
-`func_80042A54` / `func_80042FF0`), so the DEF editor was already real.
+`func_80038274`). DEF is read where the hero takes damage, inside `func_80040DCC`
+(`lh +0xD8` at pc `0x80042D70` for enemy melee and `0x800434E0` for harmful
+particles; `func_80042A54` / `func_80042FF0` are places in that function,
+not functions of their own): damage = power − DEF − a power-up term
+(`0x8008631B`), at least 1. So the DEF editor was already real.
 
 Useful test route: writing 0 to HP gives GAME OVER → CONTINUE? in ~5 s, and
 Cross on YES reloads the current stage from disc (stage id restored from the
 stage-start record `0x8007D9C6`, so `0x800A2F1A` is overwritten). Area values 1‥3 written
-before CONTINUE leave the game black in mode 10 (CD-ROM status polling, no
-crash); 0 and 7 reload normally.
+before CONTINUE leave the game black in mode 10 (MAP.BIN's world map mode,
+waiting on the CD-ROM; no crash); 0 and 7 reload normally.
 
 #### How drops are decided (2026-10-15)
 
@@ -430,9 +434,10 @@ once: the cost field `0x8008633E` takes the spell's cost minus the
 Earrings count (Fire I costs 3) and MP drops by it within 0.3 s; one or
 two casts kill the enemy in object slot 5. Why
 slot 0 never cast: its hero knows no spell (`0x800A2D99` = 0xFF, every
-level 0) and it sits inside the first stage's tutorial (mode 8 sub 5),
-where even a forced level + selection + cast state (`0x800A2C0C` = 1,
-icon `0x800A2C10`) did nothing on Cross (`0x80`, the magic-type select) or
+level 0) and it sits inside the first stage's tutorial, an event script
+(mode 8 sub 5 runs the event-script interpreter `func_8004BF84`), where even
+a forced level + selection + a load-row request (`0x800A2C0C` = 1, file
+`0x800A2C10`: load row 3, see the spell row above) did nothing on Cross (`0x80`, the magic-type select) or
 Circle. Two things to know when measuring: the cheats package's
 `infinite_mp` tops MP up to the maximum every VBlank, so with it on the
 deduction is invisible (run the measurement with a bare `mods/state.toml`,
@@ -546,7 +551,7 @@ the model-selection block:
   **Clovis's model** and Kodel's numbers (HP 36/36, MP 31/31, Heal
   selected). Clovis's save with area 3 asks for area 3 / stage 2, a short
   scene-type stage (20 files, a large image first; `tools/datacdr.py stage
-  3 2`), and the reload stays black in mode 10 (the earlier "areas 1‥3 go
+  3 2`), and the reload stays black in mode 10, the world map mode (the earlier "areas 1‥3 go
   black" note was this). The **stage id cannot be changed this way**: whatever is
   written to `0x800A2F1A` before the prompt, the reload comes back with the
   stage the game recorded at stage start (3/2 → 3/1, 0/1 → 0/2): the YES
@@ -972,9 +977,14 @@ worked examples this one follows.
   same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
   --emit-ws-sites` (`cmake --build build-recompiler --target
   psxrecomp-analyze`) finds two functions with the width+height signature:
-  the mesh renderer's per-vertex `sltiu 385` at `0x8001FE1C` and
-  `func_800401D8`'s object cull (`slti 385` at `0x80040334` /
-  `0x8004034C`, `|object − camera| < 385`), plus the overlay copies
+  `sltiu 385` at `0x8001FE1C` and `func_800401D8`'s `slti 385` at
+  `0x80040334` / `0x8004034C`, read then as the mesh renderer's per-vertex
+  bound and an object cull (`|object − camera| < 385`). **Correction
+  2026-11-15**, from the asm: neither is a screen test. The first is the
+  spark bound of the screen transition `func_8001F6CC` (sparks kept at
+  x < 385); the second is floor contact, the largest height gap accepted
+  between an object and the floor under it (385 above, 259 below). Plus the
+  overlay copies
   `0x800BECB8` / `0x800C2B80`; `auto_screen_x = true` widened them all (a
   regen of 11 s whose diff is exactly the substitutions). The player then
   found a 54 × 22 block of texture noise at the right edge of the castle
@@ -1131,7 +1141,13 @@ read/write), `psxrecomp/tools/overlay_xref.py` for code that lives in the BIN
 modules (the pages the runtime has executed only; `tools/bin_listing.py OUT
 [MAP ACTION …]` reads the whole modules from disc 1 and writes listings at
 `0x800BBEF0`, which is how MAP.BIN was searched on 2026-10-15),
-`symbols.toml` to name functions as they are understood.
+`symbols.toml` to name functions as they are understood. Three of its
+names are older than what the code was later read to do: `GameFlowMain`
+(`0x8004BF84`) is the event-script interpreter (cutscenes and the tutorial,
+once per frame in mode 8 sub 5), `LoadStage` (`0x8003A9B0`) resets sound,
+render, objects, pickups, textures and the camera before an area / stage
+change and reads nothing from the disc, and `HeroCombat` (`0x80040DCC`)
+resolves the collisions and hits of every object.
 
 
 ### Play sessions
