@@ -988,33 +988,50 @@ worked examples this one follows.
   `0x800BECB8` / `0x800C2B80`; `auto_screen_x = true` widened them all (a
   regen of 11 s whose diff is exactly the substitutions). The player then
   found a 54 × 22 block of texture noise at the right edge of the castle
-  corridor (area 1 / stage 19). `ws_census` + `wtrace` traced it: shaded
-  textured quads at screen X 381‥462, written by the mesh packet writer
-  `func_80023130` (pc `0x80023234`) for a model that `func_800213C8`
-  draws from its single call site `0x80021094`; texture page (640, 0),
-  CLUT (640, 245), which holds no texture in that stage. It follows the
-  camera. **Correction 2026-10-16:** `func_800213C8` is the generic model
-  renderer of the render lists at `0x8009E840` (stage objects, enemies and
-  the hero; see *DATA.CDR layout and the hero*), not a hero-only renderer,
-  and the hero's 14 body meshes use the page at (384, 0) in that stage
-  (`tools/datacdr.py hero 1 19`), so the parked part is not one of them. The
-  parts table at `0x8006DE70` points into the hero's skeleton entry, so a
-  hero-attached piece is still possible; the owner is unverified. The
-  block is still there with every cull back to stock, so it is not a cull
-  artefact: the game parks an unused model part some 220‥300 px right of the
-  hero, where the 4:3 draw area clips it on a console and the wide surface
-  does not. The widening therefore bought nothing visible (the first
-  forest and town captures already drew to both edges: the stock object
-  cull reaches 193 px past the 4:3 edge, enough for 16:9 and 21:9) and the
-  tree was regenerated back to stock culls (`[widescreen.cull]
-  auto_screen_x = false`, no sites). What would hide the block: pushing
-  the parked part further out from a hook on `0x800213C8` once its owner
-  is known, or an upstream rule that skips textured
-  primitives outside the canonical frame whose texture page was never
-  uploaded in the stage (`BACKLOG.md`). The stale-cache note still applies:
+  corridor (area 1 / stage 19), and it stayed with every cull back to
+  stock, so it was not a cull artefact (its cause: *The noise block*
+  below; the 2026-10-15 trace that blamed a parked model part with an
+  unloaded texture page is superseded). The widening bought nothing
+  visible (the first forest and town captures already drew to both edges:
+  the stock object cull reaches 193 px past the 4:3 edge, enough for 16:9
+  and 21:9) and the tree was regenerated back to stock culls
+  (`[widescreen.cull] auto_screen_x = false`, no sites). The stale-cache
+  note still applies:
   every regen moves the cache tag, and an old `cache/gcc/<tag>` directory
   next to the exe makes the loader log `OVERLAY CACHE HASH MISMATCH`, a
   false alarm while the static shard serves every overlay; delete it.
+- **The noise block** (fixed 2026-11-16). The player's screenshot of
+  2026-10-15 is the side-view stretch of the castle corridor (1/19) with
+  the spike holes, not the forward-view stretch their later quick save
+  sits in (the reason a check on 2026-11-14 saw nothing); walking from
+  that save through the door and right brings it back on every frame.
+  `ws_census` there: the quads at the block (y 124‥148) are POLY_FT4
+  (`0x2E`, semi-transparent) with one edge at x 382 and the other at
+  638‥982, in the packets of prim record 16 of three nodes (the
+  decomp's `tools/live.py owner`). Record 16 is `ModelDrawR16`
+  (`0x80023A24`; github victor-takai/dragon-valor-decomp
+  `src/main/r2A_drawers.c`): lens sprites, each a quad that redraws the
+  frame buffer under it (15-bit texture page at the buffer's VRAM row),
+  24 in a ring around each red orb of that corridor. It clamps the
+  rectangle's right edge to x 383 and never tests the left one, so a
+  sprite wholly right of the frame (left ≥ 384, and the GTE clamps the
+  centre at 1023, so every orb anywhere to the right qualifies) comes out
+  inverted, from x 382 to left + 1, with its texture page at
+  `left >> 6` ≥ column 6 (VRAM x 576 / 704 / 896 seen): texture data read
+  as 15-bit colour. The console's 384-column draw area shows two columns
+  of it; the wide surface shows the rest. Fix: `dragonvalor.widescreen`
+  registers a function-entry hook on `ModelWeldReset` (`0x80021CE4`,
+  added to `[recompiler] mod_function_entry_funcs`; the regen changed one
+  line of `generated/SLUS_010.92_full_06.c`), which the frame draw calls
+  right after `ModelRender` and `ModelWeldVertices` and before
+  `DrawOTag`. The hook walks the two render lists and, for the buffer
+  being built (`0x8009F84C`), collapses every record-16 packet whose
+  texture page column is 6 or more to zero width (xy1 = xy0, xy3 = xy2).
+  Checked on build-debug with the player's corridor save: the same walk
+  that showed the block in all six captures shows none, the on-screen
+  orbs keep their lens, the counter `dv.ws.lens_offframe_hidden`
+  (`mod_counters`) climbs about 24 per off-frame orb per frame, and with
+  the package off the hook does nothing (ws mode 0, no counter).
 - **Checked** on build-debug, OpenGL, 1080p, PGXP on, from save state 0:
   `tests/test_widescreen.py on` 5/5 (mode 2, 128 columns, still wide with
   the pause up, window 16:9) and `off` 4/4; 0 unknown dispatches, the

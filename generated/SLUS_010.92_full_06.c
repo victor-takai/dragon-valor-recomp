@@ -4781,6 +4781,7 @@ void func_80021CE4(CPUState* cpu)
         }
     }
     debug_server_log_call_entry(0x80021CE4u);
+    if (psx_mod_function_entry(cpu, 0x80021CE4u)) return;  /* trusted opt-in game-mod hook */
     /* Address: 0x80021CE4, Size: 84 bytes, Blocks: 3 */
 
 block_80021CE4:

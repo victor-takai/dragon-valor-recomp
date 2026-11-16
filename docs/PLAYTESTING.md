@@ -55,10 +55,10 @@ Nobody has played the game through on this build yet. In rough priority:
    shortcut) with the settings you used.
 7. **Widescreen** (Mods > Display > Widescreen, experimental). Stages should
    show real scenery in the extra width; the title, menus and movies stay
-   4:3 with side bars. Known: a small block of texture noise can sit just
-   right of the 4:3 area in some stages. Report anything else: HUD pieces
-   in odd places, a screen that should have stayed 4:3, missing scenery at
-   the edges.
+   4:3 with side bars. Report HUD pieces in odd places, a screen that
+   should have stayed 4:3, missing scenery at the edges, or a block of
+   garbage at an edge (the one in the castle corridor is fixed since
+   2026-11-16).
 8. **Cheats mod.** Infinite HP / MP, "Gem every N sword kills", "Scroll every
    N magic kills", and the in-game
    menu's Val / stats / spell / item editors: anything that does not take

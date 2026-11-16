@@ -73,9 +73,10 @@ the native 60 Hz version.
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
   predicate), title / menus / movies stay 4:3, the HUD keeps its 4:3
   positions; the game's own screen-X rejects are left stock (widening
-  them bought nothing visible). Known blemish: a block of texture noise at
-  the right edge in some stages, a parked model part (owner unverified)
-  (`BACKLOG.md`, section F). `tests/test_widescreen.py on|off` 5/5 and 4/4;
+  them bought nothing visible). The block of texture noise at the right
+  edge of the castle corridor (1/19) is fixed (2026-11-16): off-frame lens
+  sprites of prim record 16, collapsed by the plugin (`BACKLOG.md`,
+  section F). `tests/test_widescreen.py on|off` 5/5 and 4/4;
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see
   `DEVELOPMENT.md`, *This project's package:

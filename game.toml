@@ -54,7 +54,10 @@ strict = true
 #   0x8006C250  pad-response copy (SIO response buffer -> game pad struct),
 #               called once the frame's SIO exchange is complete;
 #               dragonvalor.skip-intro writes Start into the response there.
-mod_function_entry_funcs = ["0x8006C250"]
+#   0x80021CE4  ModelWeldReset, called by the frame draw right after the model
+#               drawers and before DrawOTag; dragonvalor.widescreen collapses
+#               the off-frame lens quads (prim record 16) there.
+mod_function_entry_funcs = ["0x8006C250", "0x80021CE4"]
 
 [runtime]
 window_title = "Dragon Valor Recompiled"
@@ -116,10 +119,11 @@ gte_game_mode = true
 # `psxrecomp-analyze SLUS_010.92 --scan-widescreen` finds two of them: the
 # mesh renderer's per-vertex `sltiu 385` at 0x8001FE1C and func_800401D8's
 # object cull (`slti 385` at 0x80040334 / 0x8004034C, |object - camera|).
-# Both were widened on 2026-10-15 (auto_screen_x) and the first one let in
-# a mesh the game parks just past the right edge with no texture loaded (a
-# block of noise at camera + ~400); the stock rejects already draw scenery
-# and objects to the 16:9 and 21:9 edges, so nothing is widened. Setting
+# Both were widened on 2026-10-15 (auto_screen_x) and withdrawn: neither is
+# a screen test (DEVELOPMENT.md, *Culling*), and the stock rejects already
+# draw scenery and objects to the 16:9 and 21:9 edges, so nothing is
+# widened. (The noise block blamed on them then is the off-frame lens
+# sprites of prim record 16, fixed by the plugin; DEVELOPMENT.md.) Setting
 # screen_x_sites / slti_sites here is a code-generator substitution:
 # regenerate generated/ afterwards (docs/DEVELOPMENT.md, *Culling*).
 [widescreen.cull]

@@ -23,7 +23,6 @@ No BIOS is needed. Controls are in `CONTROLS.md`.
 
 - Not played yet: disc 2 onwards, the ending, and the Linux and macOS builds.
 - A `psx_freeze_dump_*.json` file appears next to the executable on every start; it is harmless and deleted at the next one.
-- Widescreen: a small block of texture noise can sit at the right edge in some stages.
 - Save states may not load in a later release; keep Memory Card saves for your progress.
 
 Bugs and feedback: [`docs/PLAYTESTING.md`](https://github.com/victor-takai/dragon-valor-recomp/blob/master/docs/PLAYTESTING.md) says what to test and which files to attach; report with the [bug form](https://github.com/victor-takai/dragon-valor-recomp/issues/new/choose).
