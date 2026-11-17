@@ -54,7 +54,9 @@ ending and the Linux / macOS builds are untested
 
 In the game, **Esc** (or **Select + Start** on the pad) opens the menu.
 Cheats, Skip Intro, widescreen, Play as and HD texture packs are switched on in the
-launcher's **Mods** page. Keys and buttons: [`CONTROLS.md`](CONTROLS.md).
+launcher's **Mods** page; the one fix that is on by default (the transition
+stripe of the OpenGL renderer) can be switched off there too. Keys and
+buttons: [`CONTROLS.md`](CONTROLS.md).
 Memory card saves live in `saves/`.
 
 Found a bug? [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md) says what to test

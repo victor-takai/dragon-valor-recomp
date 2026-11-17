@@ -5,7 +5,8 @@
 
 For every mods/preloaded/packages/<id>/<version>/manifest.toml:
   - the directory names match the manifest's id / version
-  - every feature is default-disabled, or default-on but inert (all options off)
+  - every feature is default-disabled, or default-on but inert (all options off),
+    or one of the default-on fixes listed in DEFAULT_ON_FIXES
   - every [[option]] / [[plugin]] names a declared feature
   - integer options have min <= default <= max on the step grid
   - every [[plugin]] id is registered in mods/plugins/*.c
@@ -25,6 +26,12 @@ PACKAGES = ROOT / "mods" / "preloaded" / "packages"
 PLUGIN_SRC = "\n".join(Path(p).read_text(encoding="utf-8", errors="replace")
                        for p in glob.glob(str(ROOT / "mods" / "plugins" / "*.c*"))
                        + glob.glob(str(ROOT / "psxrecomp" / "runtime" / "src" / "mod_builtin_*.c")))
+# Default-on features that change the picture on purpose: workarounds that make
+# the recomp draw what a console draws (decided 2026-11-17; each one can be
+# switched off in the launcher's Mods page). (package id, feature id).
+DEFAULT_ON_FIXES = {
+    ("dragonvalor.fixes", "screen-copy-seam"),   # GL screen-copy stripe at x 256
+}
 
 
 def check(manifest: Path) -> list[str]:
@@ -39,7 +46,7 @@ def check(manifest: Path) -> list[str]:
     if not features:
         errors.append("no [[feature]]")
     for fid, f in features.items():
-        if f.get("default_enabled", False):
+        if f.get("default_enabled", False) and (m.get("id"), fid) not in DEFAULT_ON_FIXES:
             # A default-on feature is allowed only when it is inert as shipped:
             # every boolean option off and every integer option at its minimum
             # (the cheats feature stays in the plan so the in-game menu can

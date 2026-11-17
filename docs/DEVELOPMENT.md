@@ -968,9 +968,37 @@ worked examples this one follows.
   world-scene predicate (`psx_mod_set_world_scene_predicate`) therefore
   reports gameplay for every frame with the mode byte `0x8008634C == 8` (the
   action module; sub-state 5 in play, 7 paused), sampled once per VBlank and
-  re-read after a save-state load. The status screen (Triangle) keeps its
-  panel 4:3-centred with the wide stage behind it. FMV detection is separate
+  re-read after a save-state load. FMV detection is separate
   (`mdec_recently_active`) and unaffected.
+- **4:3 screens inside the action module** (2026-11-17, from the player's
+  play test: "the open menu shows the sides", "the stage-change effects
+  only run in the original area"). The magic / item menu (mode 7,
+  Triangle) is a 384 × 240 panel over a stage that keeps being drawn, so
+  the GTE detector kept it wide with the stage at both sides. The screen
+  transitions (`g_Transition` `0x800A2EF8`; decomp
+  `src/main/r2B_transitions.c`) freeze, move and fade copies of the frame
+  buffer's 384 columns, so in a wide frame they ran inside the 4:3 area
+  while the live stage went on at the sides; the motion blur some event
+  scripts switch on (`g_Render.blurOn`, `0x8009F8A8`) is the same kind of
+  copy and showed as a lighter 4:3 rectangle. The plugin registers a
+  native-scene predicate (`gpu_ws_set_native_scene_predicate` from the
+  runtime's `gpu.h`, not re-exported by `mod_plugins.h`; nonzero = present
+  this frame at 4:3 with side bars; activation clears it, so it belongs to
+  the session's plugin) that says so for mode 7, while
+  `g_Transition.state != 0` and while the blur is on, sampled per VBlank
+  like the world predicate. The pause screen (Start) stays wide: its
+  darkening tile is extended by the renderer. The world map and its Status
+  screen (modes 10 / 13) were already 4:3 (2D, no projection).
+- **Dialogue border** (2026-11-17, "the dialogue bar does not span the
+  screen"). The message window's black band is a 384-wide TILE the renderer
+  already extends; its top border is six identical 64 × 8 sprites from x 0
+  to 383 (decomp `src/main/exeE_msgwin.c`, `MsgWinWork +0x0C`), so the
+  border stopped at the 4:3 edges. The `ModelWeldReset` entry hook tags the
+  leftmost border sprite of the buffer about to be drawn as a repeating
+  rectangle (`gpu_ws_tag_repeat_rect`, `gpu.h`, period 64; the tag is the
+  address of the word before the `0x64` command of the E1 + SPRT packet,
+  only while `g_EventVm.winList[frame]` is set), and the renderer repeats it
+  into the side margins only.
 - **Numbers.** The stage is 384 pixels wide (`0x180`, `video_info
   display_w`): 16:9 reveals 128 extra columns (64 per side, `ws_nw
   nw_extra`), 21:9 reveals 288. Debug-server knobs used for the A/B without
@@ -1049,6 +1077,62 @@ worked examples this one follows.
   after the regen together with `tests/test_menu.py`. Not checked: later
   chapters, the field module (`MAP.BIN`) scenes, in-stage movies, the
   software renderer, a real resize with Fit.
+  2026-11-17: the test now starts from test state 10 (`--state 9` also
+  works; it refuses slot 0, the player's quick save) and also checks the
+  menu and a transition at 4:3 and the stage wide again after each: `on`
+  9/9, `off` 4/4. The transition is started from RAM and the state
+  reloaded afterwards: an effect allocates its packets from
+  `g_GameState.arena`, the stage's work area, so a stage cannot resume
+  after an effect it did not start (the emulation stops on an unknown
+  dispatch from `0x800C3FB0` a few frames later; a real scene change
+  loads the next stage first). Composed frames (`present_shot`) of the
+  menu, GAME OVER → CONTINUE (effect 7) into 3/1's opening scene with its
+  dialogues, effect 2, the pause, the blur and the world map of area 1
+  match the description above.
+
+#### This project's package: `dragonvalor.fixes` (2026-11-17, on by default)
+
+Workarounds for places where the recomp draws something differently from a
+console. Package 1.0.0, feature `screen-copy-seam` ("Transition stripe
+fix", group Display, **on by default**: the one exception in
+`tests/test_manifests.py` `DEFAULT_ON_FIXES`), plugin
+`mods/plugins/dragonvalor_fixes.c`, id `dragonvalor.fixes`.
+
+- **The stripe.** During the screen transitions and the motion blur the
+  OpenGL renderer drew a coloured vertical line at x 256, two thirds across
+  the screen, 4:3 and wide alike (the player's "a stripe in the middle of
+  the screen at some moments"); the software renderer does not. The effects
+  redraw the frame buffer with itself as a 15-bit texture in two sprites:
+  the left 256 columns from the texture page at x 0, the right 129 (blur:
+  128) from the page at x 256, both from u 0. The GL texel fetch at a
+  page's first column lands just before u 0 and wraps to u 255 of the same
+  page: VRAM x 511, texture memory. The transitions feed each frame back
+  into the next, so the column grows into the stripe. Checked in VRAM
+  (`vram_peek` and `gl_fbo_peek` agree): column 256 bright and coloured
+  while column 255 had faded to black.
+- **Fix.** At the entry of `ModelWeldReset` (`0x80021CE4`, before
+  `DrawOTag` of the frame, the transition chain and the window list) the
+  plugin walks the transition chain of the buffer about to be drawn
+  (`g_Transition.ot[frame]`) and, for every 15-bit textured SPRT (with its
+  E1 page word) or POLY_FT4 that starts at u 0 on a page column ≥ 1 and
+  spans at most 192 texels, moves it one page column left with u + 64: the
+  same VRAM texels, with the real picture column left of the first one.
+  The right blur sprite of that buffer gets the same while the blur is on.
+  Every word is put back at the next frame's entry if it still holds the
+  patched value (effect 7 rewrites u every frame), transition words only
+  while the same chain and effect are installed, and a save-state load
+  forgets the list. Counter `dv.fix.screen_copy_words` (`mod_counters`).
+- **Left as is.** A faint seam at x 255 / 256 remains in the feedback
+  effects (the left sprite covers a whole page, so its edge cannot be
+  moved), and effect 0 (the dissolve of the next stage of an area) turns
+  white on GL instead of fading to black, with or without the fix: the
+  renderer's modulation of those copies, not this seam (*Comparing
+  renderers* below; `PLAYTESTING.md` item 6).
+- **Checked:** `tests/test_fixes.py` (effect 2 from test state 10, VRAM
+  columns 255 / 256 of both buffers one second in): on 3/3 (largest step 2
+  colour levels, counter 180), `--off` 2/2 (the stripe: 20 levels).
+  Composed frames of effects 0, 2, 7 and the blur show no stripe, 4:3 and
+  16:9.
 
 #### This project's package: `dragonvalor.heroswap` "Play as" (2026-11-17, experimental)
 
@@ -1332,9 +1416,10 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   New Game.
 - **Committed tests** (`tests/test_manifests.py`, `test_cheats.py`, `test_drop_cheat.py`,
   `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`,
-  `test_heroswap.py HERO`).
+  `test_fixes.py [--off]`, `test_heroswap.py HERO`).
   `python tests/test_manifests.py` checks every mod
-  manifest statically (ids, default-off features, option bounds, plugin ids
+  manifest statically (ids, default-off features except the listed fixes,
+  option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
   exercises the cheat plugins on a running debug build from slot 0 (see *This
   project's package* for the `state.toml` setup); `python

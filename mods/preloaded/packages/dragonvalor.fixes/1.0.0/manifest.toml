@@ -1,0 +1,27 @@
+# Dragon Valor (USA) "Fixes". The plugin (mods/plugins/dragonvalor_fixes.c)
+# works around places where the recomp draws something differently from a
+# console. Nothing is patched on disc; the only RAM it writes is GPU packets of
+# the frame about to be drawn, put back the next frame. On by default.
+format_version = 7
+id = "dragonvalor.fixes"
+version = "1.0.0"
+name = "Dragon Valor Fixes"
+author = "Dragon Valor Recomp"
+description = "Fixes for things the recomp draws differently from a console. On by default."
+license = "MIT"
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "SLUS-01092"
+
+[[feature]]
+id = "screen-copy-seam"
+name = "Transition stripe fix"
+description = "Removes the coloured vertical stripe two thirds across the screen during scene transitions and the motion blur (OpenGL renderer). The effects copy the screen in two halves; the right half's first column read texture memory instead of the picture."
+group = "Display"
+default_enabled = true
+
+[[plugin]]
+feature = "screen-copy-seam"
+id = "dragonvalor.fixes"

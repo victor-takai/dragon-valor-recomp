@@ -76,11 +76,22 @@ the native 60 Hz version.
   them bought nothing visible). The block of texture noise at the right
   edge of the castle corridor (1/19) is fixed (2026-11-16): off-frame lens
   sprites of prim record 16, collapsed by the plugin (`BACKLOG.md`,
-  section F). `tests/test_widescreen.py on|off` 5/5 and 4/4;
+  section F). After the player's play test (2026-11-17): the magic / item
+  menu, the screen transitions and the event motion blur present at 4:3
+  with side bars (they only cover the 4:3 frame), and the dialogue
+  window's top border runs to both edges. `tests/test_widescreen.py on|off`
+  9/9 and 4/4 (test state 10);
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
+- **Transition stripe fixed** (2026-11-17): `dragonvalor.fixes`, on by
+  default. The coloured vertical line two thirds across the screen during
+  scene transitions and the blur (OpenGL renderer, any aspect): the GL
+  texel fetch at the first column of the right half's texture page read
+  VRAM x 511; the plugin moves those screen copies one page column left
+  (same texels). `tests/test_fixes.py` 3/3, `--off` 2/2 shows the stripe.
+  The white-out of effect 0 on GL is a separate, older renderer issue.
 - **Chapter 2 reached** (2026-10-16): the player finished chapter 1 (Clovis)
   on this build and plays chapter 2 as Kodel at 60 fps; their save state at
   its first stage (area 3 / stage 1) is the third test state

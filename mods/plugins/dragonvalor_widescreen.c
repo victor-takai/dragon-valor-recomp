@@ -41,9 +41,32 @@
  *     left alone. ModelWeldReset is listed in game.toml [recompiler]
  *     mod_function_entry_funcs.
  *
- * The only guest RAM written is those packets of the buffer about to be
+ *   - Screens drawn for 4:3 only (seen 2026-11-17 in a play test). The
+ *     magic / item menu (mode 7, Triangle) is a 384 x 240 panel over the
+ *     stage, which keeps being drawn and projected, so the GTE detector kept
+ *     the frame wide and the stage showed at both sides of the panel. The
+ *     screen transitions (g_Transition 0x800A2EF8, src/main/r2B_transitions.c
+ *     in the decomp) freeze, move and fade copies of the frame buffer's
+ *     384 columns, so in a wide frame they ran inside the 4:3 area while
+ *     the live stage went on at the sides. The motion blur some event
+ *     scripts switch on (g_Render.blurOn, FrameDraw) is the same kind of
+ *     copy: a lighter 4:3 rectangle in a wide frame. A native-scene
+ *     predicate (gpu_ws_set_native_scene_predicate: nonzero = present this
+ *     frame at 4:3 with side bars) says so for mode 7, while a transition
+ *     runs (g_Transition.state != 0) and while the blur is on, sampled once
+ *     per VBlank like the world predicate.
+ *
+ *   - The dialogue window's top border (src/main/exeE_msgwin.c): six
+ *     identical 64 x 8 sprites from x 0 to 383 along the top of the black
+ *     band (the band itself, a 384-wide TILE, is already extended by the
+ *     renderer), so the border stopped at the 4:3 edges. The hook below
+ *     tags the leftmost sprite of the buffer about to be drawn as a
+ *     repeating rectangle (gpu_ws_tag_repeat_rect, period 64): the renderer
+ *     repeats it into the side margins only.
+ *
+ * The only guest RAM written is the lens packets of the buffer about to be
  * drawn. Everything is inert unless the package is enabled: activation is
- * the only thing that sets s_enabled, and the predicate checks it first;
+ * the only thing that sets s_enabled, and the predicates check it first;
  * the hook runs only while the package's plan is active.
  */
 #include <stdio.h>
@@ -59,16 +82,32 @@
 
 #define DV_MODE         0x8008634Cu   /* u8 game mode: 8 = action stage */
 #define DV_MODE_ACTION  8u
+#define DV_MODE_MENU    7u            /* magic / item menu (Triangle) */
+#define DV_TRANSITION   0x800A2EF8u   /* g_Transition: s32 state (0 = off) */
+#define DV_BLUR_ON      0x8009F8A8u   /* u8 g_Render.blurOn (g_Render + 0x1068) */
+
+/* Renderer services of psxrecomp's gpu.h (runtime/include/gpu.h) that
+ * mod_plugins.h does not re-export; mod activation clears the native-scene
+ * predicate, so it belongs to this session's plugin like the world one. */
+void gpu_ws_set_native_scene_predicate(int (*predicate)(void));
+void gpu_ws_tag_repeat_rect(uint32_t prim, int32_t period);
 
 static int s_enabled;
 /* The predicate runs on every primitive and GTE projection, so the mode byte
  * is sampled once per VBlank (as RidgeRacerType4Recomp's plugin does); a
  * save-state load invalidates the sample, and an invalid one reads live. */
-static int s_scene_valid, s_scene_value;
+static int s_scene_valid, s_scene_value, s_native_value;
 
 static int dv_ws_scene_live(void)
 {
     return s_enabled && psx_mod_read_byte(DV_MODE) == DV_MODE_ACTION;
+}
+
+static int dv_ws_native_live(void)
+{
+    return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_MENU ||
+                         psx_mod_read_word(DV_TRANSITION) != 0u ||
+                         psx_mod_read_byte(DV_BLUR_ON) != 0u);
 }
 
 static int dv_ws_scene(void)
@@ -77,9 +116,16 @@ static int dv_ws_scene(void)
     return dv_ws_scene_live();
 }
 
+static int dv_ws_native(void)
+{
+    if (s_scene_valid) return s_native_value;
+    return dv_ws_native_live();
+}
+
 static void dv_ws_vblank(void)
 {
     s_scene_value = dv_ws_scene_live();
+    s_native_value = dv_ws_native_live();
     s_scene_valid = 1;
 }
 
@@ -111,6 +157,33 @@ static int dv_ws_ram_ptr(uint32_t p)
     return p >= 0x80000000u && p < 0x80200000u && !(p & 3u);
 }
 
+/* g_EventVm (0x8009F998): MsgWinWork pointer at +0x7C, the window's display
+ * list per buffer at +0x124 (0 while no window is up). MsgWinWork +0x0C
+ * points at the border sprites: 6 pairs (one per buffer) of a DR_TPAGE
+ * merged with a SPRT, 0x1C bytes each: tag, E1 word, nop, the 0x64 command
+ * at +0x0C, xy, uv / CLUT, wh. The renderer's tag takes the address of the
+ * word before the command. */
+#define DV_EVENTVM_MSGWORK    0x8009FA14u
+#define DV_EVENTVM_WINLIST    0x8009FABCu
+#define DV_MSGWIN_EDGE        0x0Cu
+#define DV_MW_SPRT_SIZE       0x1Cu
+#define DV_MW_BORDER_PERIOD   64
+
+static void dv_ws_tag_dialogue_border(uint32_t frame)
+{
+    uint32_t work, edge, sprt;
+    if (psx_mod_read_word(DV_EVENTVM_WINLIST + frame * 4u) == 0u) return;
+    work = psx_mod_read_word(DV_EVENTVM_MSGWORK);
+    if (!dv_ws_ram_ptr(work)) return;
+    edge = psx_mod_read_word(work + DV_MSGWIN_EDGE);
+    if (!dv_ws_ram_ptr(edge)) return;
+    sprt = edge + frame * DV_MW_SPRT_SIZE;   /* sprite 0 (x 0) of this buffer */
+    if ((psx_mod_read_word(sprt + 0x0Cu) >> 24) != 0x64u) return;
+    if ((psx_mod_read_word(sprt + 0x10u) & 0xFFFFu) != 0u) return;   /* x 0 */
+    if ((psx_mod_read_word(sprt + 0x18u) & 0xFFFFu) != (uint32_t)DV_MW_BORDER_PERIOD) return;
+    gpu_ws_tag_repeat_rect(sprt + 0x08u, DV_MW_BORDER_PERIOD);
+}
+
 static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
 {
     uint32_t frame, list, i, k, hidden = 0;
@@ -118,6 +191,7 @@ static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
     (void)address;
     if (!s_enabled) return;
     frame = psx_mod_read_byte(DV_RENDER_FRAME) & 1u;
+    dv_ws_tag_dialogue_border(frame);
     for (list = 0; list < 2u; list++) {
         uint32_t count = psx_mod_read_word(DV_RENDER_COUNTS + list * 4u);
         if (count > DV_RENDER_LIST_SLOTS) continue;
@@ -165,6 +239,7 @@ static void dv_ws_activate(void)
     if (fit && !psx_mod_set_adaptive_display_aspect(0u, 0u))
         fprintf(stderr, "dragonvalor.widescreen: adaptive display aspect refused\n");
     psx_mod_set_world_scene_predicate(dv_ws_scene);
+    gpu_ws_set_native_scene_predicate(dv_ws_native);
 }
 
 PSX_MOD_CONSTRUCTOR(dv_register_widescreen)
