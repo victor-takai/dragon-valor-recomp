@@ -93,9 +93,11 @@ the native 60 Hz version.
   `tools/heroswap.py` and served by `dragonvalor.heroswap` (hooks on
   `StageBuffersAlloc` and `PackInstall`). All eight other heroes (disc-2
   ones too) play Clovis's 1/7 and Mihael the prologue's 0/1, each run of
-  `tests/test_heroswap.py` passing (2026-11-16/17). Open: menus and save
-  still name the area's hero,
-  cutscenes that move the hero by animation slot, long play
+  `tests/test_heroswap.py` passing (2026-11-16/17); the Status screen's
+  portrait and the menus' name follow the swap (2026-11-17) and the stage
+  hero comes back in every other stage. Open: one folder per stage (a
+  "play as" choice in game is next), cutscenes that move the hero by
+  animation slot, long play
   (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own

@@ -1082,11 +1082,21 @@ happens when that stage loads: entering it, or GAME OVER → CONTINUE in it.
   the install. The CD read is untouched, so a rebuilt file longer than its
   place on the disc still arrives whole.
 
-Not handled yet: `g_Hero.index` still follows the area (menu names, the
-save's hero, the object scripts' hero space); event scripts that move the
-hero by animation slot (cutscenes) may give the new hero another hero's
-motions; enemy groups of 5/19, 5/20, 5/24 and 12/29 upload other images
-into the hero's texture page.
+**Portrait and name (2026-11-17).** The Status screen's portrait (80 x 64,
+VRAM (960, 432), CLUT row (0, 500)) is a TIM of file 0, and every event
+image set (pack op 66) has the stage hero's portrait as frame 0, uploaded
+back at each dialogue's end; the tool now carries the source's portrait into
+file 0 and over every copy of the target's in the stage (1/7: also file 112,
+an event pack). The name comes from `g_Hero.index` (0x80086318), which the
+game writes only at a chapter start: heroswap.txt's `hero N`, written by the
+`PackInstall` hook when it replaces the action pack and given back (the old
+value) by the `StageBuffersAlloc` hook when another stage loads. A save made
+inside the swapped stage records the source hero's name.
+
+Not handled yet: event scripts that move the hero by animation slot
+(cutscenes) may give the new hero another hero's motions; enemy groups of
+5/19, 5/20, 5/24 and 12/29 upload other images into the hero's texture
+page.
 
 - **Checked** on build-debug from test state 10 (1/7, Clovis), muted and
   hidden, with `tests/test_heroswap.py FOLDER` (own `mods/state.toml`, the
@@ -1100,9 +1110,14 @@ into the hero's texture page.
   textured in Raxis City. 2026-11-17, the other six into 1/7 with
   `--prune`: Arlen 8/8, Felippe 9/9, Phillip 8/8, Gerome 8/8, Anna 8/8,
   Anita 10/10 (row 0 and slot 1 both raised); every hero of the game but
-  Clovis, each drawn whole with its own look and weapon. Not checked: long
-  play, a whole stage, bosses, cutscenes with the hero, the reload file 81
-  being read.
+  Clovis, each drawn whole with its own look and weapon. With the portrait
+  and the name (2026-11-17), the test also reads VRAM back (`vram_peek`:
+  the rebuilt file 0's last hero-page TIM and portrait, byte for byte),
+  `g_Hero.index`, opens the Status screen (Triangle, mode 7) and leaves for
+  1/9 through a second Continue (no file replaced there, index back): Kodel
+  17/17, the Status screen showing Kodel's portrait and name, Clovis back
+  in 1/9. Not checked: long play, a whole stage, bosses, a dialogue or
+  cutscene with the hero, the reload file 81 being read.
 
 #### Video and audio defaults (measured 2026-10-14)
 

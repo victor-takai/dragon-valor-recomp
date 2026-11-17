@@ -16,8 +16,20 @@
  * heroswap.txt:
  *   target AREA STAGE
  *   patch ADDRESS VALUE          u32 written when the target's buffers are laid out
+ *   hero INDEX                   g_Hero.index while the target stage runs
  *   file N NAME SIZE HEADHEX     rebuilt stage file N; HEADHEX = the original
  *                                file's container head (count + offsets)
+ *
+ * The files are file 0 (the hero's VAB, texture and portrait), file 1 (the
+ * action pack) and any room / event file that holds the hero's texture or
+ * portrait: dialogues upload their speakers' portraits where the Status
+ * screen's is, and frame 0 of each event image set, which the event's END
+ * puts back, is the stage hero's portrait.
+ *
+ * g_Hero.index (0x80086318) names the hero in the menus and the save; the
+ * game writes it at a chapter start only. The hook writes INDEX when it
+ * replaces the target's action pack and gives the old value back when
+ * another stage's buffers are laid out.
  *
  * Two function-entry hooks (game.toml [recompiler] mod_function_entry_funcs):
  *
@@ -56,9 +68,10 @@
 #define DV_STAGE_STAGE        0x800A2F1Au   /* g_StageSelect.stage (s16) */
 #define DV_STAGE_BUFFERS_ALLOC 0x80035AB8u
 #define DV_PACK_INSTALL       0x80035E48u
+#define DV_HERO_INDEX         0x80086318u   /* g_Hero.index (u8) */
 #define DV_RAM_END            0x80200000u
 
-#define DV_HS_MAX_FILES       8
+#define DV_HS_MAX_FILES       32
 #define DV_HS_MAX_PATCHES     4
 
 typedef struct {
@@ -75,6 +88,8 @@ static DvHsFile s_files[DV_HS_MAX_FILES];
 static int s_file_count;
 static uint32_t s_patch_addr[DV_HS_MAX_PATCHES], s_patch_value[DV_HS_MAX_PATCHES];
 static int s_patch_count;
+static int s_hero = -1;          /* g_Hero.index to write, -1 = none */
+static int s_saved_hero = -1;    /* the value it replaced, to give back */
 
 static void dv_hs_clear(void)
 {
@@ -86,6 +101,7 @@ static void dv_hs_clear(void)
     memset(s_files, 0, sizeof s_files);
     s_file_count = s_patch_count = 0;
     s_area = s_stage = -1;
+    s_hero = s_saved_hero = -1;
     s_ready = 0;
 }
 
@@ -163,6 +179,9 @@ static int dv_hs_load(const char* dir)
         if (sscanf(line, "target %d %d", &a, &s) == 2) {
             s_area = a;
             s_stage = s;
+        } else if (sscanf(line, "hero %d", &n) == 1) {
+            if (n < 0 || n > 8) ok = 0;
+            else s_hero = n;
         } else if (sscanf(line, "patch %x %lld", &addr, &value) == 2) {
             if (s_patch_count == DV_HS_MAX_PATCHES || addr < 0x80000000u || addr >= DV_RAM_END) ok = 0;
             else {
@@ -200,7 +219,16 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     int i;
     (void)cpu;
     (void)address;
-    if (!s_ready || !dv_hs_target_loading()) return;
+    if (!s_ready) return;
+    if (!dv_hs_target_loading()) {
+        /* another stage: the hero index the swap replaced comes back */
+        if (s_saved_hero >= 0) {
+            fprintf(stderr, "%s: g_Hero.index back to %d\n", DV_HS_PLUGIN, s_saved_hero);
+            psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_saved_hero);
+            s_saved_hero = -1;
+        }
+        return;
+    }
     for (i = 0; i < s_patch_count; i++) {
         fprintf(stderr, "%s: stage %d/%d layout 0x%08X = %u (was %u)\n", DV_HS_PLUGIN, s_area, s_stage,
                 s_patch_addr[i], s_patch_value[i], psx_mod_read_word(s_patch_addr[i]));
@@ -221,15 +249,19 @@ static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
         for (k = 0; k < fl->head_size; k++)
             if (psx_mod_read_byte(pack + k) != fl->head[k]) break;
         if (k != fl->head_size) continue;
-        for (k = 0; k + 4 <= fl->size; k += 4) {
-            const uint8_t* p = fl->data + k;
-            psx_mod_write_word(pack + k, (uint32_t)p[0] | (uint32_t)p[1] << 8 |
-                                         (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24);
+        if (!psx_mod_host_write_ram(pack, fl->data, fl->size)) {
+            fprintf(stderr, "%s: file %d does not fit at 0x%08X\n", DV_HS_PLUGIN, fl->number, pack);
+            return;
         }
-        for (; k < fl->size; k++) psx_mod_write_byte(pack + k, fl->data[k]);
         psx_mod_counter_add("dv.heroswap.files_replaced", 1);
         fprintf(stderr, "%s: stage %d/%d file %d replaced at 0x%08X (%u bytes)\n",
                 DV_HS_PLUGIN, s_area, s_stage, fl->number, pack, fl->size);
+        if (fl->number == 1 && s_hero >= 0) {
+            uint8_t cur = psx_mod_read_byte(DV_HERO_INDEX);
+            if (s_saved_hero < 0 && cur != (uint8_t)s_hero) s_saved_hero = cur;
+            psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_hero);
+            fprintf(stderr, "%s: g_Hero.index %u -> %d\n", DV_HS_PLUGIN, cur, s_hero);
+        }
         return;
     }
 }
@@ -248,8 +280,8 @@ static void dv_hs_activate(void)
         return;
     }
     s_ready = 1;
-    fprintf(stderr, "%s: stage %d/%d, %d files, %d layout writes from %s\n",
-            DV_HS_PLUGIN, s_area, s_stage, s_file_count, s_patch_count, dir);
+    fprintf(stderr, "%s: stage %d/%d, %d files, %d layout writes, hero index %d from %s\n",
+            DV_HS_PLUGIN, s_area, s_stage, s_file_count, s_patch_count, s_hero, dir);
 }
 
 PSX_MOD_CONSTRUCTOR(dv_register_heroswap)
