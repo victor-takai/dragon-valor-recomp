@@ -1070,6 +1070,35 @@ worked examples this one follows.
   orbs keep their lens, the counter `dv.ws.lens_offframe_hidden`
   (`mod_counters`) climbs about 24 per off-frame orb per frame, and with
   the package off the hook does nothing (ws mode 0, no counter).
+- **The left-margin smear** (fixed 2026-11-17, the player's save in the
+  town of 1/7, menu slot 4, walking up and then left along the wall):
+  horizontal streaks over the lower left margin. `gpu_frame_dump` of one
+  frame, polygons under the streaks: POLY_FT4 `0x2E` quads with texture
+  page `0x100` (the frame buffer, 15-bit), top-left corner at x 1 and
+  top-right corner at x −156‥−734, 2‥14 lines tall, written by
+  `ModelDrawR16` (`wtrace` PCs `0x80023C14‥0x80023C6C`). The mirror of the
+  noise block: for a sprite whose centre is left of the frame the drawer
+  reads x unsigned, clamps the left edge to 0 and keeps the (negative)
+  right one, so a sprite wholly left of the frame comes out inverted from
+  x 1 to right − 1, u from 0 to the right edge's low byte. The console
+  draws at most column 0 of it; the wide surface draws the frame's first
+  columns stretched across the margin. The same `ModelWeldReset` hook now
+  also collapses record-16 packets with xy0.x = 1 and xy1.x < 1. Checked:
+  the walk that showed the streaks has none of those quads in the GP0
+  ring and a clean margin; `tests/test_widescreen.py on` 9/9.
+- **Not fixed, not a bug: black wedges in the margin** where a room's
+  mesh simply ends (the same save, walking left in the garden: a black
+  wedge at the lower left). No polygon covers it (the PGXP triangle ring
+  rasterised over one frame leaves exactly that wedge empty), the only
+  cull before drawing is the ±89° object view cone (wide enough), and on
+  a console a sliver of the same hole shows at the 4:3 edge. Tried and
+  dropped the same day: exact NCLIP for the model drawers' backface tests
+  (`[widescreen] precise_nclip`, `[widescreen.cull] nclip_exact_sites`
+  for the eight `ModelDraw*` branches, plus the plugin's
+  `psx_mod_set_native_wide_nclip_sites` / projection correction). It
+  changed a quarter of the GT3 / GT4 decisions but nothing visible in an
+  on / off comparison of the same frames (`nclip_stats exact=0|1`), and
+  the projection correction never engaged (`projection_vertices` 0).
 - **Checked** on build-debug, OpenGL, 1080p, PGXP on, from save state 0:
   `tests/test_widescreen.py on` 5/5 (mode 2, 128 columns, still wide with
   the pause up, window 16:9) and `off` 4/4; 0 unknown dispatches, the

@@ -41,6 +41,17 @@
  *     left alone. ModelWeldReset is listed in game.toml [recompiler]
  *     mod_function_entry_funcs.
  *
+ *   - Its mirror on the left: the smear of horizontal streaks in the left
+ *     margin (the town of 1/7, seen 2026-11-17 in a play test). For a
+ *     sprite whose centre is left of the frame the drawer reads x unsigned,
+ *     clamps the left edge to 0 and leaves the right one where it is, so a
+ *     sprite wholly left of the frame comes out inverted, from x 1 out to
+ *     its (negative) right edge - 1, texture page column 0, u from 0 to the
+ *     right edge's low byte. The console draws at most column 0 of it; the
+ *     wide surface shows the whole quad: the frame's first columns
+ *     stretched across the margin. The same hook collapses those too
+ *     (top-left corner at x 1, top-right corner left of it).
+ *
  *   - Screens drawn for 4:3 only (seen 2026-11-17 in a play test). The
  *     magic / item menu (mode 7, Triangle) is a 384 x 240 panel over the
  *     stage, which keeps being drawn and projected, so the GTE detector kept
@@ -151,6 +162,7 @@ static void dv_ws_savestate_loaded(void)
 #define DV_FT4_SIZE           0x28u
 #define DV_MODEL_WELD_RESET   0x80021CE4u
 #define DV_FB_TPAGE_COLUMNS   6u   /* frame buffer = VRAM x 0..383 = texture page columns 0..5 */
+#define DV_LENS_LEFT_X        1    /* left edge clamped to 0, corner inset by 1 */
 
 static int dv_ws_ram_ptr(uint32_t p)
 {
@@ -207,7 +219,11 @@ static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
             pk = prims + psx_mod_read_word(rec + 4u) + frame * DV_FT4_SIZE;
             if (!dv_ws_ram_ptr(pk) || pk + n * 2u * DV_FT4_SIZE > 0x80200000u) continue;
             for (k = 0; k < n; k++, pk += 2u * DV_FT4_SIZE) {
-                if ((psx_mod_read_half(pk + 0x16u) & 0xFu) < DV_FB_TPAGE_COLUMNS) continue;
+                int16_t x0 = (int16_t)psx_mod_read_half(pk + 0x08u);
+                int16_t x1 = (int16_t)psx_mod_read_half(pk + 0x10u);
+                int right_of_frame = (psx_mod_read_half(pk + 0x16u) & 0xFu) >= DV_FB_TPAGE_COLUMNS;
+                int left_of_frame = x0 == DV_LENS_LEFT_X && x1 < DV_LENS_LEFT_X;
+                if (!right_of_frame && !left_of_frame) continue;
                 psx_mod_write_word(pk + 0x10u, psx_mod_read_word(pk + 0x08u));
                 psx_mod_write_word(pk + 0x20u, psx_mod_read_word(pk + 0x18u));
                 hidden++;

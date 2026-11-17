@@ -79,7 +79,11 @@ the native 60 Hz version.
   section F). After the player's play test (2026-11-17): the magic / item
   menu, the screen transitions and the event motion blur present at 4:3
   with side bars (they only cover the 4:3 frame), and the dialogue
-  window's top border runs to both edges. `tests/test_widescreen.py on|off`
+  window's top border runs to both edges; the streaks in the left margin
+  (town of 1/7) were the left-side twin of the noise block (off-frame
+  lens sprites drawn inverted) and are collapsed by the same hook. Black
+  wedges where a room's mesh ends stay (no geometry there; a sliver of
+  them shows at the 4:3 edge on a console). `tests/test_widescreen.py on|off`
   9/9 and 4/4 (test state 10);
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see
