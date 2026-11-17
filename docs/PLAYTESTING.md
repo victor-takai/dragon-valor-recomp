@@ -52,9 +52,9 @@ Nobody has played the game through on this build yet. In rough priority:
 6. **Picture.** Anything at high internal resolution that looks wrong
    compared with the console: dissolve transitions too bright, seams,
    flicker, text misaligned. A screenshot (`F12` is not bound; use the OS
-   shortcut) with the settings you used. (The coloured stripe two thirds
-   across the screen during transitions is fixed since 2026-11-17 by
-   Mods > Display > Transition stripe fix, on by default.)
+   shortcut) with the settings you used. (The line two thirds across the
+   screen with bilinear texture filtering, in transitions and on the title
+   screen, is fixed since 2026-11-17 by a renderer patch.)
 7. **Widescreen** (Mods > Display > Widescreen, experimental). Stages should
    show real scenery in the extra width; the title, menus, the magic / item
    menu, screen transitions and movies stay 4:3 with side bars, and the

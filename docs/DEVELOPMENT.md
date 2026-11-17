@@ -1090,49 +1090,46 @@ worked examples this one follows.
   dialogues, effect 2, the pause, the blur and the world map of area 1
   match the description above.
 
-#### This project's package: `dragonvalor.fixes` (2026-11-17, on by default)
+#### The bilinear page-edge seam (2026-11-17, a local psxrecomp patch)
 
-Workarounds for places where the recomp draws something differently from a
-console. Package 1.0.0, feature `screen-copy-seam` ("Transition stripe
-fix", group Display, **on by default**: the one exception in
-`tests/test_manifests.py` `DEFAULT_ON_FIXES`), plugin
-`mods/plugins/dragonvalor_fixes.c`, id `dragonvalor.fixes`.
-
-- **The stripe.** During the screen transitions and the motion blur the
-  OpenGL renderer drew a coloured vertical line at x 256, two thirds across
-  the screen, 4:3 and wide alike (the player's "a stripe in the middle of
-  the screen at some moments"); the software renderer does not. The effects
-  redraw the frame buffer with itself as a 15-bit texture in two sprites:
-  the left 256 columns from the texture page at x 0, the right 129 (blur:
-  128) from the page at x 256, both from u 0. The GL texel fetch at a
-  page's first column lands just before u 0 and wraps to u 255 of the same
-  page: VRAM x 511, texture memory. The transitions feed each frame back
-  into the next, so the column grows into the stripe. Checked in VRAM
-  (`vram_peek` and `gl_fbo_peek` agree): column 256 bright and coloured
-  while column 255 had faded to black.
-- **Fix.** At the entry of `ModelWeldReset` (`0x80021CE4`, before
-  `DrawOTag` of the frame, the transition chain and the window list) the
-  plugin walks the transition chain of the buffer about to be drawn
-  (`g_Transition.ot[frame]`) and, for every 15-bit textured SPRT (with its
-  E1 page word) or POLY_FT4 that starts at u 0 on a page column ≥ 1 and
-  spans at most 192 texels, moves it one page column left with u + 64: the
-  same VRAM texels, with the real picture column left of the first one.
-  The right blur sprite of that buffer gets the same while the blur is on.
-  Every word is put back at the next frame's entry if it still holds the
-  patched value (effect 7 rewrites u every frame), transition words only
-  while the same chain and effect are installed, and a save-state load
-  forgets the list. Counter `dv.fix.screen_copy_words` (`mod_counters`).
-- **Left as is.** A faint seam at x 255 / 256 remains in the feedback
-  effects (the left sprite covers a whole page, so its edge cannot be
-  moved), and effect 0 (the dissolve of the next stage of an area) turns
-  white on GL instead of fading to black, with or without the fix: the
-  renderer's modulation of those copies, not this seam (*Comparing
-  renderers* below; `PLAYTESTING.md` item 6).
-- **Checked:** `tests/test_fixes.py` (effect 2 from test state 10, VRAM
-  columns 255 / 256 of both buffers one second in): on 3/3 (largest step 2
-  colour levels, counter 180), `--off` 2/2 (the stripe: 20 levels).
-  Composed frames of effects 0, 2, 7 and the blur show no stripe, 4:3 and
-  16:9.
+- **What the player saw.** With `texture_filtering = "bilinear"` (the
+  launcher's other choice; the project ships nearest), a coloured vertical
+  stripe at x 256, two thirds across the screen, during the screen
+  transitions and the motion blur ("a stripe in the middle of the screen at
+  some moments"), and a dark line at the same column through the title
+  screen; 4:3 and wide alike, OpenGL only. Every such picture is drawn as
+  two prims meeting at a 256-texel page edge: the transitions and the blur
+  copy the frame buffer from the pages at x 0 and 256, the title draws its
+  picture in a 256 and a 128 half.
+- **Cause** (psxrecomp, not the game). The plain bilinear path fetches the
+  neighbour texels with `fetch_texel`, which wraps u / v to 8 bits before it
+  clamps them to the prim's UV bounds: a neighbour left of u 0 becomes 255
+  and is clamped to the prim's right edge, one past 255 becomes 0, so a
+  prim's edge column blends the far side of its own texture. The feedback
+  transitions grow that column into the stripe (VRAM column 256 bright and
+  coloured while 255 had faded to black; `vram_peek` and `gl_fbo_peek`
+  agree). The framework's `stable_texel` already clamps first; the plain
+  path did not. Upstream: issue RetroPortingToolKit/psxrecomp#719 (another
+  title, the same line on its title screen), PR #896 open; master 31130e90
+  still has the old code.
+- **Fix.** `patches/psxrecomp/0001-bilinear-clamp-neighbours-before-wrap.patch`
+  (applied at configure time like the recomp-ui patches; `patches/README.md`
+  allows psxrecomp patches since 2026-11-17 for bugs with an upstream issue
+  or PR): a neighbour is clamped to the prim's bounds inside the base
+  texel's 256-texel page before it wraps, in the OpenGL shader, the Vulkan
+  shader and the software renderer, the same helper and calls as PR #896.
+  It replaced a game-side workaround of the same day (a `dragonvalor.fixes`
+  plugin that moved the transitions' and the blur's screen copies one page
+  column left with u + 64), which only covered those copies.
+- **Left as is.** Effect 0 (the dissolve of the next stage of an area)
+  turns white on GL instead of fading to black: the renderer's modulation
+  of those copies, not this seam (*Comparing renderers* below;
+  `PLAYTESTING.md` item 6).
+- **Checked:** `tests/test_bilinear_seam.py` (bilinear for the run, effect 2
+  from test state 10, VRAM columns 255 / 256 of both buffers one second
+  in): 3/3, largest step 2 colour levels (20 before). The title screen with
+  bilinear has no line any more (column profile as with nearest), and
+  composed frames of effects 0, 2, 7 and the blur show no stripe.
 
 #### This project's package: `dragonvalor.heroswap` "Play as" (2026-11-17, experimental)
 
@@ -1479,7 +1476,7 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   New Game.
 - **Committed tests** (`tests/test_manifests.py`, `test_cheats.py`, `test_drop_cheat.py`,
   `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`,
-  `test_fixes.py [--off]`, `test_heroswap.py HERO`).
+  `test_bilinear_seam.py`, `test_heroswap.py HERO`).
   `python tests/test_manifests.py` checks every mod
   manifest statically (ids, default-off features except the listed fixes,
   option bounds, plugin ids

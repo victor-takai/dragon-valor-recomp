@@ -1,0 +1,108 @@
+diff --git a/runtime/shaders/geo_tex.frag b/runtime/shaders/geo_tex.frag
+index 02f961c6..a0a05688 100644
+--- a/runtime/shaders/geo_tex.frag
++++ b/runtime/shaders/geo_tex.frag
+@@ -49,6 +49,15 @@ int fetch_texel(int u, int v) {
+     }
+     return vram_at(v_tpage.x + u, v_tpage.y + v);
+ }
++/* Clamp in the base texel's page before fetch_texel wraps: a neighbour past
++ * u/v=255 must not wrap to 0 and blend the far side of the prim. */
++int neighbour_texel(ivec2 base, ivec2 p) {
++    if ((pc.u_twin.x | pc.u_twin.y) == 0) {
++        ivec2 pg = base & ivec2(~255);
++        p = clamp(p, pg + v_limits.xy, pg + v_limits.zw);
++    }
++    return fetch_texel(p.x, p.y);
++}
+ vec3 col5(int raw) {
+     return vec3(float(raw & 31), float((raw >> 5) & 31), float((raw >> 10) & 31)) / 31.0;
+ }
+@@ -77,9 +86,10 @@ void main() {
+         fx = abs(fx); fy = abs(fy);
+         int c00 = fetch_texel(iu, iv);
+         if (c00 == 0) discard;
+-        int c10 = fetch_texel(iu + sx, iv);
+-        int c01 = fetch_texel(iu, iv + sy);
+-        int c11 = fetch_texel(iu + sx, iv + sy);
++        ivec2 b = ivec2(iu, iv);
++        int c10 = neighbour_texel(b, ivec2(iu + sx, iv));
++        int c01 = neighbour_texel(b, ivec2(iu, iv + sy));
++        int c11 = neighbour_texel(b, ivec2(iu + sx, iv + sy));
+         float w00 = (c00 == 0 ? 0.0 : 1.0) * (1.0 - fx) * (1.0 - fy);
+         float w10 = (c10 == 0 ? 0.0 : 1.0) * fx * (1.0 - fy);
+         float w01 = (c01 == 0 ? 0.0 : 1.0) * (1.0 - fx) * fy;
+diff --git a/runtime/src/gpu_gl_renderer.c b/runtime/src/gpu_gl_renderer.c
+index f038644e..2a32d781 100644
+--- a/runtime/src/gpu_gl_renderer.c
++++ b/runtime/src/gpu_gl_renderer.c
+@@ -1976,6 +1976,12 @@ static const char *TEX_FS =
+     "  vec3 k = vec3(float(raw & 31), float((raw >> 5) & 31), float((raw >> 10) & 31));\n"
+     "  return u_accurate != 0 ? k * (8.0 / 255.0) : k / 31.0;\n"
+     "}\n"
++    "int neighbour_texel(ivec2 base, ivec2 p){\n"
++    "  /* Clamp in the base texel's page before fetch_texel wraps: a neighbour\n"
++    "   * past u/v=255 must not wrap to 0 and blend the far side of the prim. */\n"
++    "  if ((v_twin & 1023) == 0){ ivec2 pg=base & ivec2(~255); p=clamp(p,pg+v_limits.xy,pg+v_limits.zw); }\n"
++    "  return fetch_texel(p.x,p.y);\n"
++    "}\n"
+     "int stable_texel(ivec2 p){\n"
+     "  /* Clamp before wrap, so a footprint left of u=0 cannot pick up u=255. */\n"
+     "  if ((v_twin & 1023) == 0) p=clamp(p,v_limits.xy,v_limits.zw);\n"
+@@ -2137,9 +2143,10 @@ static const char *TEX_FS =
+     "    fx = abs(fx); fy = abs(fy);\n"
+     "    int c00 = fetch_texel(iu, iv);\n"
+     "    if (c00 == 0) discard;\n"
+-    "    int c10 = fetch_texel(iu + sx, iv);\n"
+-    "    int c01 = fetch_texel(iu, iv + sy);\n"
+-    "    int c11 = fetch_texel(iu + sx, iv + sy);\n"
++    "    ivec2 b = ivec2(iu, iv);\n"
++    "    int c10 = neighbour_texel(b, ivec2(iu + sx, iv));\n"
++    "    int c01 = neighbour_texel(b, ivec2(iu, iv + sy));\n"
++    "    int c11 = neighbour_texel(b, ivec2(iu + sx, iv + sy));\n"
+     "    float w00 = (c00 == 0 ? 0.0 : 1.0) * (1.0 - fx) * (1.0 - fy);\n"
+     "    float w10 = (c10 == 0 ? 0.0 : 1.0) * fx * (1.0 - fy);\n"
+     "    float w01 = (c01 == 0 ? 0.0 : 1.0) * (1.0 - fx) * fy;\n"
+diff --git a/runtime/src/gpu_sw_renderer.c b/runtime/src/gpu_sw_renderer.c
+index e472a06e..2b78b054 100644
+--- a/runtime/src/gpu_sw_renderer.c
++++ b/runtime/src/gpu_sw_renderer.c
+@@ -380,14 +380,17 @@ static uint16_t texel_fetch(int u, int v, uint16_t texpage,
+  * (texel_fetch applies the window instead, which wraps by design). */
+ static int g_uv_lim[4] = { 0, 0, 255, 255 };
+ 
+-static uint16_t bl_fetch(int u, int v, uint16_t texpage,
++/* (u, v) is clamped in the 256-texel page of the base texel (bu, bv) before
++ * it wraps: a neighbour past u/v=255 must not wrap to 0 and blend the far
++ * side of the prim, while a prim that runs past 255 keeps its wrapped texels. */
++static uint16_t bl_fetch(int bu, int bv, int u, int v, uint16_t texpage,
+                          uint16_t clut_x, uint16_t clut_y) {
+-    u &= 0xFF; v &= 0xFF;
+     if (!(g_tw_mask_x | g_tw_mask_y)) {
+-        if (u < g_uv_lim[0]) u = g_uv_lim[0]; else if (u > g_uv_lim[2]) u = g_uv_lim[2];
+-        if (v < g_uv_lim[1]) v = g_uv_lim[1]; else if (v > g_uv_lim[3]) v = g_uv_lim[3];
++        const int pu = bu & ~0xFF, pv = bv & ~0xFF;
++        if (u < pu + g_uv_lim[0]) u = pu + g_uv_lim[0]; else if (u > pu + g_uv_lim[2]) u = pu + g_uv_lim[2];
++        if (v < pv + g_uv_lim[1]) v = pv + g_uv_lim[1]; else if (v > pv + g_uv_lim[3]) v = pv + g_uv_lim[3];
+     }
+-    return texel_fetch(u, v, texpage, clut_x, clut_y);
++    return texel_fetch(u & 0xFF, v & 0xFF, texpage, clut_x, clut_y);
+ }
+ 
+ /* Bilinear texel sample, in RGB space (after the CLUT lookup — never
+@@ -412,11 +415,11 @@ static uint16_t texel_fetch_bilinear(float fu, float fv, uint16_t texpage,
+     if (fx > 128) fx = 128;
+     if (fy > 128) fy = 128;
+ 
+-    uint16_t c00 = bl_fetch(iu, iv, texpage, clut_x, clut_y);
++    uint16_t c00 = bl_fetch(iu, iv, iu, iv, texpage, clut_x, clut_y);
+     if (c00 == 0) return 0x0000;
+-    uint16_t c10 = bl_fetch(iu + su, iv, texpage, clut_x, clut_y);
+-    uint16_t c01 = bl_fetch(iu, iv + sv, texpage, clut_x, clut_y);
+-    uint16_t c11 = bl_fetch(iu + su, iv + sv, texpage, clut_x, clut_y);
++    uint16_t c10 = bl_fetch(iu, iv, iu + su, iv, texpage, clut_x, clut_y);
++    uint16_t c01 = bl_fetch(iu, iv, iu, iv + sv, texpage, clut_x, clut_y);
++    uint16_t c11 = bl_fetch(iu, iv, iu + su, iv + sv, texpage, clut_x, clut_y);
+ 
+     int w00 = (c00 ? 1 : 0) * (256 - fx) * (256 - fy);
+     int w10 = (c10 ? 1 : 0) * fx * (256 - fy);

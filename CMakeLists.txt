@@ -19,7 +19,7 @@ find_package(Git QUIET)
 if(NOT GIT_FOUND)
     message(FATAL_ERROR "git not found: it applies patches/ to the submodules at configure time")
 endif()
-foreach(_dv_sub recomp-ui)
+foreach(_dv_sub recomp-ui psxrecomp)
     file(GLOB _dv_patches "${CMAKE_CURRENT_SOURCE_DIR}/patches/${_dv_sub}/*.patch")
     foreach(_dv_patch ${_dv_patches})
         execute_process(COMMAND "${GIT_EXECUTABLE}" apply --check --reverse "${_dv_patch}"
@@ -107,7 +107,6 @@ target_sources(psx-runtime PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_skip_intro.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_widescreen.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_heroswap.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_fixes.c"
     # In-game menu provider (psx_menu_host.h + recomp-ui's runtime UI); it
     # compiles to nothing when the recomp-ui launcher is off.
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_menu.cpp")

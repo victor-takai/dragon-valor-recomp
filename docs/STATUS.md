@@ -85,13 +85,15 @@ the native 60 Hz version.
   clean too; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
-- **Transition stripe fixed** (2026-11-17): `dragonvalor.fixes`, on by
-  default. The coloured vertical line two thirds across the screen during
-  scene transitions and the blur (OpenGL renderer, any aspect): the GL
-  texel fetch at the first column of the right half's texture page read
-  VRAM x 511; the plugin moves those screen copies one page column left
-  (same texels). `tests/test_fixes.py` 3/3, `--off` 2/2 shows the stripe.
-  The white-out of effect 0 on GL is a separate, older renderer issue.
+- **Bilinear seam fixed** (2026-11-17): with bilinear texture filtering the
+  OpenGL renderer drew a line at x 256, two thirds across the screen (a
+  coloured stripe in the transitions and the blur, a dark line on the title
+  screen): its bilinear neighbours wrapped to the far side of the texture
+  page before the prim clamp. A local psxrecomp patch
+  (`patches/psxrecomp/0001-…`, the same change as the open upstream PR #896
+  for issue #719) clamps first; `tests/test_bilinear_seam.py` 3/3. The
+  game-side workaround of the same day (`dragonvalor.fixes`) is gone. The
+  white-out of effect 0 on GL is a separate, older renderer issue.
 - **Chapter 2 reached** (2026-10-16): the player finished chapter 1 (Clovis)
   on this build and plays chapter 2 as Kodel at 60 fps; their save state at
   its first stage (area 3 / stage 1) is the third test state
