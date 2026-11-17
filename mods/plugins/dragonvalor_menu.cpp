@@ -166,7 +166,7 @@ const RecompRuntimeUiItem kExtraItems[] = {
      "Ends the stage with a Game Over and answers Continue for you: the area and stage above load in about 10 s. Make a save state first: skipped stages can leave items and keys behind. The pad is ignored meanwhile (a dialogue on screen holds the Game Over back until you finish it) and Infinite HP pauses; the 50 Val the Continue costs is given back.",
      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
     {DV_KEY_PLAY_AS, "Experimental", "Play as",
-     "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name, story scenes and dialogues included. Applies at the next stage load; Go now above reloads this stage at once. The first choice turns the feature on, which then needs a restart.",
+     "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name, story scenes and dialogues included. When you close the menu, the stage you are in restarts from its beginning with the new hero (no Game Over; HP, items and Val stay; its doors and keys reset, as with Continue). The first choice turns the feature on, which then needs a restart of the game.",
      RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
 };
 
@@ -393,6 +393,8 @@ int nearest_action_stage(int area, int stage) {
  * next time the menu opens. Timing is wall-clock because the transform may
  * run more than once per guest frame. */
 extern "C" volatile int dv_cheats_hold_hp;
+/* dragonvalor_heroswap.c: restart the running stage at the next plain-play frame. */
+extern "C" volatile int dv_heroswap_restart_request;
 #define DV_MODE        0x8008634Cu
 #define DV_SUB         0x8008634Du
 #define DV_HP          0x8008A5AEu
@@ -590,14 +592,20 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_PLAY_AS)) {
         if (value < 0 || value > 9) return 0;
         m.play_as = value;
-        if (value && !m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[value])) {
+        if (!m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[value])) {
             /* not in the running plan yet: switch the feature on for the next start */
-            (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, nullptr, "true");
-            recomp_runtime_ui_set_status(m.ui, "Saved; takes effect at the next start");
+            if (value) (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, nullptr, "true");
+            recomp_runtime_ui_set_status(m.ui, value ? "Saved; takes effect at the next start" : "Saved");
             return 1;
         }
-        if (!value) (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[0]);
-        recomp_runtime_ui_set_status(m.ui, "From the next stage load (Go now reloads this one)");
+        /* live: the stage being played restarts with this hero once the menu
+         * closes (dv_hs_vblank in dragonvalor_heroswap.c waits for plain play) */
+        if (hero_loaded() && psx_mod_read_byte(0x8008634Cu) == 8) {
+            dv_heroswap_restart_request = 1;
+            recomp_runtime_ui_set_status(m.ui, "This stage restarts with this hero when you close the menu");
+        } else {
+            recomp_runtime_ui_set_status(m.ui, "From the next stage");
+        }
         return 1;
     }
     if (const RamRow* r = ram_row(item)) {

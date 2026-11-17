@@ -5,6 +5,9 @@
                                      [--build build-debug] [--port N] [--play SECONDS]
 
 --state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
+--menu HERO2 then picks HERO2 on the in-game menu's Experimental > Play as
+row: the stage must restart with HERO2 once the menu closes, with no GAME
+OVER and Val / HP kept; the rest of the run continues with HERO2.
 
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita.
 The test writes its own <build>/mods/state.toml (the feature on with that
@@ -87,10 +90,10 @@ def main(argv):
     args = list(argv)
     port = port_from_args(args)
     build, play, ref, prime = "build-debug", 20.0, None, "--prime-disc2" in args
-    slot, leave = 10, (1, 9)
+    slot, leave, menu_hero = 10, (1, 9), None
     if prime:
         args.remove("--prime-disc2")
-    for flag in ("--build", "--play", "--ref", "--state", "--leave"):
+    for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu"):
         if flag in args:
             i = args.index(flag)
             if flag == "--build":
@@ -101,6 +104,8 @@ def main(argv):
                 slot = int(args[i + 1])
             elif flag == "--leave":
                 leave = tuple(int(x) for x in args[i + 1].split("/"))
+            elif flag == "--menu":
+                menu_hero = args[i + 1]
             else:
                 ref = Path(args[i + 1]).resolve()
             del args[i:i + 2]
@@ -277,6 +282,44 @@ hero = "{hero_name}"
         f1 = frame()
         check(f"still running after {play:.0f} s of play", rd(MODE, 1)[0] in (8, 9) and f1 > f0 + 30 * play,
               f"mode {rd(MODE, 1)[0]}, {f1 - f0} frames")
+
+        if menu_hero:
+            # The in-game menu's Experimental > Play as row (4th: Area, Stage,
+            # Go now, Play as): a new hero restarts the stage once the menu
+            # closes, with no GAME OVER (mode 9 never seen), Val and HP kept.
+            def key(name, n=1):
+                for _ in range(n):
+                    rpc(port, "host_key", name=name)
+                    time.sleep(0.35)
+            time.sleep(2)
+            val0, hp0, done0 = rd16(VAL), rd16(HP), log_text().count(" pack rebuilt")
+            steps = (HEROES.index(menu_hero) + 1) - (hero + 1)
+            key("Escape"); time.sleep(0.4)
+            key("Up"); key("Return")
+            key("Down", 3)
+            key("Right" if steps > 0 else "Left", abs(steps))
+            key("Escape", 2); time.sleep(0.5)
+            modes, t0 = set(), time.time()
+            while time.time() - t0 < 40:
+                modes.add(rd(MODE, 1)[0])
+                if log_text().count(" pack rebuilt") > done0 and rd(MODE, 1)[0] == 8:
+                    break
+                time.sleep(0.3)
+            time.sleep(4)
+            text = log_text()
+            name2 = menu_hero.capitalize()
+            check(f"menu: {ts} restarted as {name2}", f"restarts as {name2}" in text and
+                  text.count(f"stage {ts} as {name2}") >= 1 and text.count(" pack rebuilt") > done0,
+                  next((l for l in text.splitlines() if "restarts as" in l), "no restart line"))
+            check("menu: no GAME OVER on the way", 9 not in modes, f"modes seen {sorted(modes)}")
+            check(f"menu: g_Hero.index = {HEROES.index(menu_hero)}", rd(HERO_INDEX, 1)[0] == HEROES.index(menu_hero),
+                  str(rd(HERO_INDEX, 1)[0]))
+            check("menu: Val and HP kept", (rd16(VAL), rd16(HP)) == (val0, hp0),
+                  f"Val {val0} -> {rd16(VAL)}, HP {hp0} -> {rd16(HP)}")
+            check("menu: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")
+            rpc(port, "screenshot", path=str(bdir / "test_heroswap_menu.png"))
+            hero = HEROES.index(menu_hero)
+            hero_name = menu_hero
 
         ok = reload_into(*leave)
         text = log_text()

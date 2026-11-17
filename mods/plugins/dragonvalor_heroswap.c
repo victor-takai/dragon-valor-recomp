@@ -888,6 +888,7 @@ static int s_enabled;
 static int s_hero = -1;                    /* chosen hero, -1 = each stage's own */
 static int s_swap, s_swap_area, s_swap_stage, s_swap_hero;
 static int s_saved_hero = -1;              /* g_Hero.index the swap replaced */
+extern volatile int dv_heroswap_restart_request;   /* set by the in-game menu, see dv_hs_vblank */
 static Buf s_orig_portrait;                /* the stage hero's portrait (from its file 0) */
 static Buf s_orig_page;                    /* the stage hero's hero-page TIMs (from its file 0), end to end */
 static uint64_t s_hero_verts[14];          /* the stage hero's vertex entries (hash), for scene copies */
@@ -964,6 +965,7 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     (void)cpu;
     (void)address;
     s_swap = 0;
+    dv_heroswap_restart_request = 0;   /* a stage loads anyway */
     if (!s_enabled) return;
     ensure_disc();
     if (s_hero < 0 || s_hero == dv_area_hero(area) || !(r = stage_find(area, stage))) {
@@ -1534,10 +1536,46 @@ static int dv_hs_option_changed(const char* option_id, const char* value)
     return 1;
 }
 
+/* --- restart the stage from the menu ----------------------------------------
+ * The in-game menu's Play as row sets this after a live change of hero: the
+ * running stage is reloaded from its start, the way a stage exit or the
+ * CONTINUE prompt does it (g_GameFlow mode 17 / sub-mode 0 and
+ * g_GameState.stagePhase = 1; the loader's phase 1 tears the stage down),
+ * with no GAME OVER, no Val and no HP change. Done by the VBlank callback
+ * only in plain play: mode 8 / sub-mode 7 (decomp docs/SUBSYSTEMS.md), the
+ * game's pause off, no event script running, no load phase or load slot
+ * busy; a request waits for that and is dropped when a stage loads anyway. */
+#define DV_MODE          0x8008634Cu   /* g_GameFlow.mode, +1 subMode */
+#define DV_PAUSE_STATE   0x8007D826u   /* g_PauseState */
+#define DV_EVENT_RUNNING 0x8009F9F8u   /* g_EventVm.running */
+#define DV_AREA_PHASE    0x800A2D14u   /* g_GameState.areaPhase */
+#define DV_STAGE_PHASE   0x800A2D18u   /* g_GameState.stagePhase */
+volatile int dv_heroswap_restart_request = 0;
+
+static void dv_hs_vblank(void)
+{
+    uint32_t r, c;
+    if (!dv_heroswap_restart_request) return;
+    if (!s_enabled) { dv_heroswap_restart_request = 0; return; }
+    if (psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_byte(DV_MODE + 1) != 7 || psx_mod_read_byte(DV_PAUSE_STATE) ||
+        psx_mod_read_word(DV_EVENT_RUNNING) || psx_mod_read_word(DV_AREA_PHASE) || psx_mod_read_word(DV_STAGE_PHASE))
+        return;
+    for (r = 0; r < 10; r++)
+        for (c = 0; c < 2; c++)
+            if (psx_mod_read_byte(DV_LOAD_ROWS + r * 0x28 + 0x10 + c)) return;
+    psx_mod_write_byte(DV_MODE, 17);
+    psx_mod_write_byte(DV_MODE + 1, 0);
+    psx_mod_write_word(DV_STAGE_PHASE, 1);
+    dv_heroswap_restart_request = 0;
+    fprintf(stderr, "%s: stage %d/%d restarts as %s\n", DV_HS_PLUGIN, (int16_t)psx_mod_read_half(DV_STAGE_AREA),
+            (int16_t)psx_mod_read_half(DV_STAGE_STAGE), s_hero >= 0 ? kHeroNames[s_hero] : "its own hero");
+}
+
 PSX_MOD_CONSTRUCTOR(dv_register_heroswap)
 {
     int ok = psx_mod_register_activation_plugin(DV_HS_PLUGIN, dv_hs_activate)
           && psx_mod_register_option_changed_plugin(DV_HS_PLUGIN, dv_hs_option_changed)
+          && psx_mod_register_vblank_plugin(DV_HS_PLUGIN, dv_hs_vblank)
           && psx_mod_register_function_entry_plugin(DV_HS_PLUGIN, DV_STAGE_BUFFERS_ALLOC,
                                                     dv_hs_buffers_entry)
           && psx_mod_register_function_entry_plugin(DV_HS_PLUGIN, DV_PACK_INSTALL,
