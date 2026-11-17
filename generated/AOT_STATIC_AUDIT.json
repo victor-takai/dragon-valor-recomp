@@ -1,6 +1,6 @@
 {
   "game_id": "SLUS-01092",
-  "recipe_input_sha256": "682c745634b16027ad1dc5265f5cd63a4d6bebe1fe0dba2cb9b71523b8b8891e",
+  "recipe_input_sha256": "e993af72d22c68c01966f4af201f573d62b8e02d3f0965566f9bf6ec236888b7",
   "recipe_count": 5,
   "all_pairs_valid": true,
   "all_guards_match_known_input_bytes": true,
@@ -23213,12 +23213,12 @@
   "generation_inputs": {
     "schema": "psxrecomp AOT static generation inputs v1",
     "profile_sha256": "ab45700973cc8fb986d55bf1527f06cb879ecc2a4ab8839091fb565734760cf4",
-    "game_toml_sha256": "29718b30c0aebaba1f18d39ead9292cb793a96a9ba64307578cb811e878ce287",
+    "game_toml_sha256": "38b141baf17333534f18e9d341e689e20c15b15e37cb0d83d2e2b4dcd709c0ad",
     "disc": {
       "sha256": "9b41965d1c1bd8ab909d3a5301f376aaf4be346039aae070869b018afe59c59f"
     },
     "recompiler_sha256": "b15339d8b26cdd5bb03a199019cc3f42db3300b89c328936da0822275ccf78a6",
-    "cache_tag": "cg18_0bea7895_gc2eb94668_f0",
+    "cache_tag": "cg18_0bea7895_gc0f18bc56_f0",
     "cps": true,
     "gcc": "C:\\Users\\kaliv\\.local\\share\\retcomm\\toolchains\\cmake-clang-v1\\latest\\bin\\clang.exe",
     "tools": {
@@ -23237,5 +23237,5 @@
     },
     "mod_packages": {}
   },
-  "generation_inputs_sha256": "6c8ebbd24e7beb7d7793306f277e50c2bb50b353a3f12a3e6c8a9f67d0e70a74"
+  "generation_inputs_sha256": "70416d9760091ef9bdb190c3f553bb0224c85ca19268f2b804b107029f6d471a"
 }

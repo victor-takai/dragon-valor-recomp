@@ -697,6 +697,16 @@ Kodel's save forced to area 0 = stage 0/1) and the render lists in RAM.
   template (16-byte records whose high halves differ per stage), or stage
   scripts that touch hero parts by offset. Not a plain data swap. Next steps
   in `BACKLOG.md`, section F.
+- **Solved (2026-11-16)** from the decomp (github
+  victor-takai/dragon-valor-decomp, `docs/targets/hero-swap.md`): the action
+  pack's entry 0 is an install program (`PackInstall`, 0x80035E48) and the
+  hero is its first ops: the object of op 3 (behaviour script = entry 2, the
+  14 parts, **200 animation slots naming about 80 entries**), the weld lists,
+  the sound bank and the shadow; the swaps above moved the parts but left the
+  other hero's animations under them. Entries hold no absolute address (the
+  install relocates entry numbers), so a pack can be rebuilt freely. The
+  decomp's `tools/heroswap.py` does that and the `dragonvalor.heroswap`
+  package below serves the result: Kodel and Mihael play Clovis's 1/7.
 
 ### Modding: what the framework offers
 
@@ -1040,6 +1050,56 @@ worked examples this one follows.
   chapters, the field module (`MAP.BIN`) scenes, in-stage movies, the
   software renderer, a real resize with Fit.
 
+#### This project's package: `dragonvalor.heroswap` (2026-11-16, developer)
+
+Plays one stage with another stage's hero. Feature `heroswap`, off by
+default, channel **developer** (local builds only; a CI release leaves it
+out) because it needs the decomp's tool:
+
+```bash
+# in a dragon-valor-decomp checkout (config.toml pointing at your discs)
+python tools/heroswap.py build 3 1 1 7 --prune   # Kodel (3/1) into 1/7 -> build/heroswap/3-1_to_1-7/
+```
+
+The tool reads both stages from the player's discs (areas 7..12 from disc 2,
+so a disc-2 hero can be played on disc 1) and writes the target's rebuilt
+stage files, `heroswap.txt` (target, layout writes, per file the original's
+container head) and `manifest.json` (checks and notes). In the launcher's
+Mods page, enable *Hero swap* and select that folder as its resource
+(`[feature.resources] build = "<folder>"` in `mods/state.toml`). The swap
+happens when that stage loads: entering it, or GAME OVER → CONTINUE in it.
+
+`mods/plugins/dragonvalor_heroswap.c` hooks two entries (game.toml
+`mod_function_entry_funcs`, regenerated 2026-11-16: shard 13 only):
+
+- `StageBuffersAlloc` (0x80035AB8): while the target stage loads, writes the
+  layout sizes the tool asked for: `g_StageBufferSizes[0]` (0x80078B20,
+  words; row 0 holds file 0 and then the action pack, in whole sectors) and
+  `g_SoundBodySize[1]` (0x80077DBC; the hero's VAB body). The tool only asks
+  within the largest layouts the game itself uses on the discs.
+- `PackInstall` (0x80035E48, a0 = the file just read): when the bytes at a0
+  start with an original file's head, writes the rebuilt file over it before
+  the install. The CD read is untouched, so a rebuilt file longer than its
+  place on the disc still arrives whole.
+
+Not handled yet: `g_Hero.index` still follows the area (menu names, the
+save's hero, the object scripts' hero space); event scripts that move the
+hero by animation slot (cutscenes) may give the new hero another hero's
+motions; enemy groups of 5/19, 5/20, 5/24 and 12/29 upload other images
+into the hero's texture page.
+
+- **Checked** on build-debug from test state 10 (1/7, Clovis), muted and
+  hidden, with `tests/test_heroswap.py FOLDER` (own `mods/state.toml`, the
+  player's files restored, the game killed by PID): Kodel 3/1 → 1/7
+  `--prune` 8/8 (no layout write), Mihael 8/1 → 1/7 `--prune` 9/9 (slot 1
+  101760 → 104704), Mihael 8/1 → 0/1 10/10 (row 0 75776 → 78336 words,
+  slot 1 too, three files incl. the event file 81, the prologue's dragon
+  scene runs): files replaced, the pack in RAM = the rebuilt one, the hero
+  script at its entry 2, 20 s of walking / attacking / casting in mode 8,
+  0 unknown dispatches. Screenshots show Kodel and Mihael drawn whole and
+  textured in Raxis City. Not checked: long play, a whole stage, bosses,
+  cutscenes with the hero, the reload file 81 being read.
+
 #### Video and audio defaults (measured 2026-10-14)
 
 `game.toml` ships `texture_lod = "mipmap"` with `anisotropic_filtering = 4`
@@ -1192,7 +1252,8 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   A second Start on the title goes to the menu; a Start on the menu starts a
   New Game.
 - **Committed tests** (`tests/test_manifests.py`, `test_cheats.py`, `test_drop_cheat.py`,
-  `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`).
+  `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`,
+  `test_heroswap.py FOLDER`).
   `python tests/test_manifests.py` checks every mod
   manifest statically (ids, default-off features, option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
@@ -1231,7 +1292,7 @@ aot/overlays.json     AOT profile for the five BIN/*.BIN modules (docs/AOT.md)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
 launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon (tools/make_app_icon.py)
-mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen; the psx.enhancement.pgxp override)
+mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen, dragonvalor.heroswap; the psx.enhancement.pgxp override)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonvalor_menu.cpp = in-game menu provider
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
