@@ -53,6 +53,12 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_DISC1       "dv.disc.1"
 #define DV_KEY_DISC2       "dv.disc.2"
 #define DV_KEY_GO_NOW      "dv.warp.go"
+#define DV_KEY_PLAY_AS     "dv.heroswap.hero"
+/* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
+const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
+                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
+const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
+                                     "phillip", "gerome", "anna", "mihael", "anita"};
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
@@ -159,12 +165,17 @@ const RecompRuntimeUiItem kExtraItems[] = {
     {DV_KEY_GO_NOW, "Experimental", "Go now (Game Over)",
      "Ends the stage with a Game Over and answers Continue for you: the area and stage above load in about 10 s. Make a save state first: skipped stages can leave items and keys behind. The pad is ignored meanwhile (a dialogue on screen holds the Game Over back until you finish it) and Infinite HP pauses; the 50 Val the Continue costs is given back.",
      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
+    {DV_KEY_PLAY_AS, "Experimental", "Play as",
+     "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name. Applies at the next stage load; Go now above reloads this stage at once. The first choice turns the feature on, which then needs a restart. Cutscenes may move the new hero oddly.",
+     RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
 };
 
 #define DV_CHEATS_PKG   "dragonvalor.cheats"
 #define DV_CHEATS_FEAT  "cheats"
 #define DV_SKIP_PKG     "dragonvalor.skip-intro"
 #define DV_SKIP_FEAT    "skip-intro"
+#define DV_HS_PKG       "dragonvalor.heroswap"
+#define DV_HS_FEAT      "play-as"
 
 struct Menu {
     std::mutex mu;
@@ -179,6 +190,7 @@ struct Menu {
     /* mirrors of the mod selection (the catalogue is the host's) */
     int cheat_hp = 0, cheat_mp = 0, skip_intro = 0;
     int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
+    int play_as = 0;                       /* index in kPlayAsValues */
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
     /* mouse: window coordinates are scaled to the framebuffer ImGui draws in */
@@ -525,6 +537,7 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, DV_KEY_GEM_EVERY)) { *out = m.gem_every; return 1; }
     if (is(item, DV_KEY_SCROLL_EVERY)) { *out = m.scroll_every; return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { *out = m.skip_intro; return 1; }
+    if (is(item, DV_KEY_PLAY_AS)) { *out = m.play_as; return 1; }
     if (const RamRow* r = ram_row(item)) {
         const int v = hero_loaded() ? ram_read(*r) : 0;
         *out = v > item->maximum ? item->maximum : v < item->minimum ? item->minimum : v;
@@ -574,6 +587,19 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_GEM_EVERY)) { m.gem_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", text); return 1; }
     if (is(item, DV_KEY_SCROLL_EVERY)) { m.scroll_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", text); return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
+    if (is(item, DV_KEY_PLAY_AS)) {
+        if (value < 0 || value > 9) return 0;
+        m.play_as = value;
+        if (value && !m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[value])) {
+            /* not in the running plan yet: switch the feature on for the next start */
+            (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, nullptr, "true");
+            recomp_runtime_ui_set_status(m.ui, "Saved; takes effect at the next start");
+            return 1;
+        }
+        if (!value) (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[0]);
+        recomp_runtime_ui_set_status(m.ui, "From the next stage load (Go now reloads this one)");
+        return 1;
+    }
     if (const RamRow* r = ram_row(item)) {
         if (!hero_loaded()) { recomp_runtime_ui_set_status(m.ui, "No hero loaded yet"); return 0; }
         if (r->addr == DV_AREA) {
@@ -782,6 +808,13 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
     m.gem_every = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", 0);
     m.scroll_every = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", 0);
     m.skip_intro = opt_int(DV_SKIP_PKG, DV_SKIP_FEAT, "movie", 0) ? 1 : 0;   /* 0 unless the feature is in the plan */
+    {
+        char hero[32];
+        m.play_as = 0;
+        if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "hero", hero, sizeof hero))
+            for (int i = 1; i < 10; i++)
+                if (std::strcmp(hero, kPlayAsValues[i]) == 0) m.play_as = i;
+    }
     if (!m.imgui) {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();

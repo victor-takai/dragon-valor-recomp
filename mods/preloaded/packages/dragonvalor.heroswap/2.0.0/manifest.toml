@@ -1,0 +1,77 @@
+# Dragon Valor (USA) "Play as" (experimental). The plugin
+# (mods/plugins/dragonvalor_heroswap.c) loads every action stage with the
+# chosen hero: it reads the hero's data from the player's own disc
+# (DATA.CDR) at start and rebuilds each stage's files in RAM as they load.
+# The package ships no game data. Off by default.
+format_version = 7
+id = "dragonvalor.heroswap"
+version = "2.0.0"
+name = "Dragon Valor Play As"
+author = "Dragon Valor Recomp"
+description = "Play every stage as the hero you choose. Experimental, off by default."
+license = "MIT"
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "SLUS-01092"
+
+[[feature]]
+id = "play-as"
+name = "Play as"
+description = "Every action stage loads with the chosen hero: model, moves, sounds, portrait and name. Takes effect when a stage loads (or with Experimental > Go now in the in-game menu). The first start reads the disc for a few seconds; Anna, Mihael and Anita are on disc 2 and Clovis to Phillip on disc 1, so a hero of the other disc is offered once that disc has been started with this on. Cutscenes may move the new hero oddly. Experimental."
+group = "Experimental"
+default_enabled = false
+channel = "experimental"
+
+[[option]]
+feature = "play-as"
+id = "hero"
+label = "Hero"
+description = "The hero of every action stage; Each stage's own keeps the game's choice. Applies at the next stage load."
+type = "choice"
+default = "stage"
+
+[[option.choice]]
+value = "stage"
+label = "Each stage's own"
+
+[[option.choice]]
+value = "clovis"
+label = "Clovis"
+
+[[option.choice]]
+value = "arlen"
+label = "Arlen"
+
+[[option.choice]]
+value = "kodel"
+label = "Kodel"
+
+[[option.choice]]
+value = "felippe"
+label = "Felippe"
+
+[[option.choice]]
+value = "phillip"
+label = "Phillip"
+
+[[option.choice]]
+value = "gerome"
+label = "Gerome"
+
+[[option.choice]]
+value = "anna"
+label = "Anna"
+
+[[option.choice]]
+value = "mihael"
+label = "Mihael"
+
+[[option.choice]]
+value = "anita"
+label = "Anita"
+
+[[plugin]]
+feature = "play-as"
+id = "dragonvalor.heroswap"

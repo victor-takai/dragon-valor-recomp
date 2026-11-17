@@ -1,292 +1,1109 @@
 /*
- * Dragon Valor (USA) "Hero swap" (experimental): trusted static plugin
- * behind mods/preloaded/packages/dragonvalor.heroswap.
+ * Dragon Valor (USA) "Play as" (experimental): trusted static plugin behind
+ * mods/preloaded/packages/dragonvalor.heroswap.
  *
- * Plays a stage with the hero of another stage. The hero is data, not code:
- * the head of the action pack's install program (the hero object with its
- * behaviour script, 14 parts and 200 animation slots, its weld lists, sound
- * bank and shadow), the entries those name, the hero's VAB and the TIMs that
- * land in VRAM (384..447, 0..255) in the stage's first file. The decomp's
- * tools/heroswap.py (github victor-takai/dragon-valor-decomp,
- * docs/targets/hero-swap.md) rebuilds a target stage's files with a source
- * stage's hero from the player's own disc and writes them, with
- * heroswap.txt, into a folder; the player selects that folder as this
- * feature's resource. Nothing from the disc ships with the package.
+ * Every action stage loads with the hero the player picks (option `hero`,
+ * also a row of the in-game menu's Experimental section) instead of its own.
+ * The hero is data, not code (github victor-takai/dragon-valor-decomp,
+ * docs/targets/hero-swap.md, tools/heroswap.py, whose rebuild this file
+ * ports):
  *
- * heroswap.txt:
- *   target AREA STAGE
- *   patch ADDRESS VALUE          u32 written when the target's buffers are laid out
- *   hero INDEX                   g_Hero.index while the target stage runs
- *   file N NAME SIZE HEADHEX     rebuilt stage file N; HEADHEX = the original
- *                                file's container head (count + offsets)
+ *   action pack (stage file 1)  the head of entry 0's install program: op 3
+ *       (the hero object: behaviour script, 14 parts, 200 animation slots),
+ *       its op 31 weld lists, op 52 kind 0 (its sound bank) and op 7 (its
+ *       shadow); the entries those name. The stage's ops and entries follow.
+ *   stage file 0  the VAB that op 51 kind 0 sends to sound slot 1 (the pack's
+ *       entry 1 is its head), the TIMs that land in VRAM (384..447, 0..255),
+ *       and the portrait, the TIM at (960, 432) 40 x 64 (CLUT row (0, 500)).
+ *   event packs   frame 0 of every event image set (op 66) is the stage
+ *       hero's portrait, uploaded back at each dialogue's end.
+ *   name          g_Hero.index (0x80086318), written at a chapter start.
  *
- * The files are file 0 (the hero's VAB, texture and portrait), file 1 (the
- * action pack) and any room / event file that holds the hero's texture or
- * portrait: dialogues upload their speakers' portraits where the Status
- * screen's is, and frame 0 of each event image set, which the event's END
- * puts back, is the stage hero's portrait.
- *
- * g_Hero.index (0x80086318) names the hero in the menus and the save; the
- * game writes it at a chapter start only. The hook writes INDEX when it
- * replaces the target's action pack and gives the old value back when
- * another stage's buffers are laid out.
+ * Kits. At activation the plugin reads DATA.CDR from the mounted disc
+ * (psx_mod_read_disc_file, the whole file, about 440 / 500 MB, freed again)
+ * and keeps, for each hero on that disc, a kit taken from the first stage of
+ * the hero's first area (Clovis 1/1, Arlen 2/1, ..., Anita 9/1): the hero's
+ * ops, the entries they name (animations no slot uses left out), the VAB,
+ * the hero-page TIMs and the portrait. With them it keeps a table of every
+ * action stage of the disc: the sizes the rebuild needs to lay the stage
+ * out. Kits and tables are cached in mods/cache/dragonvalor.heroswap/ beside
+ * the executable, so the next start reads nothing, and a hero of the other
+ * disc (Anna, Mihael, Anita on disc 2; Clovis to Phillip on disc 1) is
+ * available once that disc has been started with this feature on.
  *
  * Two function-entry hooks (game.toml [recompiler] mod_function_entry_funcs):
  *
- *   - StageBuffersAlloc (0x80035AB8) lays the stage buffers out from
- *     g_StageBufferSizes (0x80078B20, words) and ends with SoundSpuLayout
- *     (g_SoundBodySize, 0x80077DB8). A bigger hero needs row 0 (file 0, then
- *     the action pack, in whole sectors) and sound slot 1 (its VAB body)
- *     larger: the tool computes the values and checks them against the
- *     largest layouts the game itself uses; the hook writes them at entry,
- *     only while the target stage (g_StageSelect 0x800A2F18 area, +2 stage)
- *     is being loaded.
+ *   StageBuffersAlloc (0x80035AB8), every stage load: when the stage is an
+ *     action stage of the table and the chosen hero is not its own, the
+ *     rebuilt sizes decide row 0 (file 0, then the pack, in whole sectors;
+ *     g_StageBufferSizes[0], 0x80078B20) and sound slot 1 (the VAB body
+ *     rounded up to 64 bytes; g_SoundBodySize[1], 0x80077DBC); they are
+ *     raised when needed, unless the stage buffers or the sound slots would
+ *     then go past the largest layout the game itself uses (that stage keeps
+ *     its own hero). Otherwise the hero index the swap replaced comes back.
  *
- *   - PackInstall (0x80035E48, a0 = the pack) installs every stage file the
- *     game has just read. When the target stage is loaded and the bytes at
- *     a0 start with an original file's head, the hook writes the rebuilt
- *     file over it before the install runs. The CD read itself is left alone,
- *     so a rebuilt file longer than its place on the disc (the game reads up
- *     to the next file's start) still arrives whole.
+ *   PackInstall (0x80035E48, a0 = the file just read): in a swapped stage,
+ *     file 0 and the action pack (both read to ACTION's heap, 0x800C5E98)
+ *     are rebuilt with the kit in place before the install; in any other
+ *     pack, copies of the stage hero's portrait become the kit's (same size).
  *
- * Inert unless the feature is enabled and its folder parsed: activation sets
- * everything, the hooks check s_ready first, and they touch nothing outside
- * the target stage's own loads.
+ * Inert unless the feature is on and a hero chosen. Not handled: other
+ * uploads into the hero's page (0/1's event file 81 reloads the stage hero's
+ * texture; enemy groups of 5/19, 5/20, 5/24, 12/29 put other images there).
  */
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <direct.h>
+#define dv_mkdir(p) _mkdir(p)
+#else
+#include <sys/stat.h>
+#define dv_mkdir(p) mkdir((p), 0755)
+#endif
 
 #include "cpu_state.h"
 #include "mod_plugins.h"
 
 #define DV_HS_PLUGIN          "dragonvalor.heroswap"
-#define DV_HS_RESOURCE        "build"
+#define DV_HS_PKG             "dragonvalor.heroswap"
+#define DV_HS_FEATURE         "play-as"
+#define DV_HS_CACHE_DIR       "mods/cache/dragonvalor.heroswap"
 
 #define DV_STAGE_AREA         0x800A2F18u   /* g_StageSelect.area (s16) */
 #define DV_STAGE_STAGE        0x800A2F1Au   /* g_StageSelect.stage (s16) */
+#define DV_STAGE_BUFFER_SIZES 0x80078B20u   /* g_StageBufferSizes[10], words */
+#define DV_SOUND_BODY_SIZE    0x80077DB8u   /* g_SoundBodySize[12], bytes */
+#define DV_HERO_INDEX         0x80086318u   /* g_Hero.index (u8) */
 #define DV_STAGE_BUFFERS_ALLOC 0x80035AB8u
 #define DV_PACK_INSTALL       0x80035E48u
-#define DV_HERO_INDEX         0x80086318u   /* g_Hero.index (u8) */
+#define DV_ACTION_HEAP        0x800C5E98u   /* g_ModuleHeapStart[3]: row 0 in ACTION */
+#define DV_ARENA_END_MAX      0x801EE69Cu   /* largest stage layout of the discs (12/29) */
+#define DV_SPU_END_MAX        476096u       /* largest sound slots 1..9 of the discs (0/9) */
 #define DV_RAM_END            0x80200000u
+#define DV_SECTOR             2048u
+#define DV_NODE               0x70u
 
-#define DV_HS_MAX_FILES       32
-#define DV_HS_MAX_PATCHES     4
+#define HERO_COUNT 9
+static const char* const kHeroValues[HERO_COUNT] = {
+    "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"};
+static const char* const kHeroNames[HERO_COUNT] = {
+    "Clovis", "Arlen", "Kodel", "Felippe", "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
+/* Where each kit comes from: the first stage of the hero's first area. */
+static const int kKitSource[HERO_COUNT][2] = {
+    {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1}};
+static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5};   /* 0x8006CC70 */
+
+/* g_Hero.index during an area's chapter: ChapterInit writes g_HeroByArea,
+ * ChapterStashMerge 8 in area 12 (decomp src/main/exeB_stats.c). */
+static int dv_area_hero(int area) { return area == 12 ? 8 : (area >= 0 && area < 13 ? kHeroByArea[area] : -1); }
+
+static const uint16_t kHeroPage[4] = {384, 0, 64, 256};
+static const uint16_t kPortrait[4] = {960, 432, 40, 64};
+
+/* --- bytes -------------------------------------------------------------- */
+
+static uint32_t le32(const uint8_t* p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
+static void put32(uint8_t* p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24); }
+static int16_t le16s(const uint8_t* p) { return (int16_t)(p[0] | p[1] << 8); }
+
+typedef struct { uint8_t* p; uint32_t n, cap; } Buf;
+static int buf_put(Buf* b, const void* d, uint32_t n)
+{
+    if (b->n + n > b->cap) {
+        uint32_t cap = b->cap ? b->cap : 4096;
+        uint8_t* q;
+        while (cap < b->n + n) cap *= 2;
+        if (!(q = (uint8_t*)realloc(b->p, cap))) return 0;
+        b->p = q;
+        b->cap = cap;
+    }
+    if (n) memcpy(b->p + b->n, d, n);
+    b->n += n;
+    return 1;
+}
+static int buf_u32(Buf* b, uint32_t v) { uint8_t t[4]; put32(t, v); return buf_put(b, t, 4); }
+static void buf_free(Buf* b) { free(b->p); b->p = NULL; b->n = b->cap = 0; }
+
+/* A container: { u32 count; u32 offset[count + 1]; entries }. */
+typedef struct { const uint8_t* b; uint32_t len, n; uint32_t offs[4097]; } Ct;
+static int ct_parse(Ct* c, const uint8_t* b, uint32_t len)
+{
+    uint32_t i;
+    if (len < 8) return 0;
+    c->b = b;
+    c->len = len;
+    c->n = le32(b);
+    if (c->n < 1 || c->n > 4096 || 4u * (c->n + 2) > len) return 0;
+    for (i = 0; i <= c->n; i++) c->offs[i] = le32(b + 4 + 4 * i);
+    if (c->offs[0] != 4u * (c->n + 2) || c->offs[c->n] > len) return 0;
+    for (i = 0; i < c->n; i++) if (c->offs[i] > c->offs[i + 1]) return 0;
+    return 1;
+}
+#define CT_E(c, i) ((c)->b + (c)->offs[i])
+#define CT_L(c, i) ((c)->offs[(i) + 1] - (c)->offs[i])
+
+static int ct_build(Buf* out, const uint8_t* const* ents, const uint32_t* lens, uint32_t n)
+{
+    uint32_t i, off = 4 * (n + 2);
+    out->n = 0;
+    if (!buf_u32(out, n)) return 0;
+    for (i = 0; i < n; i++) { if (!buf_u32(out, off)) return 0; off += lens[i]; }
+    if (!buf_u32(out, off)) return 0;
+    for (i = 0; i < n; i++) if (!buf_put(out, ents[i], lens[i])) return 0;
+    return 1;
+}
+
+/* --- entry 0's program (decomp include/dv/pack.h, src/main/pack_install.c) -- */
+
+typedef struct { uint32_t pos, op, size, ref0, nref; } Op;
+typedef struct { Op ops[128]; int nops; uint32_t refs[2048]; int nrefs; } Prog;
+
+/* Fixed size in words (opcode included) and the argument indices that hold
+ * entry numbers; 0 = no such opcode (PackInstall would not advance). */
+static const struct { uint8_t words; uint8_t refs[4]; uint8_t nrefs; } kOps[101] = {
+    [1] = {15, {1, 2, 3, 4}, 4}, [2] = {1, {0}, 0}, [5] = {1, {0}, 0}, [6] = {2, {0}, 0},
+    [7] = {3, {1, 2}, 2}, [8] = {2, {0}, 0}, [9] = {4, {0}, 0}, [10] = {2, {0}, 0},
+    [11] = {2, {0}, 0}, [12] = {4, {0}, 0}, [13] = {3, {0}, 0}, [15] = {7, {1, 2, 3}, 3},
+    [16] = {7, {0}, 0}, [17] = {7, {0}, 0}, [18] = {3, {0}, 0}, [19] = {3, {0}, 0},
+    [20] = {2, {1}, 1}, [21] = {2, {1}, 1}, [23] = {4, {3}, 1}, [24] = {1, {0}, 0},
+    [25] = {1, {0}, 0}, [28] = {2, {0}, 0}, [29] = {2, {0}, 0}, [30] = {2, {1}, 1},
+    [54] = {2, {0}, 0}, [55] = {2, {0}, 0}, [56] = {1, {0}, 0}, [57] = {2, {0}, 0},
+    [63] = {1, {0}, 0}, [64] = {1, {0}, 0}, [65] = {2, {1}, 1}, [66] = {3, {1, 2}, 2},
+    [68] = {2, {0}, 0}, [70] = {3, {0}, 0}, [71] = {3, {0}, 0}, [72] = {2, {0}, 0},
+    [73] = {2, {0}, 0}, [74] = {2, {0}, 0}, [75] = {2, {0}, 0}, [76] = {2, {0}, 0},
+};
+
+static int prog_ref(Prog* p, uint32_t pos)
+{
+    if (p->nrefs >= (int)(sizeof p->refs / sizeof p->refs[0])) return 0;
+    p->refs[p->nrefs++] = pos;
+    return 1;
+}
+
+static int prog_walk(Prog* p, const uint8_t* e0, uint32_t len)
+{
+    uint32_t pos = 0, i;
+    p->nops = p->nrefs = 0;
+    for (;;) {
+        Op* o;
+        uint32_t op;
+        if (pos + 4 > len || p->nops >= (int)(sizeof p->ops / sizeof p->ops[0])) return 0;
+        op = le32(e0 + pos);
+        o = &p->ops[p->nops++];
+        o->pos = pos;
+        o->op = op;
+        o->ref0 = (uint32_t)p->nrefs;
+        if (op == 0) { o->size = 4; o->nref = 0; return 1; }
+        if (op == 3) {
+            uint32_t n, after, anims;
+            if (pos + 16 > len) return 0;
+            n = le32(e0 + pos + 12);
+            after = pos + 16 + n * DV_NODE;
+            if (n > 64 || after + 4 > len) return 0;
+            anims = le32(e0 + after);
+            if (anims > 1024 || after + 4 + 4 * anims > len) return 0;
+            if (!prog_ref(p, pos + 8)) return 0;
+            for (i = 0; i < n; i++)
+                if (!prog_ref(p, pos + 16 + i * DV_NODE + 0x68) || !prog_ref(p, pos + 16 + i * DV_NODE + 0x6C)) return 0;
+            for (i = 0; i < anims; i++) if (!prog_ref(p, after + 4 + 4 * i)) return 0;
+            o->size = after + 4 + 4 * anims - pos;
+        } else if (op == 31) {
+            uint32_t n;
+            if (pos + 12 > len) return 0;
+            n = le32(e0 + pos + 8);
+            o->size = 12 + 4 * n;
+            if (!prog_ref(p, pos + 4)) return 0;
+            for (i = 0; i < n && pos + 12 + 4 * i < len; i++) if (!prog_ref(p, pos + 12 + 4 * i)) return 0;
+        } else if (op == 50) {
+            if (pos + 8 > len) return 0;
+            o->size = 8 + 0x48 * le32(e0 + pos + 4);
+        } else if (op == 62) {
+            uint32_t n = pos + 8 <= len ? le32(e0 + pos + 4) : 0;
+            o->size = 8 + 4 * n;
+            for (i = 0; i < n && pos + 8 + 4 * i < len; i++) if (!prog_ref(p, pos + 8 + 4 * i)) return 0;
+        } else if (op == 67 || op == 100) {
+            uint32_t n = pos + 8 <= len ? le32(e0 + pos + 4) : 0;
+            o->size = 8 + 8 * n;
+            for (i = 0; i < 2 * n && pos + 8 + 4 * i < len; i++) if (!prog_ref(p, pos + 8 + 4 * i)) return 0;
+        } else if (op == 51 || op == 52 || op == 53) {
+            uint32_t kind = pos + 8 <= len ? le32(e0 + pos + 4) : 99;
+            o->size = 12;
+            if (op == 53 ? (kind == 3 || kind == 4 || kind == 6) : (kind == 0 || (kind >= 3 && kind <= 6)))
+                if (!prog_ref(p, pos + 8)) return 0;
+        } else if (op <= 100 && kOps[op].words) {
+            o->size = 4u * kOps[op].words;
+            for (i = 0; i < kOps[op].nrefs; i++) if (!prog_ref(p, pos + 4u * kOps[op].refs[i])) return 0;
+        } else {
+            return 0;
+        }
+        o->nref = (uint32_t)p->nrefs - o->ref0;
+        pos += o->size;
+        if (pos > len) return 0;
+    }
+}
+
+static int is_hero_op(const uint8_t* e0, const Op* o)
+{
+    return o->op == 31 || o->op == 7 || (o->op == 52 && le32(e0 + o->pos + 4) == 0);
+}
+
+/* The hero / stage split of an action pack (tools/heroswap.py split_pack). */
+typedef struct {
+    Ct ct;
+    Prog prog;
+    int k;                 /* ops[0..k) are the hero's */
+    uint32_t prefix_end;   /* their bytes in entry 0 */
+    uint32_t core;         /* entries 1..core */
+    uint32_t tail[16];     /* hero entries after core, sorted */
+    int ntail;
+} Split;
+
+static int split_pack(Split* s, const uint8_t* b, uint32_t len)
+{
+    const uint8_t* e0;
+    int i, n7 = 0, n52 = 0;
+    uint32_t r;
+    if (!ct_parse(&s->ct, b, len)) return 0;
+    e0 = CT_E(&s->ct, 0);
+    if (!prog_walk(&s->prog, e0, CT_L(&s->ct, 0)) || s->prog.ops[0].op != 3) return 0;
+    for (s->k = 1; s->prog.ops[s->k].op != 0 && is_hero_op(e0, &s->prog.ops[s->k]); s->k++) {}
+    s->prefix_end = s->prog.ops[s->k].pos;
+    s->core = 0;
+    for (i = 0; i < s->k; i++) {
+        const Op* o = &s->prog.ops[i];
+        n7 += o->op == 7;
+        n52 += o->op == 52;
+        if (o->op == 3 || o->op == 52)
+            for (r = 0; r < o->nref; r++) {
+                uint32_t v = le32(e0 + s->prog.refs[o->ref0 + r]);
+                if (v < 1) return 0;
+                if (v > s->core) s->core = v;
+            }
+    }
+    if (n7 != 1 || n52 != 1) return 0;
+    s->ntail = 0;
+    for (i = 0; i < s->k; i++) {
+        const Op* o = &s->prog.ops[i];
+        for (r = 0; r < o->nref; r++) {
+            uint32_t v = le32(e0 + s->prog.refs[o->ref0 + r]);
+            int j, dup = 0;
+            if (o->op == 31 && r > 0 && v > s->core) return 0;   /* weld parts must be core */
+            if (v >= s->ct.n) return 0;
+            if (v <= s->core) continue;
+            for (j = 0; j < s->ntail; j++) dup |= s->tail[j] == v;
+            if (!dup) {
+                if (s->ntail == 16) return 0;
+                s->tail[s->ntail++] = v;
+            }
+        }
+    }
+    for (i = 1; i < s->ntail; i++) {           /* sort */
+        uint32_t v = s->tail[i];
+        int j = i - 1;
+        while (j >= 0 && s->tail[j] > v) { s->tail[j + 1] = s->tail[j]; j--; }
+        s->tail[j + 1] = v;
+    }
+    for (i = s->k; i < s->prog.nops; i++) {    /* the stage's ops name no hero entry */
+        const Op* o = &s->prog.ops[i];
+        for (r = 0; r < o->nref; r++) {
+            uint32_t v = le32(e0 + s->prog.refs[o->ref0 + r]);
+            int j;
+            if (v <= s->core || v >= s->ct.n) return 0;
+            for (j = 0; j < s->ntail; j++) if (s->tail[j] == v) return 0;
+        }
+    }
+    return 1;
+}
+
+static int split_is_tail(const Split* s, uint32_t v)
+{
+    int j;
+    for (j = 0; j < s->ntail; j++) if (s->tail[j] == v) return 1;
+    return 0;
+}
+
+/* --- TIM chains (decomp src/main/exeD_texture.c, TimQueueAdd) ----------- */
+
+typedef struct { uint32_t start, end; uint16_t clut[4], image[4]; int has_clut; } Tim;
+
+static int tim_chain(const uint8_t* b, uint32_t len, Tim* out, int max, uint32_t* end)
+{
+    uint32_t pos = 0;
+    int n = 0, k;
+    while (pos + 0x1C <= len && !memcmp(b + pos, "TIM_CODE", 8) && le32(b + pos + 8) == 0x10 && n < max) {
+        uint32_t flags = le32(b + pos + 12), bn = le32(b + pos + 16);
+        Tim* t = &out[n];
+        t->start = pos;
+        if (flags == 2) {
+            t->has_clut = 0;
+            for (k = 0; k < 4; k++) t->image[k] = (uint16_t)le16s(b + pos + 20 + 2 * k);
+            t->end = pos + 16 + bn;
+        } else if (flags == 8 || flags == 9) {
+            uint32_t ib = pos + 16 + bn;
+            if (ib + 12 > len) break;
+            t->has_clut = 1;
+            for (k = 0; k < 4; k++) t->clut[k] = (uint16_t)le16s(b + pos + 20 + 2 * k);
+            for (k = 0; k < 4; k++) t->image[k] = (uint16_t)le16s(b + ib + 4 + 2 * k);
+            t->end = ib + le32(b + ib);
+        } else {
+            break;
+        }
+        if (t->end > len || t->end <= pos) break;
+        pos = t->end;
+        n++;
+    }
+    if (end) *end = pos;
+    return n;
+}
+
+static int rect_overlaps(const uint16_t* a, const uint16_t* b)
+{
+    return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+}
+static int tim_in_page(const Tim* t)
+{
+    return rect_overlaps(t->image, kHeroPage) || (t->has_clut && rect_overlaps(t->clut, kHeroPage));
+}
+static int tim_is_portrait(const Tim* t) { return !memcmp(t->image, kPortrait, sizeof kPortrait); }
+
+/* --- kits ------------------------------------------------------------------ */
 
 typedef struct {
-    int number;
-    uint8_t* data;
-    uint32_t size;
-    uint8_t* head;
-    uint32_t head_size;
-} DvHsFile;
+    int ready;
+    Buf ops;                  /* the hero's ops, entry refs renumbered to kit entries 1..n */
+    uint32_t refs[512];       /* byte offsets of those refs in ops */
+    uint32_t nrefs;
+    uint32_t nent, ntail;     /* entries; the last ntail are the hero-tail ones */
+    uint8_t* ent[400];
+    uint32_t entlen[400];
+    Buf vab;
+    Buf page;                 /* the hero-page TIMs laid end to end */
+    uint32_t npage;
+    Buf portrait;
+} Kit;
 
-static int s_ready;
-static int s_area = -1, s_stage = -1;
-static DvHsFile s_files[DV_HS_MAX_FILES];
-static int s_file_count;
-static uint32_t s_patch_addr[DV_HS_MAX_PATCHES], s_patch_value[DV_HS_MAX_PATCHES];
-static int s_patch_count;
-static int s_hero = -1;          /* g_Hero.index to write, -1 = none */
-static int s_saved_hero = -1;    /* the value it replaced, to give back */
+static Kit s_kits[HERO_COUNT];
 
-static void dv_hs_clear(void)
+static void kit_free(Kit* k)
 {
-    int i;
-    for (i = 0; i < s_file_count; i++) {
-        free(s_files[i].data);
-        free(s_files[i].head);
+    uint32_t i;
+    for (i = 0; i < k->nent; i++) free(k->ent[i]);
+    buf_free(&k->ops);
+    buf_free(&k->vab);
+    buf_free(&k->page);
+    buf_free(&k->portrait);
+    memset(k, 0, sizeof *k);
+}
+
+/* File 0: its VAB entry (op 51 kind 0) and TIM chain entry (op 30). */
+static int file0_parts(const Ct* c, uint32_t* vab, uint32_t* tims)
+{
+    static Prog p;
+    int i, nv = 0, nt = 0;
+    if (!prog_walk(&p, CT_E(c, 0), CT_L(c, 0))) return 0;
+    for (i = 0; i < p.nops; i++) {
+        const Op* o = &p.ops[i];
+        const uint8_t* e0 = CT_E(c, 0);
+        if (o->op == 51 && le32(e0 + o->pos + 4) == 0 && o->nref) { *vab = le32(e0 + p.refs[o->ref0]); nv++; }
+        if (o->op == 30 && o->nref) { *tims = le32(e0 + p.refs[o->ref0]); nt++; }
     }
-    memset(s_files, 0, sizeof s_files);
-    s_file_count = s_patch_count = 0;
-    s_area = s_stage = -1;
-    s_hero = s_saved_hero = -1;
-    s_ready = 0;
+    return nv == 1 && nt == 1 && *vab < c->n && *tims < c->n;
 }
 
-static int dv_hs_target_loading(void)
+static int kit_build(Kit* k, const uint8_t* f0, uint32_t f0len, const uint8_t* pk, uint32_t pklen)
 {
-    return (int16_t)psx_mod_read_half(DV_STAGE_AREA) == s_area &&
-           (int16_t)psx_mod_read_half(DV_STAGE_STAGE) == s_stage;
+    static Split s;
+    static Ct c0;
+    static Tim tims[64];
+    static uint32_t map[4097];
+    const uint8_t* e0;
+    uint32_t i, vab, te, end;
+    int nt, j;
+
+    memset(k, 0, sizeof *k);
+    if (!split_pack(&s, pk, pklen)) return 0;
+    e0 = CT_E(&s.ct, 0);
+    memset(map, 0, sizeof map);
+    /* entries: the named core ones in order, then the tail ones */
+    for (i = 1; i <= s.core; i++) {
+        int named = 0;
+        uint32_t r;
+        for (j = 0; j < s.k && !named; j++)
+            for (r = 0; r < s.prog.ops[j].nref; r++)
+                if (le32(e0 + s.prog.refs[s.prog.ops[j].ref0 + r]) == i) { named = 1; break; }
+        if (!named) continue;
+        if (k->nent == 400) return 0;
+        map[i] = ++k->nent;
+    }
+    for (j = 0; j < s.ntail; j++) {
+        if (k->nent == 400) return 0;
+        map[s.tail[j]] = ++k->nent;
+    }
+    k->ntail = (uint32_t)s.ntail;
+    for (i = 1; i <= s.core; i++)
+        if (map[i]) {
+            k->entlen[map[i] - 1] = CT_L(&s.ct, i);
+            k->ent[map[i] - 1] = (uint8_t*)malloc(CT_L(&s.ct, i) ? CT_L(&s.ct, i) : 1);
+            if (!k->ent[map[i] - 1]) return 0;
+            memcpy(k->ent[map[i] - 1], CT_E(&s.ct, i), CT_L(&s.ct, i));
+        }
+    for (j = 0; j < s.ntail; j++) {
+        uint32_t t = s.tail[j], m = map[t] - 1;
+        k->entlen[m] = CT_L(&s.ct, t);
+        k->ent[m] = (uint8_t*)malloc(CT_L(&s.ct, t) ? CT_L(&s.ct, t) : 1);
+        if (!k->ent[m]) return 0;
+        memcpy(k->ent[m], CT_E(&s.ct, t), CT_L(&s.ct, t));
+    }
+    /* the hero's ops, renumbered */
+    if (!buf_put(&k->ops, e0, s.prefix_end)) return 0;
+    for (j = 0; j < s.k; j++) {
+        uint32_t r;
+        for (r = 0; r < s.prog.ops[j].nref; r++) {
+            uint32_t pos = s.prog.refs[s.prog.ops[j].ref0 + r];
+            if (k->nrefs == 512) return 0;
+            put32(k->ops.p + pos, map[le32(e0 + pos)]);
+            k->refs[k->nrefs++] = pos;
+        }
+    }
+    /* file 0: VAB, hero-page TIMs, portrait */
+    if (!ct_parse(&c0, f0, f0len) || !file0_parts(&c0, &vab, &te)) return 0;
+    if (!buf_put(&k->vab, CT_E(&c0, vab), CT_L(&c0, vab))) return 0;
+    nt = tim_chain(CT_E(&c0, te), CT_L(&c0, te), tims, 64, &end);
+    for (j = 0; j < nt; j++) {
+        const uint8_t* t = CT_E(&c0, te) + tims[j].start;
+        uint32_t n = tims[j].end - tims[j].start;
+        if (tim_in_page(&tims[j])) { if (!buf_put(&k->page, t, n)) return 0; k->npage++; }
+        if (tim_is_portrait(&tims[j])) { k->portrait.n = 0; if (!buf_put(&k->portrait, t, n)) return 0; }
+    }
+    if (!k->npage || !k->portrait.n) return 0;
+    k->ready = 1;
+    return 1;
 }
 
-static uint8_t* dv_hs_read_file(const char* dir, const char* name, uint32_t expect)
+/* VAB body bytes of a VAB_CODE section (decomp src/main/exeD_sound.c). */
+static uint32_t vab_body(const uint8_t* v, uint32_t len)
 {
-    char path[1024];
+    uint32_t hdr;
+    int16_t ps;
+    if (len < 12 || memcmp(v, "VAB_CODE", 8)) return 0;
+    hdr = le32(v + 8) * 16 + 12;
+    if (hdr + 0x20 > len || memcmp(v + hdr, "pBAV", 4)) return 0;
+    ps = le16s(v + hdr + 0x12);
+    return le32(v + hdr + 12) - (0xA20u + ((uint32_t)ps << 9));
+}
+
+/* --- per-stage table ------------------------------------------------------ */
+
+typedef struct {
+    uint8_t area, stage, ok, pad;
+    uint32_t f0_len, f0_vab, f0_page;   /* file 0's length, its VAB, its hero-page TIMs */
+    uint32_t pk_stage_n, pk_stage_bytes, pk_stage_ops;  /* the pack's stage entries, ops bytes */
+} StageRec;
+
+static StageRec s_stages[2][64 * 13];
+static int s_nstages[2];
+static int s_disc_ready[2];
+
+static const StageRec* stage_find(int area, int stage)
+{
+    int d = area >= 7, i;
+    for (i = 0; i < s_nstages[d]; i++)
+        if (s_stages[d][i].area == area && s_stages[d][i].stage == stage) return &s_stages[d][i];
+    return NULL;
+}
+
+static uint32_t kit_entries_bytes(const Kit* k)
+{
+    uint32_t i, t = 0;
+    for (i = 0; i < k->nent; i++) t += k->entlen[i];
+    return t;
+}
+
+/* Sizes of the rebuilt files (the merges below build exactly these). */
+static void rebuilt_sizes(const StageRec* r, const Kit* k, uint32_t* f0, uint32_t* pk)
+{
+    uint32_t n = 1 + k->nent + r->pk_stage_n;
+    *pk = 4 * (n + 2) + (k->ops.n + r->pk_stage_ops) + kit_entries_bytes(k) + r->pk_stage_bytes;
+    *f0 = r->f0_len - r->f0_vab + k->vab.n - r->f0_page + k->page.n;
+}
+
+/* --- DATA.CDR -------------------------------------------------------------- */
+
+typedef struct { const uint8_t* b; uint32_t len; } Cdr;
+
+static uint32_t msf(const uint8_t* p) { return ((uint32_t)p[0] * 60 + p[1]) * 75 + p[2]; }
+
+static const uint8_t* cdr_at(const Cdr* d, uint32_t sector, uint32_t* avail)
+{
+    if ((uint64_t)sector * DV_SECTOR >= d->len) return NULL;
+    *avail = d->len - sector * DV_SECTOR;
+    return d->b + (size_t)sector * DV_SECTOR;
+}
+
+/* The stage's files: start sector (relative to the index) and sector count. */
+static int cdr_stage(const Cdr* d, int area, int stage, uint32_t* idx, uint32_t* starts, uint32_t* counts, int* nfiles)
+{
+    static Ct h, sec;
+    uint32_t avail, ah, ns, i, s[256];
+    const uint8_t* p = cdr_at(d, 0, &avail);
+    int n = 0, j;
+    if (!p) return 0;
+    ah = 1 + msf(p + 4 * area);
+    if (!(p = cdr_at(d, ah, &avail)) || !ct_parse(&h, p, avail) || h.n != 3) return 0;
+    if ((uint32_t)stage * 4 + 4 > CT_L(&h, 1) || !msf(CT_E(&h, 1) + 4 * stage)) return 0;
+    *idx = ah + msf(CT_E(&h, 1) + 4 * stage);
+    if (!(p = cdr_at(d, *idx, &avail)) || !ct_parse(&sec, p, avail) || sec.n != 4) return 0;
+    ns = CT_L(&sec, 3) / 4;
+    for (i = 0; i < ns && i < 256; i++) {
+        uint32_t v = msf(CT_E(&sec, 3) + 4 * i);
+        if (v) s[n++] = v;
+    }
+    *nfiles = 0;
+    for (j = 0; j < n; j++) {
+        uint32_t next = 0;
+        int m;
+        for (m = j + 1; m < n; m++) if (s[m] > s[j]) { next = s[m]; break; }
+        if (!next) break;
+        starts[*nfiles] = s[j];
+        counts[(*nfiles)++] = next - s[j];
+    }
+    return *nfiles >= 2;
+}
+
+static const uint8_t* cdr_file(const Cdr* d, uint32_t idx, uint32_t start, uint32_t count, uint32_t* len)
+{
+    uint32_t avail;
+    const uint8_t* p = cdr_at(d, idx + start, &avail);
+    if (!p) return NULL;
+    *len = count * DV_SECTOR < avail ? count * DV_SECTOR : avail;
+    return p;
+}
+
+/* Table and kits of the mounted disc (disc 0 = areas 0..6, 1 = 7..12). */
+static int disc_scan(int disc)
+{
+    static Split s;
+    static Ct c0, cp;
+    static Tim tims[64];
+    uint32_t size = 0, got = 0, idx, starts[256], counts[256];
+    uint8_t* data;
+    Cdr d;
+    int area, stage, nf, h;
+
+    if (!psx_mod_read_disc_file("DATA.CDR", NULL, 0, &size) || !size) return 0;
+    if (!(data = (uint8_t*)malloc(size))) return 0;
+    if (!psx_mod_read_disc_file("DATA.CDR", data, size, &got) || got != size) { free(data); return 0; }
+    d.b = data;
+    d.len = size;
+    s_nstages[disc] = 0;
+    for (area = disc ? 7 : 0; area <= (disc ? 12 : 6); area++) {
+        for (stage = 1; stage < 64; stage++) {
+            uint32_t l0, l1, vab, te, end, page = 0, i;
+            const uint8_t *f0, *f1;
+            StageRec* r;
+            int j, nt;
+            if (!cdr_stage(&d, area, stage, &idx, starts, counts, &nf)) continue;
+            f0 = cdr_file(&d, idx, starts[0], counts[0], &l0);
+            f1 = cdr_file(&d, idx, starts[1], counts[1], &l1);
+            if (!f0 || !f1 || !ct_parse(&cp, f1, l1) || cp.n <= 100 || memcmp(CT_E(&cp, 1), "VAB_CODE", 8)) continue;
+            if (!split_pack(&s, f1, l1) || !ct_parse(&c0, f0, l0) || !file0_parts(&c0, &vab, &te)) continue;
+            nt = tim_chain(CT_E(&c0, te), CT_L(&c0, te), tims, 64, &end);
+            for (j = 0; j < nt; j++) if (tim_in_page(&tims[j])) page += tims[j].end - tims[j].start;
+            if (s_nstages[disc] == (int)(sizeof s_stages[0] / sizeof s_stages[0][0])) break;
+            r = &s_stages[disc][s_nstages[disc]++];
+            memset(r, 0, sizeof *r);
+            r->area = (uint8_t)area;
+            r->stage = (uint8_t)stage;
+            r->ok = 1;
+            r->f0_len = c0.offs[c0.n];
+            r->f0_vab = CT_L(&c0, vab);
+            r->f0_page = page;
+            for (i = s.core + 1; i < s.ct.n; i++)
+                if (!split_is_tail(&s, i)) { r->pk_stage_n++; r->pk_stage_bytes += CT_L(&s.ct, i); }
+            r->pk_stage_ops = CT_L(&s.ct, 0) - s.prefix_end;
+            for (h = 0; h < HERO_COUNT; h++)
+                if (kKitSource[h][0] == area && kKitSource[h][1] == stage && !s_kits[h].ready) {
+                    if (!kit_build(&s_kits[h], f0, l0, f1, l1)) {
+                        kit_free(&s_kits[h]);
+                        fprintf(stderr, "%s: no kit for %s from %d/%d\n", DV_HS_PLUGIN, kHeroNames[h], area, stage);
+                    }
+                }
+        }
+    }
+    free(data);
+    s_disc_ready[disc] = s_nstages[disc] > 0;
+    return s_disc_ready[disc];
+}
+
+/* --- cache ----------------------------------------------------------------- */
+
+static void cache_dir(void)
+{
+    dv_mkdir("mods");
+    dv_mkdir("mods/cache");
+    dv_mkdir(DV_HS_CACHE_DIR);
+}
+
+static int w32(FILE* f, uint32_t v) { uint8_t t[4]; put32(t, v); return fwrite(t, 1, 4, f) == 4; }
+static int r32(FILE* f, uint32_t* v) { uint8_t t[4]; if (fread(t, 1, 4, f) != 4) return 0; *v = le32(t); return 1; }
+static int wbuf(FILE* f, const uint8_t* p, uint32_t n) { return w32(f, n) && (!n || fwrite(p, 1, n, f) == n); }
+static int rbuf(FILE* f, Buf* b, uint32_t max)
+{
+    uint32_t n;
+    b->n = 0;
+    if (!r32(f, &n) || n > max) return 0;
+    if (!buf_put(b, NULL, 0)) return 0;
+    if (n > b->cap) {
+        uint8_t* q = (uint8_t*)realloc(b->p, n);
+        if (!q) return 0;
+        b->p = q;
+        b->cap = n;
+    }
+    if (n && fread(b->p, 1, n, f) != n) return 0;
+    b->n = n;
+    return 1;
+}
+
+#define DV_KIT_MAGIC   0x4B485644u   /* "DVHK" */
+#define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
+#define DV_CACHE_VER   1u
+
+static void kit_save(int h)
+{
+    char path[256];
+    const Kit* k = &s_kits[h];
     FILE* f;
-    uint8_t* data;
-    long size;
+    uint32_t i, ok;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.kit", h);
+    if (!(f = fopen(path, "wb"))) return;
+    ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_CACHE_VER) && w32(f, (uint32_t)h) && wbuf(f, k->ops.p, k->ops.n) &&
+         w32(f, k->nrefs);
+    for (i = 0; ok && i < k->nrefs; i++) ok = w32(f, k->refs[i]);
+    ok = ok && w32(f, k->nent) && w32(f, k->ntail);
+    for (i = 0; ok && i < k->nent; i++) ok = wbuf(f, k->ent[i], k->entlen[i]);
+    ok = ok && wbuf(f, k->vab.p, k->vab.n) && w32(f, k->npage) && wbuf(f, k->page.p, k->page.n) &&
+         wbuf(f, k->portrait.p, k->portrait.n);
+    fclose(f);
+    if (!ok) remove(path);
+}
 
-    snprintf(path, sizeof path, "%s/%s", dir, name);
-    f = fopen(path, "rb");
-    if (!f) {
-        fprintf(stderr, "%s: cannot open %s\n", DV_HS_PLUGIN, path);
-        return NULL;
+static int kit_load(int h)
+{
+    char path[256];
+    Kit* k = &s_kits[h];
+    FILE* f;
+    uint32_t v, i;
+    int ok;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.kit", h);
+    if (!(f = fopen(path, "rb"))) return 0;
+    memset(k, 0, sizeof *k);
+    ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_CACHE_VER && r32(f, &v) && v == (uint32_t)h &&
+         rbuf(f, &k->ops, 0x10000) && r32(f, &k->nrefs) && k->nrefs <= 512;
+    for (i = 0; ok && i < k->nrefs; i++) ok = r32(f, &k->refs[i]) && k->refs[i] + 4 <= k->ops.n;
+    ok = ok && r32(f, &k->nent) && k->nent <= 400 && r32(f, &k->ntail) && k->ntail <= k->nent;
+    for (i = 0; ok && i < k->nent; i++) {
+        Buf b = {0};
+        ok = rbuf(f, &b, 0x200000);
+        k->ent[i] = b.p;
+        k->entlen[i] = b.n;
+        if (ok && !b.p) k->ent[i] = (uint8_t*)malloc(1);
     }
-    fseek(f, 0, SEEK_END);
-    size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (size != (long)expect || (data = (uint8_t*)malloc(expect)) == NULL) {
-        fprintf(stderr, "%s: %s is %ld bytes, heroswap.txt says %u\n", DV_HS_PLUGIN, path, size, expect);
+    ok = ok && rbuf(f, &k->vab, 0x200000) && r32(f, &k->npage) && rbuf(f, &k->page, 0x100000) &&
+         rbuf(f, &k->portrait, 0x10000) && k->npage && k->portrait.n;
+    fclose(f);
+    if (!ok) { kit_free(k); return 0; }
+    k->ready = 1;
+    return 1;
+}
+
+static void table_save(int disc, uint32_t key)
+{
+    char path[256];
+    FILE* f;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/disc%d.stages", disc + 1);
+    if (!(f = fopen(path, "wb"))) return;
+    if (!(w32(f, DV_TABLE_MAGIC) && w32(f, DV_CACHE_VER) && w32(f, key) && w32(f, (uint32_t)s_nstages[disc]) &&
+          fwrite(s_stages[disc], sizeof(StageRec), (size_t)s_nstages[disc], f) == (size_t)s_nstages[disc])) {
         fclose(f);
-        return NULL;
-    }
-    if (fread(data, 1, expect, f) != expect) {
-        free(data);
-        data = NULL;
+        remove(path);
+        return;
     }
     fclose(f);
-    return data;
 }
 
-static uint8_t* dv_hs_hex(const char* hex, uint32_t* out_size)
+static int table_load(int disc, uint32_t key)
 {
-    size_t n = strlen(hex), i;
-    uint8_t* b;
-    if (n == 0 || n % 2 || (b = (uint8_t*)malloc(n / 2)) == NULL) return NULL;
-    for (i = 0; i < n / 2; i++) {
-        unsigned v;
-        if (sscanf(hex + 2 * i, "%2x", &v) != 1) {
-            free(b);
-            return NULL;
-        }
-        b[i] = (uint8_t)v;
-    }
-    *out_size = (uint32_t)(n / 2);
-    return b;
-}
-
-static int dv_hs_load(const char* dir)
-{
-    char path[1024];
-    static char line[16384];
+    char path[256];
     FILE* f;
-    int ok = 1;
-
-    snprintf(path, sizeof path, "%s/heroswap.txt", dir);
-    f = fopen(path, "r");
-    if (!f) {
-        fprintf(stderr, "%s: no heroswap.txt in %s\n", DV_HS_PLUGIN, dir);
-        return 0;
-    }
-    while (ok && fgets(line, sizeof line, f)) {
-        char name[256], hex[sizeof line];
-        int a, s, n;
-        unsigned addr, size;
-        long long value;
-        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
-        if (sscanf(line, "target %d %d", &a, &s) == 2) {
-            s_area = a;
-            s_stage = s;
-        } else if (sscanf(line, "hero %d", &n) == 1) {
-            if (n < 0 || n > 8) ok = 0;
-            else s_hero = n;
-        } else if (sscanf(line, "patch %x %lld", &addr, &value) == 2) {
-            if (s_patch_count == DV_HS_MAX_PATCHES || addr < 0x80000000u || addr >= DV_RAM_END) ok = 0;
-            else {
-                s_patch_addr[s_patch_count] = addr;
-                s_patch_value[s_patch_count++] = (uint32_t)value;
-            }
-        } else if (sscanf(line, "file %d %255s %u %16383s", &n, name, &size, hex) == 4) {
-            DvHsFile* fl = &s_files[s_file_count];
-            if (s_file_count == DV_HS_MAX_FILES || size == 0 || size > 0x200000u) {
-                ok = 0;
-                break;
-            }
-            fl->number = n;
-            fl->size = size;
-            fl->head = dv_hs_hex(hex, &fl->head_size);
-            fl->data = fl->head ? dv_hs_read_file(dir, name, size) : NULL;
-            if (!fl->data) {
-                free(fl->head);
-                fl->head = NULL;
-                ok = 0;
-                break;
-            }
-            s_file_count++;
-        } else {
-            fprintf(stderr, "%s: bad line in heroswap.txt: %s", DV_HS_PLUGIN, line);
-            ok = 0;
-        }
-    }
+    uint32_t v, n;
+    int ok;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/disc%d.stages", disc + 1);
+    if (!(f = fopen(path, "rb"))) return 0;
+    ok = r32(f, &v) && v == DV_TABLE_MAGIC && r32(f, &v) && v == DV_CACHE_VER && r32(f, &v) && v == key &&
+         r32(f, &n) && n <= sizeof s_stages[0] / sizeof s_stages[0][0] &&
+         fread(s_stages[disc], sizeof(StageRec), n, f) == n;
     fclose(f);
-    return ok && s_area >= 0 && s_file_count > 0;
+    if (!ok) return 0;
+    s_nstages[disc] = (int)n;
+    s_disc_ready[disc] = n > 0;
+    return s_disc_ready[disc];
+}
+
+/* The mounted disc: 0 (SLUS_010.92) or 1, and a key for its DATA.CDR. */
+static int mounted_disc(uint32_t* key)
+{
+    uint32_t lba = 0, size = 0;
+    if (!psx_mod_disc_file_extent("DATA.CDR", &lba, &size)) return -1;
+    *key = lba ^ size;
+    return psx_mod_disc_file_extent("SLUS_010.92", &lba, &size) ? 0 : 1;
+}
+
+/* Table and kits for the mounted disc: from the cache, else from DATA.CDR. */
+static void ensure_disc(void)
+{
+    uint32_t key = 0;
+    int disc = mounted_disc(&key), h, need = 0;
+    if (disc < 0 || s_disc_ready[disc]) return;
+    cache_dir();
+    for (h = 0; h < HERO_COUNT; h++) if (!s_kits[h].ready) kit_load(h);
+    for (h = 0; h < HERO_COUNT; h++) need |= !s_kits[h].ready && (kKitSource[h][0] >= 7) == disc;
+    if (!need && table_load(disc, key)) {
+        fprintf(stderr, "%s: disc %d from the cache (%d action stages)\n", DV_HS_PLUGIN, disc + 1, s_nstages[disc]);
+        return;
+    }
+    if (!disc_scan(disc)) {
+        fprintf(stderr, "%s: DATA.CDR of disc %d not readable\n", DV_HS_PLUGIN, disc + 1);
+        return;
+    }
+    table_save(disc, key);
+    for (h = 0; h < HERO_COUNT; h++)
+        if (s_kits[h].ready && (kKitSource[h][0] >= 7) == disc) kit_save(h);
+    fprintf(stderr, "%s: disc %d read: %d action stages, kits:", DV_HS_PLUGIN, disc + 1, s_nstages[disc]);
+    for (h = 0; h < HERO_COUNT; h++) if (s_kits[h].ready) fprintf(stderr, " %s", kHeroNames[h]);
+    fprintf(stderr, "\n");
+}
+
+/* --- the swap -------------------------------------------------------------- */
+
+static int s_enabled;
+static int s_hero = -1;                    /* chosen hero, -1 = each stage's own */
+static int s_swap, s_swap_area, s_swap_stage, s_swap_hero;
+static int s_saved_hero = -1;              /* g_Hero.index the swap replaced */
+static Buf s_orig_portrait;                /* the stage hero's portrait (from its file 0) */
+
+static void read_options(void)
+{
+    char v[32];
+    int h;
+    s_hero = -1;
+    if (!psx_mod_current_option_value("hero", v, sizeof v) &&
+        !psx_mod_option_value(DV_HS_PKG, DV_HS_FEATURE, "hero", v, sizeof v))
+        return;
+    for (h = 0; h < HERO_COUNT; h++) if (!strcmp(v, kHeroValues[h])) s_hero = h;
+}
+
+static void ram_read(uint32_t addr, uint8_t* out, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i + 4 <= n; i += 4) put32(out + i, psx_mod_read_word(addr + i));
+    for (; i < n; i++) out[i] = psx_mod_read_byte(addr + i);
+}
+
+static void restore_hero_index(void)
+{
+    if (s_saved_hero >= 0) {
+        fprintf(stderr, "%s: g_Hero.index back to %d\n", DV_HS_PLUGIN, s_saved_hero);
+        psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_saved_hero);
+        s_saved_hero = -1;
+    }
+}
+
+static uint32_t sectors_bytes(uint32_t n) { return (n + DV_SECTOR - 1) / DV_SECTOR * DV_SECTOR; }
+
+/* Layout of the stage buffers (StageBuffersAlloc) and the SPU slots
+ * (SoundSpuLayout), from the sizes in RAM. */
+static uint32_t arena_end(const uint32_t* b, int area, int stage)
+{
+    uint32_t w[10], warp;
+    int i;
+    for (i = 0; i < 10; i++) w[i] = b[i];
+    if ((area == 6 && stage == 22) || (area == 7 && stage == 29) || (area == 8 && stage == 29) ||
+        (area == 9 && stage == 29) || (area == 4 && stage == 26) || (area == 3 && stage == 26))
+        w[5] = 0;
+    warp = w[8] > w[6] + w[7] ? w[8] - (w[6] + w[7]) : 0;
+    return DV_ACTION_HEAP + 4 * (w[0] + w[1] + w[3] + w[4] + w[5] + w[2] + w[6] + w[7] + warp) + 4;
+}
+static uint32_t spu_end(const uint32_t* s0)
+{
+    uint32_t s[12], a[10], end = 0;
+    int i;
+    for (i = 0; i < 12; i++) s[i] = s0[i];
+    s[3] = s[11] = s[3] > s[11] ? s[3] : s[11];
+    a[1] = 0;
+    a[2] = a[1] + s[1];
+    a[4] = a[2] + s[2];
+    a[5] = a[4] + s[4];
+    a[6] = a[5] + s[5];
+    a[3] = a[6] + s[6];
+    a[7] = a[9] = a[3] + s[3];
+    a[8] = a[7] + s[7];
+    for (i = 1; i <= 9; i++) if (a[i] + s[i] > end) end = a[i] + s[i];
+    return end;
 }
 
 static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
 {
-    int i;
+    int area = (int16_t)psx_mod_read_half(DV_STAGE_AREA), stage = (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
+    const StageRec* r;
+    const Kit* k;
+    uint32_t f0, pk, need, body, area64, sizes[10], snd[12], i;
     (void)cpu;
     (void)address;
-    if (!s_ready) return;
-    if (!dv_hs_target_loading()) {
-        /* another stage: the hero index the swap replaced comes back */
-        if (s_saved_hero >= 0) {
-            fprintf(stderr, "%s: g_Hero.index back to %d\n", DV_HS_PLUGIN, s_saved_hero);
-            psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_saved_hero);
-            s_saved_hero = -1;
-        }
+    s_swap = 0;
+    if (!s_enabled) return;
+    ensure_disc();
+    if (s_hero < 0 || s_hero == dv_area_hero(area) || !(r = stage_find(area, stage))) {
+        restore_hero_index();
         return;
     }
-    for (i = 0; i < s_patch_count; i++) {
-        fprintf(stderr, "%s: stage %d/%d layout 0x%08X = %u (was %u)\n", DV_HS_PLUGIN, s_area, s_stage,
-                s_patch_addr[i], s_patch_value[i], psx_mod_read_word(s_patch_addr[i]));
-        psx_mod_write_word(s_patch_addr[i], s_patch_value[i]);
+    k = &s_kits[s_hero];
+    if (!k->ready) {
+        fprintf(stderr, "%s: stage %d/%d: no %s kit yet (start the disc that has %d/%d once)\n", DV_HS_PLUGIN,
+                area, stage, kHeroNames[s_hero], kKitSource[s_hero][0], kKitSource[s_hero][1]);
+        restore_hero_index();
+        return;
     }
-    psx_mod_counter_add("dv.heroswap.layout_patched", 1);
+    for (i = 0; i < 10; i++) sizes[i] = psx_mod_read_word(DV_STAGE_BUFFER_SIZES + 4 * i);
+    for (i = 0; i < 12; i++) snd[i] = psx_mod_read_word(DV_SOUND_BODY_SIZE + 4 * i);
+    rebuilt_sizes(r, k, &f0, &pk);
+    need = (sectors_bytes(f0) > sectors_bytes(pk) ? sectors_bytes(f0) : sectors_bytes(pk)) / 4;
+    if (need > sizes[0]) sizes[0] = need;
+    body = vab_body(k->vab.p, k->vab.n);
+    area64 = (body + 63) / 64 * 64;
+    if (area64 > snd[1]) snd[1] = area64;
+    if (arena_end(sizes, area, stage) > DV_ARENA_END_MAX || spu_end(snd) > DV_SPU_END_MAX) {
+        fprintf(stderr, "%s: stage %d/%d: %s does not fit (buffers end 0x%08X, sound %u B): own hero\n",
+                DV_HS_PLUGIN, area, stage, kHeroNames[s_hero], arena_end(sizes, area, stage), spu_end(snd));
+        restore_hero_index();
+        return;
+    }
+    psx_mod_write_word(DV_STAGE_BUFFER_SIZES, sizes[0]);
+    psx_mod_write_word(DV_SOUND_BODY_SIZE + 4, snd[1]);
+    s_swap = 1;
+    s_swap_area = area;
+    s_swap_stage = stage;
+    s_swap_hero = s_hero;
+    s_orig_portrait.n = 0;
+    fprintf(stderr, "%s: stage %d/%d as %s: file 0 %u B, pack %u B, row 0 %u words, slot 1 %u B\n",
+            DV_HS_PLUGIN, area, stage, kHeroNames[s_hero], f0, pk, sizes[0], snd[1]);
+}
+
+/* File 0 with the kit's VAB, hero-page TIMs and portrait. */
+static int merge_file0(Buf* out, const uint8_t* b, uint32_t len, const Kit* k)
+{
+    static Ct c;
+    static Tim tims[64], kt[64];
+    static const uint8_t* ents[16];
+    static uint32_t lens[16];
+    Buf chain = {0};
+    uint32_t vab, te, end, i, pos = 0;
+    int nt, nk, j, m, slots = 0, slot = 0;
+    if (!ct_parse(&c, b, len) || c.n > 16 || !file0_parts(&c, &vab, &te)) return 0;
+    nt = tim_chain(CT_E(&c, te), CT_L(&c, te), tims, 64, &end);
+    nk = tim_chain(k->page.p, k->page.n, kt, 64, NULL);
+    for (j = 0; j < nt; j++) slots += tim_in_page(&tims[j]);
+    /* the hero-page TIMs: the kit's take their places in turn, any left over
+     * go in the last (tools/heroswap.py replace_page_tims) */
+    for (j = 0; j < nt; j++) {
+        const uint8_t* e = CT_E(&c, te);
+        if (tim_is_portrait(&tims[j])) {
+            s_orig_portrait.n = 0;
+            buf_put(&s_orig_portrait, e + tims[j].start, tims[j].end - tims[j].start);
+        }
+        if (!tim_in_page(&tims[j])) continue;
+        buf_put(&chain, e + pos, tims[j].start - pos);
+        for (m = slot; m < nk && (m == slot || slot == slots - 1); m++)
+            buf_put(&chain, k->page.p + kt[m].start, kt[m].end - kt[m].start);
+        slot++;
+        pos = tims[j].end;
+    }
+    if (!slots) {
+        buf_put(&chain, CT_E(&c, te), end);
+        buf_put(&chain, k->page.p, k->page.n);
+        pos = end;
+    }
+    buf_put(&chain, CT_E(&c, te) + pos, CT_L(&c, te) - pos);
+    /* the portrait, in place of the stage's (same size) */
+    if (s_orig_portrait.n && s_orig_portrait.n == k->portrait.n) {
+        Tim ct[64];
+        int n2 = tim_chain(chain.p, chain.n, ct, 64, NULL);
+        for (j = 0; j < n2; j++)
+            if (tim_is_portrait(&ct[j]) && ct[j].end - ct[j].start == k->portrait.n)
+                memcpy(chain.p + ct[j].start, k->portrait.p, k->portrait.n);
+    }
+    for (i = 0; i < c.n; i++) {
+        ents[i] = CT_E(&c, i);
+        lens[i] = CT_L(&c, i);
+    }
+    ents[vab] = k->vab.p;
+    lens[vab] = k->vab.n;
+    ents[te] = chain.p;
+    lens[te] = chain.n;
+    i = ct_build(out, ents, lens, c.n);
+    buf_free(&chain);
+    return (int)i;
+}
+
+/* The action pack with the kit's hero (tools/heroswap.py merge_packs, --prune). */
+static int merge_pack(Buf* out, const uint8_t* b, uint32_t len, const Kit* k)
+{
+    static Split s;
+    static const uint8_t* ents[4097];
+    static uint32_t lens[4097], tmap[4097], kmap[401];
+    Buf e0 = {0};
+    uint32_t n = 1, i, slots = 0, r;
+    int j, ok;
+    if (!split_pack(&s, b, len)) return 0;
+    memset(tmap, 0, sizeof tmap);
+    for (i = 0; i < k->nent - k->ntail; i++) { kmap[i + 1] = n; ents[n] = k->ent[i]; lens[n++] = k->entlen[i]; }
+#define PUT_KIT_TAIL(t) do { uint32_t q = k->nent - k->ntail + (t); kmap[q + 1] = n; ents[n] = k->ent[q]; lens[n++] = k->entlen[q]; } while (0)
+    for (i = s.core + 1; i < s.ct.n; i++) {
+        if (split_is_tail(&s, i)) {
+            slots++;
+            if (slots == (uint32_t)s.ntail) { uint32_t t; for (t = slots - 1; t < k->ntail; t++) PUT_KIT_TAIL(t); }
+            else if (slots - 1 < k->ntail) PUT_KIT_TAIL(slots - 1);
+            continue;
+        }
+        tmap[i] = n;
+        ents[n] = CT_E(&s.ct, i);
+        lens[n++] = CT_L(&s.ct, i);
+    }
+    if (!s.ntail) { uint32_t t; for (t = 0; t < k->ntail; t++) PUT_KIT_TAIL(t); }
+#undef PUT_KIT_TAIL
+    /* entry 0: the kit's ops, then the stage's, renumbered */
+    ok = buf_put(&e0, k->ops.p, k->ops.n) && buf_put(&e0, CT_E(&s.ct, 0) + s.prefix_end, CT_L(&s.ct, 0) - s.prefix_end);
+    for (i = 0; ok && i < k->nrefs; i++) put32(e0.p + k->refs[i], kmap[le32(k->ops.p + k->refs[i])]);
+    for (j = s.k; ok && j < s.prog.nops; j++)
+        for (r = 0; r < s.prog.ops[j].nref; r++) {
+            uint32_t pos = s.prog.refs[s.prog.ops[j].ref0 + r];
+            put32(e0.p + k->ops.n + (pos - s.prefix_end), tmap[le32(CT_E(&s.ct, 0) + pos)]);
+        }
+    ents[0] = e0.p;
+    lens[0] = e0.n;
+    ok = ok && ct_build(out, ents, lens, n);
+    buf_free(&e0);
+    return ok;
+}
+
+/* In another pack: copies of the stage hero's portrait become the kit's. */
+static int swap_portraits(uint32_t pack, const Kit* k)
+{
+    uint32_t n = psx_mod_read_word(pack), i, done = 0;
+    uint32_t plen = s_orig_portrait.n;
+    if (!plen || plen != k->portrait.n || n < 1 || n > 4096) return 0;
+    for (i = 0; i < n; i++) {
+        uint32_t a = psx_mod_read_word(pack + 4 + 4 * i), z = psx_mod_read_word(pack + 8 + 4 * i), pos;
+        if (a > z || z - a > 0x200000 || pack + z > DV_RAM_END) return (int)done;
+        /* a chain at the entry's head: walk its headers in RAM */
+        for (pos = a; pos + 0x1C <= z;) {
+            uint32_t flags, bn, ib, end;
+            uint8_t tag[8];
+            ram_read(pack + pos, tag, 8);
+            if (memcmp(tag, "TIM_CODE", 8) || psx_mod_read_word(pack + pos + 8) != 0x10) break;
+            flags = psx_mod_read_word(pack + pos + 12);
+            bn = psx_mod_read_word(pack + pos + 16);
+            if (flags != 8 && flags != 9) break;
+            ib = pos + 16 + bn;
+            if (ib + 12 > z) break;
+            end = ib + psx_mod_read_word(pack + ib);
+            if (end <= pos || end > z) break;
+            if (end - pos == plen && psx_mod_read_half(pack + ib + 4) == kPortrait[0] &&
+                psx_mod_read_half(pack + ib + 6) == kPortrait[1]) {
+                static uint8_t tmp[0x4000];
+                if (plen <= sizeof tmp) {
+                    ram_read(pack + pos, tmp, plen);
+                    if (!memcmp(tmp, s_orig_portrait.p, plen)) {
+                        psx_mod_host_write_ram(pack + pos, k->portrait.p, plen);
+                        done++;
+                    }
+                }
+            }
+            pos = end;
+        }
+    }
+    return (int)done;
 }
 
 static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
 {
-    uint32_t pack = cpu->gpr[4], k;
-    int i;
+    uint32_t pack = cpu->gpr[4], n, len;
+    const Kit* k;
+    static Buf in, out;
     (void)address;
-    if (!s_ready || !dv_hs_target_loading() || pack < 0x80000000u || (pack & 3u)) return;
-    for (i = 0; i < s_file_count; i++) {
-        const DvHsFile* fl = &s_files[i];
-        if (pack + fl->size > DV_RAM_END || pack + fl->head_size > DV_RAM_END) continue;
-        for (k = 0; k < fl->head_size; k++)
-            if (psx_mod_read_byte(pack + k) != fl->head[k]) break;
-        if (k != fl->head_size) continue;
-        if (!psx_mod_host_write_ram(pack, fl->data, fl->size)) {
-            fprintf(stderr, "%s: file %d does not fit at 0x%08X\n", DV_HS_PLUGIN, fl->number, pack);
-            return;
-        }
-        psx_mod_counter_add("dv.heroswap.files_replaced", 1);
-        fprintf(stderr, "%s: stage %d/%d file %d replaced at 0x%08X (%u bytes)\n",
-                DV_HS_PLUGIN, s_area, s_stage, fl->number, pack, fl->size);
-        if (fl->number == 1 && s_hero >= 0) {
-            uint8_t cur = psx_mod_read_byte(DV_HERO_INDEX);
-            if (s_saved_hero < 0 && cur != (uint8_t)s_hero) s_saved_hero = cur;
-            psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_hero);
-            fprintf(stderr, "%s: g_Hero.index %u -> %d\n", DV_HS_PLUGIN, cur, s_hero);
-        }
+    if (!s_enabled || !s_swap || (int16_t)psx_mod_read_half(DV_STAGE_AREA) != s_swap_area ||
+        (int16_t)psx_mod_read_half(DV_STAGE_STAGE) != s_swap_stage || pack < 0x80000000u || (pack & 3u))
         return;
+    k = &s_kits[s_swap_hero];
+    if (pack != DV_ACTION_HEAP) {
+        int c = swap_portraits(pack, k);
+        if (c) fprintf(stderr, "%s: %d portrait(s) at 0x%08X\n", DV_HS_PLUGIN, c, pack);
+        return;
+    }
+    n = psx_mod_read_word(pack);
+    if (n < 1 || n > 4096) return;
+    len = psx_mod_read_word(pack + 4 + 4 * n);
+    if (len < 8 || len > 0x200000u || pack + len > DV_RAM_END) return;
+    if (len > in.cap) {
+        uint8_t* q = (uint8_t*)realloc(in.p, len);
+        if (!q) return;
+        in.p = q;
+        in.cap = len;
+    }
+    ram_read(pack, in.p, len);
+    in.n = len;
+    if (n == 3) {                                    /* file 0 */
+        if (!merge_file0(&out, in.p, in.n, k)) { fprintf(stderr, "%s: file 0 not rebuilt\n", DV_HS_PLUGIN); return; }
+        if (!psx_mod_host_write_ram(pack, out.p, out.n)) return;
+        fprintf(stderr, "%s: stage %d/%d file 0 rebuilt (%u bytes)\n", DV_HS_PLUGIN, s_swap_area, s_swap_stage, out.n);
+    } else if (n > 100) {                            /* the action pack */
+        uint8_t cur;
+        if (!merge_pack(&out, in.p, in.n, k)) { fprintf(stderr, "%s: pack not rebuilt\n", DV_HS_PLUGIN); return; }
+        if (!psx_mod_host_write_ram(pack, out.p, out.n)) return;
+        fprintf(stderr, "%s: stage %d/%d pack rebuilt (%u bytes)\n", DV_HS_PLUGIN, s_swap_area, s_swap_stage, out.n);
+        cur = psx_mod_read_byte(DV_HERO_INDEX);
+        if (cur != (uint8_t)s_swap_hero) {
+            s_saved_hero = cur;
+            psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_swap_hero);
+            fprintf(stderr, "%s: g_Hero.index %u -> %d\n", DV_HS_PLUGIN, cur, s_swap_hero);
+        }
     }
 }
 
 static void dv_hs_activate(void)
 {
-    char dir[1024];
-    dv_hs_clear();
-    if (!psx_mod_current_resource_path(DV_HS_RESOURCE, dir, sizeof dir)) {
-        fprintf(stderr, "%s: no folder selected\n", DV_HS_PLUGIN);
-        return;
-    }
-    if (!dv_hs_load(dir)) {
-        fprintf(stderr, "%s: %s not usable; hero swap off\n", DV_HS_PLUGIN, dir);
-        dv_hs_clear();
-        return;
-    }
-    s_ready = 1;
-    fprintf(stderr, "%s: stage %d/%d, %d files, %d layout writes, hero index %d from %s\n",
-            DV_HS_PLUGIN, s_area, s_stage, s_file_count, s_patch_count, s_hero, dir);
+    s_enabled = 1;
+    s_swap = 0;
+    read_options();
+    ensure_disc();
+    fprintf(stderr, "%s: play as %s\n", DV_HS_PLUGIN, s_hero >= 0 ? kHeroNames[s_hero] : "each stage's hero");
+}
+
+static int dv_hs_option_changed(const char* option_id, const char* value)
+{
+    (void)option_id;
+    (void)value;
+    read_options();
+    fprintf(stderr, "%s: play as %s (from the next stage load)\n", DV_HS_PLUGIN,
+            s_hero >= 0 ? kHeroNames[s_hero] : "each stage's hero");
+    return 1;
 }
 
 PSX_MOD_CONSTRUCTOR(dv_register_heroswap)
 {
     int ok = psx_mod_register_activation_plugin(DV_HS_PLUGIN, dv_hs_activate)
+          && psx_mod_register_option_changed_plugin(DV_HS_PLUGIN, dv_hs_option_changed)
           && psx_mod_register_function_entry_plugin(DV_HS_PLUGIN, DV_STAGE_BUFFERS_ALLOC,
                                                     dv_hs_buffers_entry)
           && psx_mod_register_function_entry_plugin(DV_HS_PLUGIN, DV_PACK_INSTALL,

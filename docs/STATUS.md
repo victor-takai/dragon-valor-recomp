@@ -88,16 +88,17 @@ the native 60 Hz version.
   `DEVELOPMENT.md`, *Character and weapon*: the hero follows the area, so
   the Cheats page gained an **Area (next Continue)** row that reloads
   another area's stage (Kodel's save + area 0 = Clovis in the prologue).
-- **Hero swap** (2026-11-16, branch `hero-swap`, developer channel): any
-  hero in any action stage, from stage files rebuilt by the decomp's
-  `tools/heroswap.py` and served by `dragonvalor.heroswap` (hooks on
-  `StageBuffersAlloc` and `PackInstall`). All eight other heroes (disc-2
-  ones too) play Clovis's 1/7 and Mihael the prologue's 0/1, each run of
-  `tests/test_heroswap.py` passing (2026-11-16/17); the Status screen's
-  portrait and the menus' name follow the swap (2026-11-17) and the stage
-  hero comes back in every other stage. Open: one folder per stage (a
-  "play as" choice in game is next), cutscenes that move the hero by
-  animation slot, long play
+- **Play as** (2026-11-17, branch `hero-swap`, experimental): pick the hero
+  of every action stage in the launcher or the in-game menu
+  (`dragonvalor.heroswap` 2.0.0). The plugin reads the heroes from the disc
+  at start (cached afterwards; a disc-2 hero needs disc 2 started once) and
+  rebuilds each stage's files in RAM as they load (hooks on
+  `StageBuffersAlloc` and `PackInstall`), model, moves, sounds, portrait and
+  name; the C rebuild gives the decomp tool's bytes. `tests/test_heroswap.py`
+  passes for all eight heroes in Clovis's 1/7 and 1/9. Before it
+  (2026-11-16): one stage per folder written by the decomp's
+  `tools/heroswap.py`. Open: story scenes, which use their own actor copy of
+  the stage's hero (Kodel's 3/1 opening still shows Kodel), long play
   (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own

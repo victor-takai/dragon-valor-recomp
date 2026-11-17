@@ -1,42 +1,42 @@
 #!/usr/bin/env python3
-"""Check dragonvalor.heroswap on the debug build with a folder written by the
-decomp's tools/heroswap.py (github victor-takai/dragon-valor-decomp):
+"""Check dragonvalor.heroswap ("Play as") on the debug build:
 
-  python tests/test_heroswap.py FOLDER [--build build-debug] [--port N] [--play SECONDS]
+  python tests/test_heroswap.py HERO [--ref FOLDER] [--state 10|9] [--leave A/S] [--prime-disc2]
+                                     [--build build-debug] [--port N] [--play SECONDS]
 
-e.g. FOLDER = F:/dragon-valor-decomp/build/heroswap/3-1_to_1-7 (Kodel into
-1/7, `heroswap.py build 3 1 1 7 --prune`). The test writes its own
-<build>/mods/state.toml (the package on, FOLDER as its resource, no cheats;
-the player's file is backed up and restored, as are settings.toml and
-dragonvalor_settings.toml), launches the build muted with a hidden window,
-loads test state 10 (area 1 / stage 7, Clovis; never slot 0) and, when
-heroswap.txt targets another stage, writes that stage as the next Continue's
-(area 0x800A2F18, stage record 0x8007D9C6). Then HP 0 -> GAME OVER ->
-Cross on CONTINUE reloads the stage, and:
+--state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
 
-  - the runtime log shows the plugin loaded the folder and replaced every
-    file heroswap.txt lists that the reload reads (files 0 and 1);
-  - the action pack in RAM (0x800C5E98) starts with the rebuilt pack's
-    container head (its offset table is not relocated by the install);
-  - every layout size heroswap.txt patches holds its value in RAM;
-  - the hero object's behaviour script (object 0 +0x000) points at the
-    rebuilt pack's entry 2;
-  - g_Hero.index (0x80086318) is heroswap.txt's `hero` value, when it has one;
-  - VRAM holds the rebuilt file 0's last hero-page TIM (image and CLUT at
-    (384..447, 0..255)) and its portrait (image (960, 432) 40 x 64, CLUT row
-    (0, 500)), read back with the debug server's vram_peek;
-  - Triangle opens the Status screen (mode 7; screenshot
-    test_heroswap_status.png, for the portrait and the name);
-  - the stage runs (mode 8, frames advancing) through --play seconds of
-    walking and attacking, with no unknown dispatch or segment miss;
-  - leaving for another stage (1/9, or 1/7 when 1/9 is the target) through
-    a second Continue: nothing is replaced there and g_Hero.index is back.
+HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita.
+The test writes its own <build>/mods/state.toml (the feature on with that
+hero, no cheats; the player's file is backed up and restored, as are
+settings.toml and dragonvalor_settings.toml), launches the build muted with a
+hidden window, loads test state 10 (area 1 / stage 7, Clovis; never slot 0)
+and reloads the stage through GAME OVER > Cross on CONTINUE. Then:
 
-Screenshots (VRAM display) before and after go to <build>/test_heroswap_*.png.
-The game is killed by its PID only. Exit code 0 on PASS.
+  - the plugin found its kits (read from DATA.CDR or from its cache in
+    <build>/mods/cache/dragonvalor.heroswap) and rebuilt 1/7's file 0 and
+    action pack for HERO;
+  - g_Hero.index (0x80086318) is HERO's;
+  - with --ref, a folder written by the decomp's tools/heroswap.py from the
+    plugin's kit stage (e.g. `heroswap.py build 3 1 1 7 --prune` for Kodel:
+    Clovis 1/1, Arlen 2/1, ... Anita 9/1): the action pack in RAM starts
+    with the reference pack's container head (the same entries and sizes),
+    and VRAM holds the reference file 0's last hero-page TIM and portrait
+    (vram_peek), byte for byte: the C rebuild agrees with the Python one;
+  - Triangle opens the Status screen (mode 7; screenshot for the portrait
+    and the name);
+  - the stage runs through --play seconds of walking and attacking with no
+    unknown dispatch or segment miss;
+  - a second Continue into 1/9 loads it with HERO too (the choice holds for
+    every stage) and the index stays HERO's.
+
+Screenshots go to <build>/test_heroswap_*.png. The game is killed by its PID
+only. Exit code 0 on PASS. Heroes of disc 2 (anna, mihael, anita) need their
+kit in the cache: start disc 2 once with the feature on (--prime-disc2 does
+that first, with no save state).
 """
-import struct
 import re
+import struct
 import subprocess
 import sys
 import time
@@ -50,10 +50,11 @@ DV = str(ROOT / "tools" / "dvdbg.py")
 AREA, STAGE, RECORD = 0x800A2F18, 0x800A2F1A, 0x8007D9C6
 HP, MODE, VAL = 0x8008A5AE, 0x8008634C, 0x800A2DD0
 PACK = 0x800C5E98          # row 0 of ACTION: the action pack while a stage runs
-HERO_SCRIPT = 0x8008A4E0   # g_Objects[0].script
 HERO_INDEX = 0x80086318    # g_Hero.index
 HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
+HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
+DISC2 = ROOT.parent / "Dragon Valor (USA) (Disc 2)" / "Dragon Valor (USA) (Disc 2).cue"
 
 
 def container(b):
@@ -85,58 +86,63 @@ def overlaps(a, b):
 def main(argv):
     args = list(argv)
     port = port_from_args(args)
-    build, play = "build-debug", 20.0
-    for flag in ("--build", "--play"):
+    build, play, ref, prime = "build-debug", 20.0, None, "--prime-disc2" in args
+    slot, leave = 10, (1, 9)
+    if prime:
+        args.remove("--prime-disc2")
+    for flag in ("--build", "--play", "--ref", "--state", "--leave"):
         if flag in args:
             i = args.index(flag)
             if flag == "--build":
                 build = args[i + 1]
-            else:
+            elif flag == "--play":
                 play = float(args[i + 1])
+            elif flag == "--state":
+                slot = int(args[i + 1])
+            elif flag == "--leave":
+                leave = tuple(int(x) for x in args[i + 1].split("/"))
+            else:
+                ref = Path(args[i + 1]).resolve()
             del args[i:i + 2]
-    if len(args) != 1:
+    if slot == 0:
+        sys.exit("slot 0 is the player's quick save: use the test states 9 or 10")
+    if len(args) != 1 or args[0] not in HEROES:
         sys.exit(__doc__)
-    folder = Path(args[0]).resolve()
-    spec = (folder / "heroswap.txt").read_text(encoding="utf-8")
-    m = re.search(r"^target (\d+) (\d+)$", spec, re.M)
-    if not m:
-        sys.exit(f"{folder}: heroswap.txt has no target line")
-    target = (int(m.group(1)), int(m.group(2)))
-    files = {int(n): (name, int(size)) for n, name, size in re.findall(r"^file (\d+) (\S+) (\d+) ", spec, re.M)}
-    pack = (folder / files[1][0]).read_bytes()
-    pack_head = pack[:4 * (int.from_bytes(pack[:4], "little") + 2)]
-    pack_e2 = PACK + int.from_bytes(pack[12:16], "little")   # offset[2]
-    mh = re.search(r"^hero (\d+)$", spec, re.M)
-    hero = int(mh.group(1)) if mh else None
-    # What file 0 leaves in VRAM: the last TIM in the hero's page, the last portrait.
-    chain = [t for e in container((folder / files[0][0]).read_bytes()) for t in tims(e)]
-    page = [t for t in chain if any(r and overlaps(r, HERO_PAGE) for r in (t[0], t[2]))]
-    portrait = [t for t in chain if t[2] == PORTRAIT]
-    expect_vram = {}
-    for name, found in (("hero texture", page), ("portrait", portrait)):
-        if found:
-            crect, cdata, irect, idata = found[-1]
-            expect_vram[f"{name} image {irect}"] = (irect, idata)
-            if crect:
-                expect_vram[f"{name} CLUT {crect}"] = (crect, cdata)
+    hero_name = args[0]
+    hero = HEROES.index(hero_name)
+
+    expect_head, expect_vram = None, {}
+    if ref:
+        spec = (ref / "heroswap.txt").read_text(encoding="utf-8")
+        files = {int(n): name for n, name in re.findall(r"^file (\d+) (\S+) ", spec, re.M)}
+        pack = (ref / files[1]).read_bytes()
+        expect_head = pack[:4 * (int.from_bytes(pack[:4], "little") + 2)]
+        chain = [t for e in container((ref / files[0]).read_bytes()) for t in tims(e)]
+        page = [t for t in chain if any(r and overlaps(r, HERO_PAGE) for r in (t[0], t[2]))]
+        portrait = [t for t in chain if t[2] == PORTRAIT]
+        for name, found in (("hero texture", page), ("portrait", portrait)):
+            if found:
+                crect, cdata, irect, idata = found[-1]
+                expect_vram[f"{name} image {irect}"] = (irect, idata)
+                if crect:
+                    expect_vram[f"{name} CLUT {crect}"] = (crect, cdata)
 
     bdir = ROOT / build
     state = bdir / "mods" / "state.toml"
     guarded = [state, bdir / "settings.toml", bdir / "dragonvalor_settings.toml"]
     saved = {p: p.read_bytes() for p in guarded if p.is_file()}
-    path_toml = str(folder).replace("\\", "\\\\")
     state_text = f"""format_version = 2
 
 [[package]]
 id = "dragonvalor.heroswap"
-version = "1.0.0"
+version = "2.0.0"
 
 [[feature]]
 package_id = "dragonvalor.heroswap"
-id = "heroswap"
+id = "play-as"
 enabled = true
-[feature.resources]
-build = "{path_toml}"
+[feature.values]
+hero = "{hero_name}"
 """
     results, pid = [], None
 
@@ -161,6 +167,38 @@ build = "{path_toml}"
     def frame():
         return rpc(port, "frame").get("frame", 0)
 
+    def launch(*extra):
+        out = cli("launch", "--build", str(bdir), *extra)
+        mm = re.search(r"pid=(\d+)", out)
+        print("launch:", out.splitlines()[0] if out else "?")
+        return mm.group(1) if mm else None
+
+    def kill(p):
+        if p:
+            subprocess.run(["taskkill", "/F", "/PID", p], capture_output=True)
+            time.sleep(1.5)
+
+    def log_text():
+        return log.read_text(encoding="utf-8", errors="replace")
+
+    def reload_into(area, stage):
+        """GAME OVER > CONTINUE into area / stage (the Continue reloads the stage record)."""
+        if (rd16(AREA), rd16(STAGE)) != (area, stage):
+            wr16(AREA, area)
+            wr16(RECORD, stage)
+        wr16(VAL, max(rd16(VAL), 500))      # the Continue costs 50 Val
+        wr16(HP, 0)
+        t0 = time.time()
+        while time.time() - t0 < 15 and rd(MODE, 1)[0] == 8:
+            time.sleep(0.5)
+        time.sleep(6)
+        cli("press", "cross")
+        t0 = time.time()
+        while time.time() - t0 < 60 and not (rd(MODE, 1)[0] == 8 and time.time() - t0 > 4):
+            time.sleep(0.5)
+        time.sleep(4)   # the stage fades in
+        return (rd16(AREA), rd16(STAGE)) == (area, stage) and rd(MODE, 1)[0] == 8
+
     log = bdir / f"dvdbg_{port}.log"
     try:
         out = subprocess.run(["tasklist"], capture_output=True, text=True).stdout
@@ -168,52 +206,41 @@ build = "{path_toml}"
             sys.exit("the game is already running: not launching a second instance")
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(state_text, encoding="utf-8")
-        out = cli("launch", "--build", str(bdir))
-        mm = re.search(r"pid=(\d+)", out)
-        pid = mm.group(1) if mm else None
-        print("launch:", out.splitlines()[0] if out else "?")
-        time.sleep(3)
-        print("state 10:", cli("state", "load", "10").splitlines()[-1])
-        time.sleep(4)
-        text = log.read_text(encoding="utf-8", errors="replace")
-        check("plugin loaded the folder", f"dragonvalor.heroswap: stage {target[0]}/{target[1]}" in text,
-              next((l for l in text.splitlines() if "dragonvalor.heroswap" in l), "no plugin line"))
-        print(f"  state 10 is {rd16(AREA)}/{rd16(STAGE)}, mode {rd(MODE, 1)[0]}")
-        rpc(port, "screenshot", path=str(bdir / "test_heroswap_before.png"))
-        index_before = rd(HERO_INDEX, 1)[0]
+        if prime:
+            pid = launch("--disc", str(DISC2))
+            t0 = time.time()
+            while time.time() - t0 < 60 and "disc 2 " not in log_text():
+                time.sleep(1)
+            line = next((l for l in log_text().splitlines() if "dragonvalor.heroswap: disc 2" in l), "no disc 2 line")
+            check("disc 2 primed (its kits in the cache)", "disc 2" in line, line)
+            kill(pid)
+            pid = None
 
-        def reload_into(area, stage):
-            """GAME OVER > CONTINUE into area / stage (the Continue reloads the stage record)."""
-            if (rd16(AREA), rd16(STAGE)) != (area, stage):
-                wr16(AREA, area)
-                wr16(RECORD, stage)
-            wr16(VAL, max(rd16(VAL), 500))      # the Continue costs 50 Val
-            wr16(HP, 0)
-            t0 = time.time()
-            while time.time() - t0 < 15 and rd(MODE, 1)[0] == 8:
-                time.sleep(0.5)
-            time.sleep(6)
-            cli("press", "cross")
-            t0 = time.time()
-            while time.time() - t0 < 60 and not (rd(MODE, 1)[0] == 8 and time.time() - t0 > 4):
-                time.sleep(0.5)
-            time.sleep(4)   # the stage fades in
-            return (rd16(AREA), rd16(STAGE)) == (area, stage) and rd(MODE, 1)[0] == 8
+        pid = launch()
+        time.sleep(3)
+        t0 = time.time()
+        while time.time() - t0 < 60 and "play as" not in log_text():
+            time.sleep(1)
+        lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
+        check("plugin active, play as " + hero_name.capitalize(),
+              any(f"play as {hero_name.capitalize()}" in l for l in lines), " | ".join(lines))
+        print(f"state {slot}:", cli("state", "load", str(slot)).splitlines()[-1])
+        time.sleep(4)
+        index_before = rd(HERO_INDEX, 1)[0]
+        target = (rd16(AREA), rd16(STAGE))
+        ts = f"{target[0]}/{target[1]}"
+        print(f"  state {slot} is {ts}, mode {rd(MODE, 1)[0]}, hero index {index_before}")
+        rpc(port, "screenshot", path=str(bdir / "test_heroswap_before.png"))
 
         ok = reload_into(*target)
-        check("the target stage is running again", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
-
-        text = log.read_text(encoding="utf-8", errors="replace")
-        for n in (0, 1):
-            check(f"file {n} replaced by the plugin", f"file {n} replaced" in text)
-        check("action pack in RAM has the rebuilt head", rd(PACK, len(pack_head)) == pack_head)
-        for addr, value in re.findall(r"^patch (0x[0-9A-Fa-f]+) (\d+)$", spec, re.M):
-            got = int.from_bytes(rd(int(addr, 16), 4), "little")
-            check(f"layout {addr} = {value} after the reload", got == int(value), str(got))
-        script = int.from_bytes(rd(HERO_SCRIPT, 4), "little")
-        check("hero script = rebuilt pack's entry 2", script == pack_e2, f"0x{script:08X} vs 0x{pack_e2:08X}")
-        if hero is not None:
-            check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+        check(f"{ts} is running again", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
+        text = log_text()
+        check(f"{ts} laid out for {hero_name.capitalize()}", f"stage {ts} as {hero_name.capitalize()}" in text)
+        check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
+        check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
+        check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+        if expect_head:
+            check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
         for label, (rect, data) in expect_vram.items():
             x, y, w, h = rect
             rows = []
@@ -229,10 +256,9 @@ build = "{path_toml}"
             # vram_peek prints each pixel as big-endian hex; the TIM stores little-endian
             got = b"".join(bytes(v for k in range(0, len(r), 2) for v in (r[k + 1], r[k])) for r in rows)
             same = sum(a == b for a, b in zip(got, data))
-            check(f"VRAM {label} = rebuilt file 0's", got == data, f"{same} of {len(data)} bytes")
+            check(f"VRAM {label} = reference file 0's", got == data, f"{same} of {len(data)} bytes")
         rpc(port, "screenshot", path=str(bdir / "test_heroswap_after.png"))
 
-        # The Status screen (Triangle in play, mode 7): its portrait and the hero's name.
         cli("press", "triangle")
         time.sleep(4)
         rpc(port, "screenshot", path=str(bdir / "test_heroswap_status.png"))
@@ -251,30 +277,25 @@ build = "{path_toml}"
         f1 = frame()
         check(f"still running after {play:.0f} s of play", rd(MODE, 1)[0] in (8, 9) and f1 > f0 + 30 * play,
               f"mode {rd(MODE, 1)[0]}, {f1 - f0} frames")
+
+        ok = reload_into(*leave)
+        text = log_text()
+        ls = f"{leave[0]}/{leave[1]}"
+        check(f"{ls} is running", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
+        check(f"{ls} rebuilt for {hero_name.capitalize()} too",
+              f"stage {ls} as {hero_name.capitalize()}" in text and f"stage {ls} pack rebuilt" in text)
+        check(f"g_Hero.index still {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+        rpc(port, "screenshot", path=str(bdir / "test_heroswap_left.png"))
         h = cli("health")
         print("  health:", h.replace("\n", "; "))
         nums = [int(x) for x in re.findall(r"total=(\d+)", h)]
         check("no unknown dispatch / segment miss", nums and not any(nums), h.replace("\n", "; "))
-
-        # Leaving the stage: another action stage of the same disc loads with
-        # its own hero, and the hero index comes back.
-        leave = (1, 9) if target != (1, 9) else (1, 7)
-        if target[0] >= 7:
-            leave = None   # test state 10 is on disc 1; nothing to leave to here
-        if leave:
-            replaced_before = log.read_text(encoding="utf-8", errors="replace").count(" replaced at ")
-            ok = reload_into(*leave)
-            text = log.read_text(encoding="utf-8", errors="replace")
-            check(f"left for {leave[0]}/{leave[1]}", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
-            check("no file replaced there", text.count(" replaced at ") == replaced_before)
-            if hero is not None:
-                check(f"g_Hero.index back to {index_before}", rd(HERO_INDEX, 1)[0] == index_before,
-                      str(rd(HERO_INDEX, 1)[0]))
-            rpc(port, "screenshot", path=str(bdir / "test_heroswap_left.png"))
+        print("  plugin log:")
+        for line in log_text().splitlines():
+            if "dragonvalor.heroswap" in line:
+                print("    " + line)
     finally:
-        if pid:
-            subprocess.run(["taskkill", "/F", "/PID", pid], capture_output=True)
-            time.sleep(1)
+        kill(pid)
         for p, b in saved.items():
             p.write_bytes(b)
         if state not in saved:

@@ -807,7 +807,7 @@ player's request, and the Magic and Items rows carry the game's own texts
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |
 | Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
 | Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
-| Experimental (the last section; Area, Stage and Go now moved here from Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time | Area and Stage are RAM rows like the editors (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform |
+| Experimental (the last section; Area, Stage and Go now moved here from Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. **Play as** (2026-11-17, after Go now): the hero of every action stage, the `hero` option of `dragonvalor.heroswap` (see its section); applied from the next stage load, so Go now right after shows it at once; the first choice switches the feature on for the next start 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time | Area and Stage are RAM rows like the editors; Play as is a mod option row (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu
 (`psx_menu_host.h`: pause, live video, mod changes, disc tray, exit) and
@@ -1050,74 +1050,88 @@ worked examples this one follows.
   chapters, the field module (`MAP.BIN`) scenes, in-stage movies, the
   software renderer, a real resize with Fit.
 
-#### This project's package: `dragonvalor.heroswap` (2026-11-16, developer)
+#### This project's package: `dragonvalor.heroswap` "Play as" (2026-11-17, experimental)
 
-Plays one stage with another stage's hero. Feature `heroswap`, off by
-default, channel **developer** (local builds only; a CI release leaves it
-out) because it needs the decomp's tool:
+Every action stage loads with the hero the player picks. Package 2.0.0,
+feature `play-as` (channel experimental, off by default), option `hero`
+(`stage` = each stage's own, or `clovis` … `anita`); the in-game menu's
+Experimental section has the same choice as **Play as** (the first choice
+also switches the feature on, for the next start). The choice applies when a
+stage loads; Experimental > Go now reloads the current one at once. The hero
+is data, not code: the decomp (github victor-takai/dragon-valor-decomp,
+`docs/targets/hero-swap.md`) found it, and its `tools/heroswap.py` is the
+reference this plugin's C rebuild is checked against.
 
-```bash
-# in a dragon-valor-decomp checkout (config.toml pointing at your discs)
-python tools/heroswap.py build 3 1 1 7 --prune   # Kodel (3/1) into 1/7 -> build/heroswap/3-1_to_1-7/
-```
+What the plugin (`mods/plugins/dragonvalor_heroswap.c`) does:
 
-The tool reads both stages from the player's discs (areas 7..12 from disc 2,
-so a disc-2 hero can be played on disc 1) and writes the target's rebuilt
-stage files, `heroswap.txt` (target, layout writes, per file the original's
-container head) and `manifest.json` (checks and notes). In the launcher's
-Mods page, enable *Hero swap* and select that folder as its resource
-(`[feature.resources] build = "<folder>"` in `mods/state.toml`). The swap
-happens when that stage loads: entering it, or GAME OVER → CONTINUE in it.
+- **Kits, at start.** It reads `DATA.CDR` from the mounted disc
+  (`psx_mod_read_disc_file`, the whole file: 438 MB on disc 1, 500 MB on
+  disc 2, freed again) and keeps one kit per hero of that disc, taken from
+  the first stage of the hero's first area (Clovis 1/1, Arlen 2/1, … Anita
+  9/1): the hero's install ops (op 3 object, op 31 weld lists, op 52 kind 0
+  sound bank, op 7 shadow) with the entries they name (animations no slot
+  uses left out, the decomp tool's `--prune`), the VAB of the stage's file
+  0, its hero-page TIMs (VRAM 384..447 × 0..255) and its portrait (960, 432,
+  40 × 64, CLUT row (0, 500)). With them a table of the disc's action stages
+  (108 on disc 1, 118 on disc 2) and the sizes a rebuild needs. Kits and
+  tables go to `mods/cache/dragonvalor.heroswap/` beside the executable, so
+  later starts read nothing; a hero of the other disc (Anna, Mihael, Anita
+  on disc 2; Clovis to Phillip on disc 1; Gerome's kit comes from disc 1) is
+  offered once that disc has been started with the feature on.
+- **`StageBuffersAlloc` (0x80035AB8), every stage load.** For an action
+  stage whose own hero is not the chosen one, it works out the rebuilt
+  sizes and raises row 0 (`g_StageBufferSizes[0]`, 0x80078B20: file 0 and
+  then the action pack, whole sectors) and sound slot 1 (`g_SoundBodySize[1]`,
+  0x80077DBC: the VAB body rounded up to 64) when needed, unless the stage
+  buffers would then end past 0x801EE69C or the sound slots take more than
+  476096 bytes (the largest layouts the game itself uses: that stage keeps
+  its hero). Otherwise it gives back the hero index a swap replaced.
+- **`PackInstall` (0x80035E48, a0 = the file just read).** In a swapped
+  stage, file 0 and the action pack, both read to ACTION's heap (0x800C5E98),
+  are rebuilt in RAM before the install: file 0 takes the kit's VAB,
+  hero-page TIMs (in the places of the stage's) and portrait; the pack keeps
+  the stage's own ops and entries after the kit's (tools/heroswap.py's
+  merge, byte for byte). With the pack it writes `g_Hero.index` (0x80086318,
+  the name in the menus and the save; the game writes it only at a chapter
+  start). In any other pack it replaces copies of the stage hero's portrait
+  by the kit's: frame 0 of each event image set (op 66), uploaded back at a
+  dialogue's end. The CD reads are untouched.
 
-`mods/plugins/dragonvalor_heroswap.c` hooks two entries (game.toml
-`mod_function_entry_funcs`, regenerated 2026-11-16: shard 13 only):
+Not handled: story scenes do not use the hero object: an event pack carries
+its own actors, 14-part copies of the stage's hero with their own scripts,
+short motion sets and textures at other VRAM pages (3/1's file 80: pages
+(512, 0), (448, 0), (576, 256)), so a scene shows the stage's own hero while
+its dialogue shows the chosen one's portrait (3/1's opening: Kodel on
+screen, Clovis chosen); event scripts that move the hero object by
+animation slot may give the new hero another hero's motions; 0/1's event file 81 reloads
+the stage hero's texture; enemy groups of 5/19, 5/20, 5/24 and 12/29 upload
+other images into the hero's page. A save made while playing as another hero
+records that hero's name.
 
-- `StageBuffersAlloc` (0x80035AB8): while the target stage loads, writes the
-  layout sizes the tool asked for: `g_StageBufferSizes[0]` (0x80078B20,
-  words; row 0 holds file 0 and then the action pack, in whole sectors) and
-  `g_SoundBodySize[1]` (0x80077DBC; the hero's VAB body). The tool only asks
-  within the largest layouts the game itself uses on the discs.
-- `PackInstall` (0x80035E48, a0 = the file just read): when the bytes at a0
-  start with an original file's head, writes the rebuilt file over it before
-  the install. The CD read is untouched, so a rebuilt file longer than its
-  place on the disc still arrives whole.
+History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
+tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
+itself for every stage.
 
-**Portrait and name (2026-11-17).** The Status screen's portrait (80 x 64,
-VRAM (960, 432), CLUT row (0, 500)) is a TIM of file 0, and every event
-image set (pack op 66) has the stage hero's portrait as frame 0, uploaded
-back at each dialogue's end; the tool now carries the source's portrait into
-file 0 and over every copy of the target's in the stage (1/7: also file 112,
-an event pack). The name comes from `g_Hero.index` (0x80086318), which the
-game writes only at a chapter start: heroswap.txt's `hero N`, written by the
-`PackInstall` hook when it replaces the action pack and given back (the old
-value) by the `StageBuffersAlloc` hook when another stage loads. A save made
-inside the swapped stage records the source hero's name.
-
-Not handled yet: event scripts that move the hero by animation slot
-(cutscenes) may give the new hero another hero's motions; enemy groups of
-5/19, 5/20, 5/24 and 12/29 upload other images into the hero's texture
-page.
-
-- **Checked** on build-debug from test state 10 (1/7, Clovis), muted and
-  hidden, with `tests/test_heroswap.py FOLDER` (own `mods/state.toml`, the
-  player's files restored, the game killed by PID): Kodel 3/1 → 1/7
-  `--prune` 8/8 (no layout write), Mihael 8/1 → 1/7 `--prune` 9/9 (slot 1
-  101760 → 104704), Mihael 8/1 → 0/1 10/10 (row 0 75776 → 78336 words,
-  slot 1 too, three files incl. the event file 81, the prologue's dragon
-  scene runs): files replaced, the pack in RAM = the rebuilt one, the hero
-  script at its entry 2, 20 s of walking / attacking / casting in mode 8,
-  0 unknown dispatches. Screenshots show Kodel and Mihael drawn whole and
-  textured in Raxis City. 2026-11-17, the other six into 1/7 with
-  `--prune`: Arlen 8/8, Felippe 9/9, Phillip 8/8, Gerome 8/8, Anna 8/8,
-  Anita 10/10 (row 0 and slot 1 both raised); every hero of the game but
-  Clovis, each drawn whole with its own look and weapon. With the portrait
-  and the name (2026-11-17), the test also reads VRAM back (`vram_peek`:
-  the rebuilt file 0's last hero-page TIM and portrait, byte for byte),
-  `g_Hero.index`, opens the Status screen (Triangle, mode 7) and leaves for
-  1/9 through a second Continue (no file replaced there, index back): Kodel
-  17/17, the Status screen showing Kodel's portrait and name, Clovis back
-  in 1/9. Not checked: long play, a whole stage, bosses, a dialogue or
-  cutscene with the hero, the reload file 81 being read.
+- **Checked** on build-debug, muted and hidden, with
+  `tests/test_heroswap.py HERO --ref FOLDER` (own `mods/state.toml`, the
+  player's files restored, the game killed by PID): test state 10 (1/7,
+  Clovis), GAME OVER > CONTINUE, then 1/7's file 0 and pack rebuilt, the
+  pack in RAM with the same container head as the decomp tool's output for
+  the same kit stage (`heroswap.py build 3 1 1 7 --prune` for Kodel), VRAM
+  holding the reference's hero texture and portrait byte for byte
+  (`vram_peek`), `g_Hero.index`, the Status screen (Triangle), 20 s of play,
+  then a second Continue into 1/9, rebuilt for the same hero. Kodel 17/17
+  (first start: disc 1 read, 108 stages, six kits); Anita 18/18 with
+  `--prime-disc2` (disc 2 started first: 118 stages, three more kits; then
+  disc 1 from the cache; row 0 and slot 1 raised). Screenshots: Kodel in
+  Raxis City, on the Status screen with his portrait and name, and in 1/9.
+  Arlen, Felippe, Phillip, Gerome, Anna and Mihael 17/17 each. Clovis, from
+  test state 9 into Kodel's 3/1 (`--state 9 --leave 3/3`): the rebuild, the
+  reference head, VRAM and the index pass, but the stage opens with a story
+  scene (Kodel's actor on screen, Clovis's portrait in the dialogue) that
+  holds the Status screen and the GAME OVER back, so those checks fail
+  (14/17): the scene actors above. Not checked: long play, a whole stage, bosses, a dialogue or cutscene with
+  the new hero.
 
 #### Video and audio defaults (measured 2026-10-14)
 
@@ -1272,7 +1286,7 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   New Game.
 - **Committed tests** (`tests/test_manifests.py`, `test_cheats.py`, `test_drop_cheat.py`,
   `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`,
-  `test_heroswap.py FOLDER`).
+  `test_heroswap.py HERO`).
   `python tests/test_manifests.py` checks every mod
   manifest statically (ids, default-off features, option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
