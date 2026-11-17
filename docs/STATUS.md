@@ -95,11 +95,13 @@ the native 60 Hz version.
   rebuilds each stage's files in RAM as they load (hooks on
   `StageBuffersAlloc` and `PackInstall`), model, moves, sounds, portrait and
   name; the C rebuild gives the decomp tool's bytes. `tests/test_heroswap.py`
-  passes for all eight heroes in Clovis's 1/7 and 1/9. Before it
-  (2026-11-16): one stage per folder written by the decomp's
-  `tools/heroswap.py`. Open: story scenes, which use their own actor copy of
-  the stage's hero (Kodel's 3/1 opening still shows Kodel), long play
-  (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
+  passes for all eight heroes in Clovis's 1/7 and 1/9. Story scenes follow
+  too: a scene's own copy of the stage's hero takes the chosen one's parts,
+  and the dialogues name the chosen hero (3/1's opening as Clovis, 0/1's
+  prologue as Kodel). Before it (2026-11-16): one stage per folder written
+  by the decomp's `tools/heroswap.py`. Open: long play, the stage text bank's
+  mentions of the hero (`DEVELOPMENT.md`, *This project's package:
+  dragonvalor.heroswap*).
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own
   return only works in netplay builds and closed the game; upstream

@@ -166,7 +166,7 @@ const RecompRuntimeUiItem kExtraItems[] = {
      "Ends the stage with a Game Over and answers Continue for you: the area and stage above load in about 10 s. Make a save state first: skipped stages can leave items and keys behind. The pad is ignored meanwhile (a dialogue on screen holds the Game Over back until you finish it) and Infinite HP pauses; the 50 Val the Continue costs is given back.",
      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
     {DV_KEY_PLAY_AS, "Experimental", "Play as",
-     "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name. Applies at the next stage load; Go now above reloads this stage at once. The first choice turns the feature on, which then needs a restart. Cutscenes may move the new hero oddly.",
+     "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name, story scenes and dialogues included. Applies at the next stage load; Go now above reloads this stage at once. The first choice turns the feature on, which then needs a restart.",
      RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
 };
 

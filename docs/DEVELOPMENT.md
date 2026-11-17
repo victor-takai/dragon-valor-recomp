@@ -1097,16 +1097,36 @@ What the plugin (`mods/plugins/dragonvalor_heroswap.c`) does:
   by the kit's: frame 0 of each event image set (op 66), uploaded back at a
   dialogue's end. The CD reads are untouched.
 
-Not handled: story scenes do not use the hero object: an event pack carries
-its own actors, 14-part copies of the stage's hero with their own scripts,
-short motion sets and textures at other VRAM pages (3/1's file 80: pages
-(512, 0), (448, 0), (576, 256)), so a scene shows the stage's own hero while
-its dialogue shows the chosen one's portrait (3/1's opening: Kodel on
-screen, Clovis chosen); event scripts that move the hero object by
-animation slot may give the new hero another hero's motions; 0/1's event file 81 reloads
-the stage hero's texture; enemy groups of 5/19, 5/20, 5/24 and 12/29 upload
-other images into the hero's page. A save made while playing as another hero
-records that hero's name.
+**Story scenes (2026-11-17).** Most scenes play the hero object itself, with
+motions the event pack writes into its slots (op 23, 231 packs: made for the
+stage's hero, played on the chosen hero's parts; 1/23's boss intro with
+Kodel looks right). Six event packs (0/1 file 88, 3/1, 4/13, 5/19 and 12/29
+file 80, 9/10 file 216) install their own copy of the stage's hero instead:
+a 14-part object whose vertex entries are the hero's byte for byte, with its
+own script, motions and texture page. In every pack of a swapped stage the
+`PackInstall` hook now also:
+
+- swaps such a copy's parts for the kit's (whose packets use the hero page)
+  and its weld lists for the kit's (the old ones are packet offsets into the
+  old parts); the table notes, per stage, the copy's part and list bytes, so
+  `StageBuffersAlloc` grows the warp row (`g_StageBufferSizes[8]`) by the
+  difference;
+- replaces the stage hero's name by the chosen hero's in the messages (op 62
+  entries, glyph-code text): the speaker label ("Kodel:") and whole-word
+  copies in the lines; both names come from ACTION.BIN's g_HeroNames
+  (0x800C5E14), the same glyph codes;
+- replaces a reload of the stage hero's texture (0/1's file 81, after the
+  opening) by the kit's.
+
+A rebuilt pack is written only if it fits before the next stage buffer (the
+warp row runs over the enemy groups' memory, as the game's own files do).
+Checked with screenshots every 1.5 s through the scenes: 3/1's opening as
+Clovis (Clovis on screen, "Clovis:" labels), 0/1's prologue as Kodel (the
+village scene with Kodel, his texture, "Kodel:" labels), 1/23's boss intro
+and fight as Kodel. Not handled: the stage text bank (op 20) may name the
+hero; enemy groups of 5/19, 5/20, 5/24 and 12/29 upload other images into
+the hero's page; scenes of 4/13, 5/19, 9/10 and 12/29 not watched. A save
+made while playing as another hero records that hero's name.
 
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild

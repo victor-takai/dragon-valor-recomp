@@ -45,11 +45,16 @@
  *   PackInstall (0x80035E48, a0 = the file just read): in a swapped stage,
  *     file 0 and the action pack (both read to ACTION's heap, 0x800C5E98)
  *     are rebuilt with the kit in place before the install; in any other
- *     pack, copies of the stage hero's portrait become the kit's (same size).
+ *     pack, copies of the stage hero's portrait become the kit's (same size),
+ *     the dialogues name the chosen hero (swap_names), a reload of the stage
+ *     hero's texture becomes the kit's (swap_page_reloads), and a story
+ *     scene's own copy of the stage's hero takes the kit's parts
+ *     (swap_actors), when the rebuilt pack fits before the next stage buffer.
  *
- * Inert unless the feature is on and a hero chosen. Not handled: other
- * uploads into the hero's page (0/1's event file 81 reloads the stage hero's
- * texture; enemy groups of 5/19, 5/20, 5/24, 12/29 put other images there).
+ * Inert unless the feature is on and a hero chosen. Not handled: the scene
+ * motions (op 23 into the hero's slots, a copy's own slots) stay the stage
+ * hero's; the stage text bank (op 20) may name the hero; enemy groups of
+ * 5/19, 5/20, 5/24, 12/29 put other images into the hero's page.
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -500,6 +505,7 @@ typedef struct {
     uint8_t area, stage, ok, pad;
     uint32_t f0_len, f0_vab, f0_page;   /* file 0's length, its VAB, its hero-page TIMs */
     uint32_t pk_stage_n, pk_stage_bytes, pk_stage_ops;  /* the pack's stage entries, ops bytes */
+    uint32_t copy_parts, copy_weld;     /* a story scene's copy of the hero: its parts, its weld lists (bytes) */
 } StageRec;
 
 static StageRec s_stages[2][64 * 13];
@@ -519,6 +525,33 @@ static uint32_t kit_entries_bytes(const Kit* k)
     uint32_t i, t = 0;
     for (i = 0; i < k->nent; i++) t += k->entlen[i];
     return t;
+}
+
+/* Bytes of the kit's 14 parts (prims + verts) and of its weld lists. */
+static void kit_part_bytes(const Kit* k, uint32_t* parts, uint32_t* weld)
+{
+    uint32_t i, kn = le32(k->ops.p + 12), pos = 0;
+    *parts = *weld = 0;
+    for (i = 0; i < kn && i < 32; i++) {
+        uint32_t pe = le32(k->ops.p + 16 + i * DV_NODE + 0x68), ve = le32(k->ops.p + 16 + i * DV_NODE + 0x6C);
+        if (pe && pe <= k->nent) *parts += k->entlen[pe - 1];
+        if (ve && ve <= k->nent) *parts += k->entlen[ve - 1];
+    }
+    /* the ops after op 3: op 31 = { 31, list, n, parts[n] } */
+    pos = 16 + kn * DV_NODE;
+    pos += 4 + 4 * le32(k->ops.p + pos);
+    while (pos + 12 <= k->ops.n) {
+        uint32_t op = le32(k->ops.p + pos);
+        if (op == 31) {
+            uint32_t list = le32(k->ops.p + pos + 4);
+            if (list && list <= k->nent) *weld += k->entlen[list - 1] + 12 + 4 * le32(k->ops.p + pos + 8);
+            pos += 12 + 4 * le32(k->ops.p + pos + 8);
+        } else if (op == 52 || op == 7) {
+            pos += 12;
+        } else {
+            break;
+        }
+    }
 }
 
 /* Sizes of the rebuilt files (the merges below build exactly these). */
@@ -581,6 +614,68 @@ static const uint8_t* cdr_file(const Cdr* d, uint32_t idx, uint32_t start, uint3
     return p;
 }
 
+/* A story scene's copy of the stage's hero in the stage's room files (65..):
+ * a 10+ part op 3 whose vertex entries are the hero's (see swap_actors).
+ * Notes the bytes of its parts and of its weld lists, which the swap
+ * replaces: the warp row grows by the difference. */
+static void scan_scene_copy(const Cdr* d, uint32_t idx, const uint32_t* starts, const uint32_t* counts, int nf,
+                            const Split* s, StageRec* r)
+{
+    static Ct ce;
+    static Prog pp;
+    const uint8_t* hv[14];
+    uint32_t hl[14], i, len;
+    int n, m, j, nh = 0;
+    for (i = 0; i < 14; i++) {
+        uint32_t v = le32(CT_E(&s->ct, 0) + 16 + i * DV_NODE + 0x6C);
+        hv[i] = v < s->ct.n ? CT_E(&s->ct, v) : NULL;
+        hl[i] = v < s->ct.n ? CT_L(&s->ct, v) : 0;
+        nh += hv[i] != NULL;
+    }
+    if (nh < 10) return;
+    for (n = 65; n < nf; n++) {
+        const uint8_t* f;
+        const uint8_t* e0;
+        for (m = 65; m < n && starts[m] != starts[n]; m++) {}
+        if (m < n) continue;                         /* same bytes as an earlier number */
+        if (!(f = cdr_file(d, idx, starts[n], counts[n], &len)) || !ct_parse(&ce, f, len) ||
+            !prog_walk(&pp, CT_E(&ce, 0), CT_L(&ce, 0)))
+            continue;
+        e0 = CT_E(&ce, 0);
+        for (j = 0; j < pp.nops; j++) {
+            const Op* o = &pp.ops[j];
+            uint32_t nodes, hits = 0, parts = 0, weld = 0, k2, rr;
+            if (o->op != 3) continue;
+            nodes = le32(e0 + o->pos + 12);
+            if (nodes < 10 || nodes > 32) continue;
+            for (i = 0; i < nodes && i < 14; i++) {
+                uint32_t v = le32(e0 + o->pos + 16 + i * DV_NODE + 0x6C);
+                if (v < ce.n && hv[i] && CT_L(&ce, v) == hl[i] && !memcmp(CT_E(&ce, v), hv[i], hl[i])) hits++;
+            }
+            if (hits < 10) continue;
+            for (i = 0; i < nodes && i < 14; i++) {
+                uint32_t pe = le32(e0 + o->pos + 16 + i * DV_NODE + 0x68), ve = le32(e0 + o->pos + 16 + i * DV_NODE + 0x6C);
+                if (pe < ce.n) parts += CT_L(&ce, pe);
+                if (ve < ce.n) parts += CT_L(&ce, ve);
+            }
+            for (k2 = 0; k2 < (uint32_t)pp.nops; k2++) {      /* its weld lists */
+                const Op* w = &pp.ops[k2];
+                int mine = 0;
+                if (w->op != 31 || !w->nref) continue;
+                for (rr = 1; rr < w->nref && !mine; rr++) {
+                    uint32_t pe = le32(e0 + pp.refs[w->ref0 + rr]);
+                    for (i = 0; i < nodes && i < 14; i++)
+                        if (pe == le32(e0 + o->pos + 16 + i * DV_NODE + 0x68)) mine = 1;
+                }
+                if (mine && le32(e0 + pp.refs[w->ref0]) < ce.n) weld += CT_L(&ce, le32(e0 + pp.refs[w->ref0]));
+            }
+            r->copy_parts = parts;
+            r->copy_weld = weld;
+            return;
+        }
+    }
+}
+
 /* Table and kits of the mounted disc (disc 0 = areas 0..6, 1 = 7..12). */
 static int disc_scan(int disc)
 {
@@ -623,6 +718,7 @@ static int disc_scan(int disc)
             for (i = s.core + 1; i < s.ct.n; i++)
                 if (!split_is_tail(&s, i)) { r->pk_stage_n++; r->pk_stage_bytes += CT_L(&s.ct, i); }
             r->pk_stage_ops = CT_L(&s.ct, 0) - s.prefix_end;
+            scan_scene_copy(&d, idx, starts, counts, nf, &s, r);
             for (h = 0; h < HERO_COUNT; h++)
                 if (kKitSource[h][0] == area && kKitSource[h][1] == stage && !s_kits[h].ready) {
                     if (!kit_build(&s_kits[h], f0, l0, f1, l1)) {
@@ -668,7 +764,8 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 
 #define DV_KIT_MAGIC   0x4B485644u   /* "DVHK" */
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
-#define DV_CACHE_VER   1u
+#define DV_KIT_VER     1u
+#define DV_TABLE_VER   2u   /* 2: scene copies */
 
 static void kit_save(int h)
 {
@@ -678,7 +775,7 @@ static void kit_save(int h)
     uint32_t i, ok;
     snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.kit", h);
     if (!(f = fopen(path, "wb"))) return;
-    ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_CACHE_VER) && w32(f, (uint32_t)h) && wbuf(f, k->ops.p, k->ops.n) &&
+    ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_KIT_VER) && w32(f, (uint32_t)h) && wbuf(f, k->ops.p, k->ops.n) &&
          w32(f, k->nrefs);
     for (i = 0; ok && i < k->nrefs; i++) ok = w32(f, k->refs[i]);
     ok = ok && w32(f, k->nent) && w32(f, k->ntail);
@@ -699,7 +796,7 @@ static int kit_load(int h)
     snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.kit", h);
     if (!(f = fopen(path, "rb"))) return 0;
     memset(k, 0, sizeof *k);
-    ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_CACHE_VER && r32(f, &v) && v == (uint32_t)h &&
+    ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_KIT_VER && r32(f, &v) && v == (uint32_t)h &&
          rbuf(f, &k->ops, 0x10000) && r32(f, &k->nrefs) && k->nrefs <= 512;
     for (i = 0; ok && i < k->nrefs; i++) ok = r32(f, &k->refs[i]) && k->refs[i] + 4 <= k->ops.n;
     ok = ok && r32(f, &k->nent) && k->nent <= 400 && r32(f, &k->ntail) && k->ntail <= k->nent;
@@ -724,7 +821,7 @@ static void table_save(int disc, uint32_t key)
     FILE* f;
     snprintf(path, sizeof path, DV_HS_CACHE_DIR "/disc%d.stages", disc + 1);
     if (!(f = fopen(path, "wb"))) return;
-    if (!(w32(f, DV_TABLE_MAGIC) && w32(f, DV_CACHE_VER) && w32(f, key) && w32(f, (uint32_t)s_nstages[disc]) &&
+    if (!(w32(f, DV_TABLE_MAGIC) && w32(f, DV_TABLE_VER) && w32(f, key) && w32(f, (uint32_t)s_nstages[disc]) &&
           fwrite(s_stages[disc], sizeof(StageRec), (size_t)s_nstages[disc], f) == (size_t)s_nstages[disc])) {
         fclose(f);
         remove(path);
@@ -741,7 +838,7 @@ static int table_load(int disc, uint32_t key)
     int ok;
     snprintf(path, sizeof path, DV_HS_CACHE_DIR "/disc%d.stages", disc + 1);
     if (!(f = fopen(path, "rb"))) return 0;
-    ok = r32(f, &v) && v == DV_TABLE_MAGIC && r32(f, &v) && v == DV_CACHE_VER && r32(f, &v) && v == key &&
+    ok = r32(f, &v) && v == DV_TABLE_MAGIC && r32(f, &v) && v == DV_TABLE_VER && r32(f, &v) && v == key &&
          r32(f, &n) && n <= sizeof s_stages[0] / sizeof s_stages[0][0] &&
          fread(s_stages[disc], sizeof(StageRec), n, f) == n;
     fclose(f);
@@ -792,6 +889,11 @@ static int s_hero = -1;                    /* chosen hero, -1 = each stage's own
 static int s_swap, s_swap_area, s_swap_stage, s_swap_hero;
 static int s_saved_hero = -1;              /* g_Hero.index the swap replaced */
 static Buf s_orig_portrait;                /* the stage hero's portrait (from its file 0) */
+static Buf s_orig_page;                    /* the stage hero's hero-page TIMs (from its file 0), end to end */
+static uint64_t s_hero_verts[14];          /* the stage hero's vertex entries (hash), for scene copies */
+static uint32_t s_hero_verts_len[14];
+static uint16_t s_name_old[16], s_name_new[16];   /* the stage hero's and the chosen hero's names (glyphs) */
+static int s_name_old_n, s_name_new_n;
 
 static void read_options(void)
 {
@@ -883,6 +985,15 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     body = vab_body(k->vab.p, k->vab.n);
     area64 = (body + 63) / 64 * 64;
     if (area64 > snd[1]) snd[1] = area64;
+    if (r->copy_parts) {
+        /* a story scene's copy of the hero is swapped too: its event pack
+         * (warp row, g_StageBufferSizes[8]) grows by the parts' difference */
+        uint32_t kparts, kweld;
+        int32_t grow;
+        kit_part_bytes(k, &kparts, &kweld);
+        grow = (int32_t)(kparts + kweld) - (int32_t)(r->copy_parts + r->copy_weld) + 256;
+        if (grow > 0) sizes[8] += sectors_bytes((uint32_t)grow) / 4;
+    }
     if (arena_end(sizes, area, stage) > DV_ARENA_END_MAX || spu_end(snd) > DV_SPU_END_MAX) {
         fprintf(stderr, "%s: stage %d/%d: %s does not fit (buffers end 0x%08X, sound %u B): own hero\n",
                 DV_HS_PLUGIN, area, stage, kHeroNames[s_hero], arena_end(sizes, area, stage), spu_end(snd));
@@ -890,12 +1001,15 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
         return;
     }
     psx_mod_write_word(DV_STAGE_BUFFER_SIZES, sizes[0]);
+    psx_mod_write_word(DV_STAGE_BUFFER_SIZES + 8 * 4, sizes[8]);
     psx_mod_write_word(DV_SOUND_BODY_SIZE + 4, snd[1]);
     s_swap = 1;
     s_swap_area = area;
     s_swap_stage = stage;
     s_swap_hero = s_hero;
     s_orig_portrait.n = 0;
+    memset(s_hero_verts_len, 0, sizeof s_hero_verts_len);   /* noted again from this stage's pack */
+    s_name_old_n = s_name_new_n = 0;
     fprintf(stderr, "%s: stage %d/%d as %s: file 0 %u B, pack %u B, row 0 %u words, slot 1 %u B\n",
             DV_HS_PLUGIN, area, stage, kHeroNames[s_hero], f0, pk, sizes[0], snd[1]);
 }
@@ -913,6 +1027,7 @@ static int merge_file0(Buf* out, const uint8_t* b, uint32_t len, const Kit* k)
     if (!ct_parse(&c, b, len) || c.n > 16 || !file0_parts(&c, &vab, &te)) return 0;
     nt = tim_chain(CT_E(&c, te), CT_L(&c, te), tims, 64, &end);
     nk = tim_chain(k->page.p, k->page.n, kt, 64, NULL);
+    s_orig_page.n = 0;
     for (j = 0; j < nt; j++) slots += tim_in_page(&tims[j]);
     /* the hero-page TIMs: the kit's take their places in turn, any left over
      * go in the last (tools/heroswap.py replace_page_tims) */
@@ -923,6 +1038,7 @@ static int merge_file0(Buf* out, const uint8_t* b, uint32_t len, const Kit* k)
             buf_put(&s_orig_portrait, e + tims[j].start, tims[j].end - tims[j].start);
         }
         if (!tim_in_page(&tims[j])) continue;
+        buf_put(&s_orig_page, e + tims[j].start, tims[j].end - tims[j].start);   /* for reloads elsewhere */
         buf_put(&chain, e + pos, tims[j].start - pos);
         for (m = slot; m < nk && (m == slot || slot == slots - 1); m++)
             buf_put(&chain, k->page.p + kt[m].start, kt[m].end - kt[m].start);
@@ -998,42 +1114,337 @@ static int merge_pack(Buf* out, const uint8_t* b, uint32_t len, const Kit* k)
 }
 
 /* In another pack: copies of the stage hero's portrait become the kit's. */
-static int swap_portraits(uint32_t pack, const Kit* k)
+/* In another pack (host copy): copies of the stage hero's portrait become
+ * the kit's, in place (same size). */
+static int swap_portraits(uint8_t* b, uint32_t len, const Kit* k)
 {
-    uint32_t n = psx_mod_read_word(pack), i, done = 0;
-    uint32_t plen = s_orig_portrait.n;
-    if (!plen || plen != k->portrait.n || n < 1 || n > 4096) return 0;
-    for (i = 0; i < n; i++) {
-        uint32_t a = psx_mod_read_word(pack + 4 + 4 * i), z = psx_mod_read_word(pack + 8 + 4 * i), pos;
-        if (a > z || z - a > 0x200000 || pack + z > DV_RAM_END) return (int)done;
-        /* a chain at the entry's head: walk its headers in RAM */
-        for (pos = a; pos + 0x1C <= z;) {
-            uint32_t flags, bn, ib, end;
-            uint8_t tag[8];
-            ram_read(pack + pos, tag, 8);
-            if (memcmp(tag, "TIM_CODE", 8) || psx_mod_read_word(pack + pos + 8) != 0x10) break;
-            flags = psx_mod_read_word(pack + pos + 12);
-            bn = psx_mod_read_word(pack + pos + 16);
-            if (flags != 8 && flags != 9) break;
-            ib = pos + 16 + bn;
-            if (ib + 12 > z) break;
-            end = ib + psx_mod_read_word(pack + ib);
-            if (end <= pos || end > z) break;
-            if (end - pos == plen && psx_mod_read_half(pack + ib + 4) == kPortrait[0] &&
-                psx_mod_read_half(pack + ib + 6) == kPortrait[1]) {
-                static uint8_t tmp[0x4000];
-                if (plen <= sizeof tmp) {
-                    ram_read(pack + pos, tmp, plen);
-                    if (!memcmp(tmp, s_orig_portrait.p, plen)) {
-                        psx_mod_host_write_ram(pack + pos, k->portrait.p, plen);
-                        done++;
-                    }
-                }
+    static Ct c;
+    static Tim t[64];
+    uint32_t i, plen = s_orig_portrait.n;
+    int done = 0, j, nt;
+    if (!plen || plen != k->portrait.n || !ct_parse(&c, b, len)) return 0;
+    for (i = 0; i < c.n; i++) {
+        uint8_t* e = b + c.offs[i];
+        nt = tim_chain(e, CT_L(&c, i), t, 64, NULL);
+        for (j = 0; j < nt; j++)
+            if (t[j].end - t[j].start == plen && tim_is_portrait(&t[j]) && !memcmp(e + t[j].start, s_orig_portrait.p, plen)) {
+                memcpy(e + t[j].start, k->portrait.p, plen);
+                done++;
             }
-            pos = end;
+    }
+    return done;
+}
+
+/* --- story scene actors ------------------------------------------------------
+ * A few event packs install their own copy of the stage's hero for a scene
+ * (14-part op 3 objects with their own script, motions and texture page;
+ * 0/1, 3/1, 4/13, 5/19, 9/10, 12/29 on the discs). Recognised by their
+ * vertex entries, which are the stage hero's parts byte for byte (10 of 14
+ * at least), their parts become the kit's (whose packets use the hero page,
+ * where the kit's texture is) and their weld lists (op 31, packet offsets
+ * into those parts) the kit's. Their motions stay the scene's. */
+
+static uint64_t fnv64(const uint8_t* p, uint32_t n)
+{
+    uint64_t h = 1469598103934665603ull;
+    while (n--) { h ^= *p++; h *= 1099511628211ull; }
+    return h;
+}
+
+static void note_hero_verts(const uint8_t* b, uint32_t len)
+{
+    static Split s;
+    uint32_t i, n;
+    memset(s_hero_verts_len, 0, sizeof s_hero_verts_len);
+    if (!split_pack(&s, b, len)) return;
+    n = le32(CT_E(&s.ct, 0) + 12);
+    for (i = 0; i < n && i < 14; i++) {
+        uint32_t v = le32(CT_E(&s.ct, 0) + 16 + i * DV_NODE + 0x6C);
+        if (v < s.ct.n) {
+            s_hero_verts[i] = fnv64(CT_E(&s.ct, v), CT_L(&s.ct, v));
+            s_hero_verts_len[i] = CT_L(&s.ct, v);
         }
     }
-    return (int)done;
+}
+
+/* Kit node i's prims / verts: kit entry numbers (1-based) from its op 3. */
+static uint32_t kit_node_ref(const Kit* k, uint32_t i, uint32_t field)
+{
+    return le32(k->ops.p + 16 + i * DV_NODE + field);
+}
+
+/* --- reloads of the hero's texture ----------------------------------------
+ * A pack can upload the stage hero's texture into the hero page again (0/1's
+ * event file 81, after a scene that used the page): a chain whose hero-page
+ * TIMs are all copies of file 0's gets the kit's, place by place, any left
+ * over in the last (tools/heroswap.py replace_page_tims). Other images in
+ * the page (enemy groups of 5/19, 5/20, 5/24, 12/29) are left. */
+static int tim_is_orig_page(const uint8_t* t, uint32_t n)
+{
+    static Tim ot[64];
+    int no = tim_chain(s_orig_page.p, s_orig_page.n, ot, 64, NULL), j;
+    for (j = 0; j < no; j++)
+        if (ot[j].end - ot[j].start == n && !memcmp(s_orig_page.p + ot[j].start, t, n)) return 1;
+    return 0;
+}
+
+static int swap_page_reloads(Buf* out, const uint8_t* b, uint32_t len, const Kit* k, int* swapped)
+{
+    static Ct c;
+    static Tim t[64], kt[64];
+    static const uint8_t* ents[4097];
+    static uint32_t lens[4097];
+    Buf pool = {0};
+    uint32_t offs[64], idx[64], i;
+    int nchanged = 0, nk, ok;
+    *swapped = 0;
+    if (!s_orig_page.n || !ct_parse(&c, b, len)) return 0;
+    nk = tim_chain(k->page.p, k->page.n, kt, 64, NULL);
+    for (i = 0; i < c.n && nchanged < 64; i++) {
+        const uint8_t* e = CT_E(&c, i);
+        int nt = tim_chain(e, CT_L(&c, i), t, 64, NULL), j, slots = 0, slot = 0, all = 1, m;
+        uint32_t pos = 0, start = pool.n;
+        for (j = 0; j < nt; j++)
+            if (tim_in_page(&t[j])) {
+                slots++;
+                all &= tim_is_orig_page(e + t[j].start, t[j].end - t[j].start);
+            }
+        if (!slots || !all) continue;
+        for (j = 0; j < nt; j++) {
+            if (!tim_in_page(&t[j])) continue;
+            buf_put(&pool, e + pos, t[j].start - pos);
+            for (m = slot; m < nk && (m == slot || slot == slots - 1); m++)
+                buf_put(&pool, k->page.p + kt[m].start, kt[m].end - kt[m].start);
+            slot++;
+            pos = t[j].end;
+        }
+        buf_put(&pool, e + pos, CT_L(&c, i) - pos);
+        offs[nchanged] = start;
+        idx[nchanged++] = i;
+        lens[i] = pool.n - start;
+        *swapped += slots;
+    }
+    if (!nchanged) { buf_free(&pool); return 0; }
+    for (i = 0; i < c.n; i++) {
+        int j, hit = 0;
+        for (j = 0; j < nchanged; j++) if (idx[j] == i) { ents[i] = pool.p + offs[j]; hit = 1; }
+        if (!hit) { ents[i] = CT_E(&c, i); lens[i] = CT_L(&c, i); }
+    }
+    ok = ct_build(out, ents, lens, c.n);
+    buf_free(&pool);
+    return ok;
+}
+
+/* --- names in the dialogues -------------------------------------------------
+ * Text is u16 glyph codes (decomp docs/FORMATS.md, Text). An event pack's
+ * messages (op 62 entries) name the stage's hero in its speaker label
+ * ("Kodel:", a message of its own) and in the lines: every whole-word copy
+ * of the stage hero's name becomes the chosen hero's. The names come from
+ * the game itself, ACTION.BIN's g_HeroNames (0x800C5E14, the Magic menu's,
+ * the same glyph codes), read when the stage's pack is installed. */
+#define DV_HERO_NAMES 0x800C5E14u
+
+static int read_hero_name(int hero, uint16_t* out)
+{
+    uint32_t p, i;
+    if (hero < 0 || hero >= HERO_COUNT) return 0;
+    p = psx_mod_read_word(DV_HERO_NAMES + 4 * (uint32_t)hero);
+    if (p < 0x80000000u || p >= DV_RAM_END - 32 || (p & 1u)) return 0;
+    for (i = 0; i < 16; i++) {
+        uint16_t w = psx_mod_read_half(p + 2 * i);
+        if (w == 0x8000) return (int)i;
+        out[i] = w;
+    }
+    return 0;
+}
+
+static int glyph_letter(uint16_t w)
+{
+    int idx = (w & 31) * 21 + ((w >> 5) & 31);
+    return w < 0x8000 && idx >= 43 && idx <= 94;
+}
+
+static int swap_names(Buf* out, const uint8_t* b, uint32_t len, int* swapped)
+{
+    static Ct c;
+    static Prog p;
+    static const uint8_t* ents[4097];
+    static uint32_t lens[4097];
+    static uint8_t is_msg[4097];
+    Buf pool = {0};
+    uint32_t offs[4097], i;
+    int j, ok;
+    *swapped = 0;
+    if (!s_name_old_n || !s_name_new_n || !ct_parse(&c, b, len) || !prog_walk(&p, CT_E(&c, 0), CT_L(&c, 0))) return 0;
+    memset(is_msg, 0, sizeof is_msg);
+    for (j = 0; j < p.nops; j++)
+        if (p.ops[j].op == 62) {
+            uint32_t r;
+            for (r = 0; r < p.ops[j].nref; r++) {
+                uint32_t e = le32(CT_E(&c, 0) + p.refs[p.ops[j].ref0 + r]);
+                if (e < c.n) is_msg[e] = 1;
+            }
+        }
+    for (i = 0; i < c.n; i++) {
+        const uint8_t* e = CT_E(&c, i);
+        uint32_t nw = CT_L(&c, i) / 2, w, start = pool.n;
+        int hit = 0;
+        offs[i] = UINT32_MAX;
+        if (!is_msg[i]) continue;
+        for (w = 0; w < nw;) {
+            uint16_t cur = (uint16_t)(e[2 * w] | e[2 * w + 1] << 8);
+            int m = 0, q;
+            if (w + (uint32_t)s_name_old_n <= nw && (w == 0 || !glyph_letter((uint16_t)(e[2 * w - 2] | e[2 * w - 1] << 8)))) {
+                for (q = 0; q < s_name_old_n; q++)
+                    if ((uint16_t)(e[2 * (w + q)] | e[2 * (w + q) + 1] << 8) != s_name_old[q]) break;
+                m = q == s_name_old_n && (w + q == nw || !glyph_letter((uint16_t)(e[2 * (w + q)] | e[2 * (w + q) + 1] << 8)));
+            }
+            if (m) {
+                for (q = 0; q < s_name_new_n; q++) { uint8_t t[2] = {(uint8_t)s_name_new[q], (uint8_t)(s_name_new[q] >> 8)}; buf_put(&pool, t, 2); }
+                w += (uint32_t)s_name_old_n;
+                hit++;
+            } else {
+                uint8_t t[2] = {(uint8_t)cur, (uint8_t)(cur >> 8)};
+                buf_put(&pool, t, 2);
+                w++;
+            }
+        }
+        if (!hit) { pool.n = start; continue; }
+        if ((pool.n - start) & 3) { uint8_t z[2] = {0, 0}; buf_put(&pool, z, 2); }   /* entries stay 4-aligned */
+        offs[i] = start;
+        lens[i] = pool.n - start;
+        *swapped += hit;
+    }
+    if (!*swapped) { buf_free(&pool); return 0; }
+    for (i = 0; i < c.n; i++) {
+        if (offs[i] != UINT32_MAX) ents[i] = pool.p + offs[i];
+        else { ents[i] = CT_E(&c, i); lens[i] = CT_L(&c, i); }
+    }
+    ok = ct_build(out, ents, lens, c.n);
+    buf_free(&pool);
+    return ok;
+}
+
+static int swap_actors(Buf* out, const uint8_t* b, uint32_t len, const Kit* k, int* swapped)
+{
+    static Ct c;
+    static Prog p, kp;
+    static const uint8_t* ents[4200];
+    static uint32_t lens[4200];
+    static uint8_t drop[128];
+    Buf e0 = {0}, kops = {0}, ins = {0};
+    const uint8_t* src;
+    uint32_t i, kn = le32(k->ops.p + 12), part_entry[4097], first_drop = 0, insert_at = 0, n;
+    int j, nact = 0, ok = 1;
+
+    *swapped = 0;
+    if (!ct_parse(&c, b, len) || c.n + 16 > 4200 || !prog_walk(&p, CT_E(&c, 0), CT_L(&c, 0))) return 0;
+    src = CT_E(&c, 0);
+    for (i = 0; i < c.n; i++) { ents[i] = CT_E(&c, i); lens[i] = CT_L(&c, i); }
+    memset(part_entry, 0, sizeof part_entry);        /* prims entry -> node index + 1 */
+    memset(drop, 0, sizeof drop);
+    for (j = 0; j < p.nops; j++) {
+        const Op* o = &p.ops[j];
+        uint32_t nodes, m = 0;
+        if (o->op != 3) continue;
+        nodes = le32(src + o->pos + 12);
+        if (nodes < 10 || nodes > 32) continue;
+        for (i = 0; i < nodes && i < 14; i++) {
+            uint32_t v = le32(src + o->pos + 16 + i * DV_NODE + 0x6C);
+            if (v < c.n && s_hero_verts_len[i] == CT_L(&c, v) && fnv64(CT_E(&c, v), CT_L(&c, v)) == s_hero_verts[i]) m++;
+        }
+        if (m < 10) continue;
+        /* a copy of the stage's hero: its parts become the kit's */
+        for (i = 0; i < nodes && i < kn; i++) {
+            uint32_t pe = le32(src + o->pos + 16 + i * DV_NODE + 0x68), ve = le32(src + o->pos + 16 + i * DV_NODE + 0x6C);
+            uint32_t kpe = kit_node_ref(k, i, 0x68), kve = kit_node_ref(k, i, 0x6C);
+            if (pe >= c.n || ve >= c.n || !kpe || !kve || kpe > k->nent || kve > k->nent) { ok = 0; break; }
+            ents[pe] = k->ent[kpe - 1]; lens[pe] = k->entlen[kpe - 1];
+            ents[ve] = k->ent[kve - 1]; lens[ve] = k->entlen[kve - 1];
+            part_entry[pe] = i + 1;
+        }
+        if (!insert_at) insert_at = o->pos + o->size;
+        nact++;
+    }
+    if (!ok || !nact) return 0;
+    /* its weld lists name its old parts: drop them */
+    for (j = 0; j < p.nops && j < 128; j++) {
+        const Op* o = &p.ops[j];
+        uint32_t r;
+        if (o->op != 31 || !o->nref) continue;
+        for (r = 1; r < o->nref; r++) {
+            uint32_t v = le32(src + p.refs[o->ref0 + r]);
+            if (v < c.n && part_entry[v]) { drop[j] = 1; break; }
+        }
+        if (!drop[j]) continue;
+        if (!first_drop) first_drop = o->pos;
+        r = le32(src + p.refs[o->ref0]);              /* its list, used by nothing else now */
+        if (r && r < c.n) lens[r] = 0;
+    }
+    if (first_drop) insert_at = first_drop;
+    /* the kit's weld lists, on the copy's (new) parts: kit part entry -> node -> copy prims entry */
+    n = c.n;
+    buf_put(&kops, k->ops.p, k->ops.n);
+    buf_u32(&kops, 0);
+    if (prog_walk(&kp, kops.p, kops.n))
+        for (j = 0; j < kp.nops; j++) {
+            const Op* o = &kp.ops[j];
+            uint32_t r, list, mark = ins.n;
+            int all = 1;
+            if (o->op != 31 || !o->nref) continue;
+            list = le32(kops.p + kp.refs[o->ref0]);
+            if (!list || list > k->nent) continue;
+            buf_u32(&ins, 31);
+            buf_u32(&ins, n);
+            buf_u32(&ins, o->nref - 1);
+            for (r = 1; r < o->nref; r++) {
+                uint32_t ke = le32(kops.p + kp.refs[o->ref0 + r]), node = 0, q, target = 0;
+                for (q = 0; q < kn; q++) if (kit_node_ref(k, q, 0x68) == ke) node = q + 1;
+                for (q = 1; q < c.n && node; q++) if (part_entry[q] == node) target = q;
+                buf_u32(&ins, target);
+                all &= target != 0;
+            }
+            if (!all) { ins.n = mark; continue; }    /* a part the copy lacks: no such list */
+            ents[n] = k->ent[list - 1];
+            lens[n++] = k->entlen[list - 1];
+        }
+    buf_free(&kops);
+    /* entry 0: the old ops less the dropped lists, the kit's lists at insert_at */
+    for (j = 0; j < p.nops; j++) {
+        const Op* o = &p.ops[j];
+        if (o->pos == insert_at) buf_put(&e0, ins.p, ins.n);
+        if (j < 128 && drop[j]) continue;
+        buf_put(&e0, src + o->pos, o->size);
+    }
+    if (insert_at >= CT_L(&c, 0)) buf_put(&e0, ins.p, ins.n);
+    buf_put(&e0, src + p.ops[p.nops - 1].pos + 4, CT_L(&c, 0) - (p.ops[p.nops - 1].pos + 4));   /* any tail */
+    ents[0] = e0.p;
+    lens[0] = e0.n;
+    ok = ct_build(out, ents, lens, n);
+    buf_free(&e0);
+    buf_free(&ins);
+    *swapped = nact;
+    return ok;
+}
+
+/* Bytes free at a pack: up to the next stage buffer (or the heap's end),
+ * at least the sectors its own read filled. */
+#define DV_LOAD_ROWS   0x800A2B84u   /* g_GameState.row[10], 0x28 bytes each */
+#define DV_HEAP_CURSOR 0x800A2B80u
+static uint32_t pack_room(uint32_t pack, uint32_t orig_len)
+{
+    uint32_t end = psx_mod_read_word(DV_HEAP_CURSOR), r, c;
+    /* the warp row (6) starts on the enemy groups' memory (row 5) and runs
+     * over it, so a pack there ends at the next buffer after rows 5 / 6 */
+    int warp = pack == psx_mod_read_word(DV_LOAD_ROWS + 6 * 0x28);
+    for (r = 0; r < 10; r++)
+        for (c = 0; c < 2; c++) {
+            uint32_t b = psx_mod_read_word(DV_LOAD_ROWS + r * 0x28 + c * 4);
+            if (warp && (r == 5 || (r == 6 && c == 0))) continue;
+            if (b > pack && b < end) end = b;
+        }
+    if (end < pack + sectors_bytes(orig_len)) end = pack + sectors_bytes(orig_len);
+    return end - pack;
 }
 
 static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
@@ -1046,11 +1457,6 @@ static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
         (int16_t)psx_mod_read_half(DV_STAGE_STAGE) != s_swap_stage || pack < 0x80000000u || (pack & 3u))
         return;
     k = &s_kits[s_swap_hero];
-    if (pack != DV_ACTION_HEAP) {
-        int c = swap_portraits(pack, k);
-        if (c) fprintf(stderr, "%s: %d portrait(s) at 0x%08X\n", DV_HS_PLUGIN, c, pack);
-        return;
-    }
     n = psx_mod_read_word(pack);
     if (n < 1 || n > 4096) return;
     len = psx_mod_read_word(pack + 4 + 4 * n);
@@ -1063,12 +1469,40 @@ static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
     }
     ram_read(pack, in.p, len);
     in.n = len;
+    if (pack != DV_ACTION_HEAP) {
+        /* any other pack: the portrait, and a scene's copy of the stage's hero */
+        static Buf mid;
+        const uint8_t* cur = in.p;
+        uint32_t curn = in.n, room;
+        static Buf mid2;
+        int portraits = swap_portraits(in.p, in.n, k), names = 0, actors = 0, pages = 0;
+        if (swap_names(&mid, cur, curn, &names) && names) { cur = mid.p; curn = mid.n; }
+        if (swap_page_reloads(&mid2, cur, curn, k, &pages) && pages) { cur = mid2.p; curn = mid2.n; }
+        if (swap_actors(&out, cur, curn, k, &actors) && actors) { cur = out.p; curn = out.n; }
+        if (!portraits && !names && !actors && !pages) return;
+        room = pack_room(pack, len);
+        if (curn > room) {
+            fprintf(stderr, "%s: pack at 0x%08X left as it is but its portraits: %u bytes rebuilt, room %u\n",
+                    DV_HS_PLUGIN, pack, curn, room);
+            if (portraits) psx_mod_host_write_ram(pack, in.p, in.n);
+            return;
+        }
+        psx_mod_host_write_ram(pack, cur, curn);
+        fprintf(stderr, "%s: pack at 0x%08X: %d portrait(s), %d name(s), %d hero texture reload(s), "
+                "%d scene copy(ies) of the hero (%u -> %u bytes of %u)\n",
+                DV_HS_PLUGIN, pack, portraits, names, pages, actors, len, curn, room);
+        return;
+    }
     if (n == 3) {                                    /* file 0 */
         if (!merge_file0(&out, in.p, in.n, k)) { fprintf(stderr, "%s: file 0 not rebuilt\n", DV_HS_PLUGIN); return; }
         if (!psx_mod_host_write_ram(pack, out.p, out.n)) return;
         fprintf(stderr, "%s: stage %d/%d file 0 rebuilt (%u bytes)\n", DV_HS_PLUGIN, s_swap_area, s_swap_stage, out.n);
     } else if (n > 100) {                            /* the action pack */
         uint8_t cur;
+        note_hero_verts(in.p, in.n);
+        s_name_old_n = read_hero_name(dv_area_hero(s_swap_area), s_name_old);
+        s_name_new_n = read_hero_name(s_swap_hero, s_name_new);
+        if (!s_name_old_n || !s_name_new_n) s_name_old_n = s_name_new_n = 0;
         if (!merge_pack(&out, in.p, in.n, k)) { fprintf(stderr, "%s: pack not rebuilt\n", DV_HS_PLUGIN); return; }
         if (!psx_mod_host_write_ram(pack, out.p, out.n)) return;
         fprintf(stderr, "%s: stage %d/%d pack rebuilt (%u bytes)\n", DV_HS_PLUGIN, s_swap_area, s_swap_stage, out.n);
