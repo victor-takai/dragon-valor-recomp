@@ -111,10 +111,15 @@ the native 60 Hz version.
   and the dialogues name the chosen hero (3/1's opening as Clovis, 0/1's
   prologue as Kodel); the world map's walker, the Status screen and the
   save follow it too, and a choice in the in-game menu restarts the stage
-  with the new hero at once. Before it (2026-11-16): one stage per folder written
+  with the new hero at once. The remaining scenes were checked the same
+  day: the twins of 5/19‥5/24 and 12/29 (their texture variants no longer
+  overwrite the chosen hero's), 5/20 and 5/24's copies of the plain Phillip,
+  12/29's ending portrait, and disc 2 after a disc change in the same
+  session (read from its image; its heroes no longer need disc 2 started
+  once). Before it (2026-11-16): one stage per folder written
   by the decomp's `tools/heroswap.py`. Open: long play, the stage text bank's
-  mentions of the hero (`DEVELOPMENT.md`, *This project's package:
-  dragonvalor.heroswap*).
+  mentions of the hero, 9/10's scene not watched (`DEVELOPMENT.md`, *This
+  project's package: dragonvalor.heroswap*).
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own
   return only works in netplay builds and closed the game; upstream

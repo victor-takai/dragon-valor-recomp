@@ -1166,9 +1166,10 @@ What the plugin (`mods/plugins/dragonvalor_heroswap.c`) does:
   40 × 64, CLUT row (0, 500)). With them a table of the disc's action stages
   (108 on disc 1, 118 on disc 2) and the sizes a rebuild needs. Kits and
   tables go to `mods/cache/dragonvalor.heroswap/` beside the executable, so
-  later starts read nothing; a hero of the other disc (Anna, Mihael, Anita
-  on disc 2; Clovis to Phillip on disc 1; Gerome's kit comes from disc 1) is
-  offered once that disc has been started with the feature on.
+  later starts read nothing. The other disc's heroes (Anna, Mihael, Anita on
+  disc 2; Clovis to Phillip on disc 1; Gerome's kit comes from disc 1) come
+  from the other disc's image (see *Disc change* below); before 2026-11-17
+  that disc had to be started once with the feature on.
 - **`StageBuffersAlloc` (0x80035AB8), every stage load.** For an action
   stage whose own hero is not the chosen one, it works out the rebuilt
   sizes and raises row 0 (`g_StageBufferSizes[0]`, 0x80078B20: file 0 and
@@ -1215,9 +1216,54 @@ Checked with screenshots every 1.5 s through the scenes: 3/1's opening as
 Clovis (Clovis on screen, "Clovis:" labels), 0/1's prologue as Kodel (the
 village scene with Kodel, his texture, "Kodel:" labels), 1/23's boss intro
 and fight as Kodel. Not handled: the stage text bank (op 20) may name the
-hero; enemy groups of 5/19, 5/20, 5/24 and 12/29 upload other images into
-the hero's page; scenes of 4/13, 5/19, 9/10 and 12/29 not watched. A save
-made while playing as another hero records that hero's name.
+hero. A save made while playing as another hero records that hero's name.
+
+**Twins, the area hero's look, disc change (2026-11-17).** The remaining
+scenes, read from the data and then watched:
+
+- *Twin variants.* The enemy-group files 77 / 75 / 77 of 5/19, 5/20, 5/24
+  upload Phillip's page again with Kadum's blade in its unused corner (units
+  416..447 × 64..183) and a CLUT row 243; 12/29's file 77 uploads Anita's
+  page with another face and a great sword (rows to 239, CLUT rows
+  241..255). They texture a scene copy of the hero (file 80's object 0 /
+  object 8), the hero holding the sword the scene gives him. Every other
+  hero uses that corner of the page, so the variant painted the chosen hero
+  with the stage hero's texture. The copy takes the kit's parts anyway, so
+  the variant is now replaced by a two-unit TIM that leaves the kit's
+  texture (there since file 0) as it is: the chosen hero takes the sword
+  with their own weapon. (A kit's TIM can be bigger than the variant,
+  Felippe's and Anna's, more than the enemy group's buffer holds.)
+- *The area hero's look.* 5/20 and 5/24 play Phillip with Kadum: 13 of their
+  hero's 14 vertex entries differ from 5/1's, while their scene copies are
+  the plain Phillip of 5/1 (12 of 14 equal), so the copy was not found and
+  showed Phillip's shape in the chosen hero's texture. A copy is now also
+  one whose vertex entries match the area hero's kit (table cache version 3
+  for the warp-row budget), and a portrait equal to the area hero's kit
+  portrait is the hero's too: 12/29's ending shows 9/1's Anita, not its own
+  file 0's.
+- *Disc change.* The runtime's plugin disc reads (`psx_mod_read_disc_file`,
+  `psx_mod_disc_file_extent`) read the disc the session started with; when
+  the game asks for disc 2 and the player changes it (`cdrom_disc_select`),
+  they still read disc 1, so disc 2's stages found no table and kept their
+  hero. The plugin now asks the roster (`cdrom_disc_selected`,
+  `cdrom_disc_roster_path`, runtime `include/cdrom.h`) which image is in the
+  drive and reads a disc other than the session's straight from its image:
+  the .cue's first FILE, MODE2/2352 sectors (2048 bytes at +24), `DATA.CDR`
+  in the ISO 9660 root. The same reader takes the other disc's kits at
+  start, so a disc 2 hero no longer needs disc 2 started once.
+- *Checked* (composed frames, test state 10, GAME OVER > CONTINUE, a room
+  reached the way `RoomWarp` does it once no read is in flight): 5/19 as
+  Felippe (the Guardian gives Kadum; Felippe in the close-ups, "Felippe:",
+  his portrait; the variant neutralised; then 5/20's scene with Jeanne,
+  Vilherm and Calvin naming Felippe, the copy swapped), 4/13 as Kodel (the
+  Guardian and the sword Soul), 9/10 as Clovis after `disc_select n=2` from
+  the disc 1 session (disc 2 read from its image, 118 stages, the stage
+  rebuilt; its scene, file 216, is loaded by an event script and was not
+  reached), 12/29 as Clovis (Dahaka's end: Clovis, "Clovis:", his
+  portrait). A first room warp that ignored a read still in flight (room
+  0 prefetches room 1's enemy group into the memory the warp row overlaps)
+  crashed the swapped runs and not the stock ones: a test artefact, gone
+  once the warp waits for idle rows.
 
 **World map and name (2026-11-17, from the player's play test).** With a
 hero chosen, `g_Hero.index` now holds that hero outside the action stages
