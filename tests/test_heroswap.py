@@ -5,7 +5,7 @@
                                      [--build build-debug] [--port N] [--play SECONDS]
 
 --state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
---menu HERO2 then picks HERO2 on the in-game menu's Experimental > Play as
+--menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Experimental > Play as
 row: the stage must restart with HERO2 once the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
 
@@ -285,50 +285,62 @@ hero = "{hero_name}"
 
         if menu_hero:
             # The in-game menu's Experimental > Play as row (4th: Area, Stage,
-            # Go now, Play as): a new hero restarts the stage once the menu
-            # closes, with no GAME OVER (mode 9 never seen), Val and HP kept.
+            # Go now, Play as; values 0 = each stage's own, 1.. the heroes):
+            # each new choice restarts the stage once the menu closes, with no
+            # GAME OVER (mode 9 never seen) and Val / HP kept. "stage" brings
+            # back the game's own hero index, never one the plugin wrote.
             def key(name, n=1):
                 for _ in range(n):
                     rpc(port, "host_key", name=name)
                     time.sleep(0.35)
-            time.sleep(2)
-            val0, hp0, done0 = rd16(VAL), rd16(HP), log_text().count(" pack rebuilt")
-            steps = (HEROES.index(menu_hero) + 1) - (hero + 1)
-            key("Escape"); time.sleep(0.4)
-            key("Up"); key("Return")
-            key("Down", 3)
-            key("Right" if steps > 0 else "Left", abs(steps))
-            key("Escape", 2); time.sleep(0.5)
-            modes, t0 = set(), time.time()
-            while time.time() - t0 < 40:
-                modes.add(rd(MODE, 1)[0])
-                if log_text().count(" pack rebuilt") > done0 and rd(MODE, 1)[0] == 8:
-                    break
-                time.sleep(0.3)
-            time.sleep(4)
-            text = log_text()
-            name2 = menu_hero.capitalize()
-            check(f"menu: {ts} restarted as {name2}", f"restarts as {name2}" in text and
-                  text.count(f"stage {ts} as {name2}") >= 1 and text.count(" pack rebuilt") > done0,
-                  next((l for l in text.splitlines() if "restarts as" in l), "no restart line"))
-            check("menu: no GAME OVER on the way", 9 not in modes, f"modes seen {sorted(modes)}")
-            check(f"menu: g_Hero.index = {HEROES.index(menu_hero)}", rd(HERO_INDEX, 1)[0] == HEROES.index(menu_hero),
-                  str(rd(HERO_INDEX, 1)[0]))
-            check("menu: Val and HP kept", (rd16(VAL), rd16(HP)) == (val0, hp0),
-                  f"Val {val0} -> {rd16(VAL)}, HP {hp0} -> {rd16(HP)}")
-            check("menu: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")
-            rpc(port, "screenshot", path=str(bdir / "test_heroswap_menu.png"))
-            hero = HEROES.index(menu_hero)
-            hero_name = menu_hero
+            row_value = hero + 1
+            for pick in menu_hero.split(","):
+                time.sleep(2)
+                val0, hp0, restarts0 = rd16(VAL), rd16(HP), log_text().count("restarts as")
+                target_value = 0 if pick == "stage" else HEROES.index(pick) + 1
+                steps = target_value - row_value
+                key("Escape"); time.sleep(0.4)
+                key("Up"); key("Return")
+                key("Down", 3)
+                key("Right" if steps > 0 else "Left", abs(steps))
+                key("Escape", 2); time.sleep(0.5)
+                row_value = target_value
+                modes, t0, seen17 = set(), time.time(), False
+                while time.time() - t0 < 40:
+                    m = rd(MODE, 1)[0]
+                    modes.add(m)
+                    seen17 |= m == 17
+                    if seen17 and m == 8 and log_text().count("restarts as") > restarts0:
+                        break
+                    time.sleep(0.3)
+                time.sleep(4)
+                text = log_text()
+                label = "its own hero" if pick == "stage" else pick.capitalize()
+                want = index_before if pick == "stage" else HEROES.index(pick)
+                check(f"menu -> {pick}: {ts} restarted as {label}", f"restarts as {label}" in text and seen17,
+                      next((l for l in reversed(text.splitlines()) if "restarts as" in l), "no restart line"))
+                check(f"menu -> {pick}: no GAME OVER on the way", 9 not in modes, f"modes seen {sorted(modes)}")
+                check(f"menu -> {pick}: g_Hero.index = {want}", rd(HERO_INDEX, 1)[0] == want, str(rd(HERO_INDEX, 1)[0]))
+                check(f"menu -> {pick}: Val and HP kept", (rd16(VAL), rd16(HP)) == (val0, hp0),
+                      f"Val {val0} -> {rd16(VAL)}, HP {hp0} -> {rd16(HP)}")
+                check(f"menu -> {pick}: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")
+                rpc(port, "screenshot", path=str(bdir / f"test_heroswap_menu_{pick}.png"))
+            last = menu_hero.split(",")[-1]
+            if last == "stage":
+                leave = None          # the leave check below is about a chosen hero
+            else:
+                hero = HEROES.index(last)
+                hero_name = last
 
-        ok = reload_into(*leave)
-        text = log_text()
-        ls = f"{leave[0]}/{leave[1]}"
-        check(f"{ls} is running", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
-        check(f"{ls} rebuilt for {hero_name.capitalize()} too",
-              f"stage {ls} as {hero_name.capitalize()}" in text and f"stage {ls} pack rebuilt" in text)
-        check(f"g_Hero.index still {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
-        rpc(port, "screenshot", path=str(bdir / "test_heroswap_left.png"))
+        if leave:
+            ok = reload_into(*leave)
+            text = log_text()
+            ls = f"{leave[0]}/{leave[1]}"
+            check(f"{ls} is running", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
+            check(f"{ls} rebuilt for {hero_name.capitalize()} too",
+                  f"stage {ls} as {hero_name.capitalize()}" in text and f"stage {ls} pack rebuilt" in text)
+            check(f"g_Hero.index still {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+            rpc(port, "screenshot", path=str(bdir / "test_heroswap_left.png"))
         h = cli("health")
         print("  health:", h.replace("\n", "; "))
         nums = [int(x) for x in re.findall(r"total=(\d+)", h)]

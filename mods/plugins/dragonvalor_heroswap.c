@@ -887,7 +887,8 @@ static void ensure_disc(void)
 static int s_enabled;
 static int s_hero = -1;                    /* chosen hero, -1 = each stage's own */
 static int s_swap, s_swap_area, s_swap_stage, s_swap_hero;
-static int s_saved_hero = -1;              /* g_Hero.index the swap replaced */
+static int s_saved_hero = -1;              /* g_Hero.index the swap replaced (the game's) */
+static int s_written_hero = -1;            /* the one this plugin wrote, -1 = none */
 extern volatile int dv_heroswap_restart_request;   /* set by the in-game menu, see dv_hs_vblank */
 static Buf s_orig_portrait;                /* the stage hero's portrait (from its file 0) */
 static Buf s_orig_page;                    /* the stage hero's hero-page TIMs (from its file 0), end to end */
@@ -920,6 +921,7 @@ static void restore_hero_index(void)
         fprintf(stderr, "%s: g_Hero.index back to %d\n", DV_HS_PLUGIN, s_saved_hero);
         psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_saved_hero);
         s_saved_hero = -1;
+        s_written_hero = -1;
     }
 }
 
@@ -1508,12 +1510,15 @@ static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
         if (!merge_pack(&out, in.p, in.n, k)) { fprintf(stderr, "%s: pack not rebuilt\n", DV_HS_PLUGIN); return; }
         if (!psx_mod_host_write_ram(pack, out.p, out.n)) return;
         fprintf(stderr, "%s: stage %d/%d pack rebuilt (%u bytes)\n", DV_HS_PLUGIN, s_swap_area, s_swap_stage, out.n);
+        /* the value to give back is the game's own: one this plugin wrote
+         * (the hero of a previous swap) is never taken for it */
         cur = psx_mod_read_byte(DV_HERO_INDEX);
+        if (s_saved_hero < 0 || (int)cur != s_written_hero) s_saved_hero = cur;
         if (cur != (uint8_t)s_swap_hero) {
-            s_saved_hero = cur;
             psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_swap_hero);
-            fprintf(stderr, "%s: g_Hero.index %u -> %d\n", DV_HS_PLUGIN, cur, s_swap_hero);
+            fprintf(stderr, "%s: g_Hero.index %u -> %d (the game's %d)\n", DV_HS_PLUGIN, cur, s_swap_hero, s_saved_hero);
         }
+        s_written_hero = s_swap_hero;
     }
 }
 
