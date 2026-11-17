@@ -1097,8 +1097,12 @@ into the hero's texture page.
   scene runs): files replaced, the pack in RAM = the rebuilt one, the hero
   script at its entry 2, 20 s of walking / attacking / casting in mode 8,
   0 unknown dispatches. Screenshots show Kodel and Mihael drawn whole and
-  textured in Raxis City. Not checked: long play, a whole stage, bosses,
-  cutscenes with the hero, the reload file 81 being read.
+  textured in Raxis City. 2026-11-17, the other six into 1/7 with
+  `--prune`: Arlen 8/8, Felippe 9/9, Phillip 8/8, Gerome 8/8, Anna 8/8,
+  Anita 10/10 (row 0 and slot 1 both raised); every hero of the game but
+  Clovis, each drawn whole with its own look and weapon. Not checked: long
+  play, a whole stage, bosses, cutscenes with the hero, the reload file 81
+  being read.
 
 #### Video and audio defaults (measured 2026-10-14)
 

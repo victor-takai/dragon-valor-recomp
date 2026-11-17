@@ -91,9 +91,10 @@ the native 60 Hz version.
 - **Hero swap** (2026-11-16, branch `hero-swap`, developer channel): any
   hero in any action stage, from stage files rebuilt by the decomp's
   `tools/heroswap.py` and served by `dragonvalor.heroswap` (hooks on
-  `StageBuffersAlloc` and `PackInstall`). Kodel and Mihael (a disc-2 hero)
-  play Clovis's 1/7, Mihael the prologue's 0/1; `tests/test_heroswap.py`
-  8/8, 9/9, 10/10. Open: menus and save still name the area's hero,
+  `StageBuffersAlloc` and `PackInstall`). All eight other heroes (disc-2
+  ones too) play Clovis's 1/7 and Mihael the prologue's 0/1, each run of
+  `tests/test_heroswap.py` passing (2026-11-16/17). Open: menus and save
+  still name the area's hero,
   cutscenes that move the hero by animation slot, long play
   (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
