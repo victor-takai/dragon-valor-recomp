@@ -1135,6 +1135,23 @@ hero; enemy groups of 5/19, 5/20, 5/24 and 12/29 upload other images into
 the hero's page; scenes of 4/13, 5/19, 9/10 and 12/29 not watched. A save
 made while playing as another hero records that hero's name.
 
+**World map and name (2026-11-17, from the player's play test).** With a
+hero chosen, `g_Hero.index` now holds that hero outside the action stages
+too (world map, scenes, the save screen), so the menus and the memory card
+save name the hero being played; "Each stage's own" gives the game's value
+back. (A bug fixed the same day: after several changes the plugin gave back
+a previous swap's hero, and a save made after playing Gerome said Phillip.)
+The world map's walker (decomp `src/map/mod2_worldmap.c`, MapWalkerDraw) is
+an 8-bit sprite on page (832, 0), CLUT (384, 240), 8 frames of 32 px per
+direction, in the 192 x 176 sheet each map stage uploads at VRAM (768, 0)
+(the left half is the map's own labels and buttons, the walker the right
+half, rows 0..143). The disc scan keeps each hero's walker and palette from
+a map stage of the hero's area (cache `hero<N>.map`), and the `PackInstall`
+hook writes them, with the hero's portrait (the map's Status screen), into
+a map stage's file 0 (program [30, 21, 20, 71 10 0]) in place. Checked: 1/2
+(Clovis's map) as Kodel shows Kodel walking, as Gerome the Status screen
+shows Gerome's portrait and name.
+
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
 itself for every stage.

@@ -98,7 +98,9 @@ the native 60 Hz version.
   passes for all eight heroes in Clovis's 1/7 and 1/9. Story scenes follow
   too: a scene's own copy of the stage's hero takes the chosen one's parts,
   and the dialogues name the chosen hero (3/1's opening as Clovis, 0/1's
-  prologue as Kodel). Before it (2026-11-16): one stage per folder written
+  prologue as Kodel); the world map's walker, the Status screen and the
+  save follow it too, and a choice in the in-game menu restarts the stage
+  with the new hero at once. Before it (2026-11-16): one stage per folder written
   by the decomp's `tools/heroswap.py`. Open: long play, the stage text bank's
   mentions of the hero (`DEVELOPMENT.md`, *This project's package:
   dragonvalor.heroswap*).

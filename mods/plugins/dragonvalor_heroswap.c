@@ -391,6 +391,60 @@ typedef struct {
 
 static Kit s_kits[HERO_COUNT];
 
+/* The world map's walker (decomp src/map/mod2_worldmap.c, MapWalkerDraw):
+ * an 8-bit sprite on page (832, 0), 8 frames of 32 px per direction, CLUT
+ * (384, 240). Map stages upload it in a 192 x 176 sheet at VRAM (768, 0)
+ * (CLUT block (384, 240, 272, 2)), whose left half holds the map's own
+ * labels and buttons: the walker is the right half (units 64..191) of rows
+ * 0..143, its palette the first 256 entries of the CLUT's row 0. */
+#define DV_SHEET_W      192u                  /* 16-bit units */
+#define DV_SHEET_H      176u
+#define DV_WALK_X0      64u
+#define DV_WALK_W       128u
+#define DV_WALK_H       144u
+typedef struct {
+    int ready;
+    uint8_t walker[DV_WALK_H * DV_WALK_W * 2];
+    uint8_t pal[512];
+} MapKit;
+static MapKit s_mapkits[HERO_COUNT];
+
+/* The sheet TIM in a chain (img (768, 0, 192, 176), CLUT (384, 240, 272, 2)):
+ * offsets of its CLUT data and image data in b, or 0. */
+static int sheet_find(const uint8_t* b, uint32_t len, uint32_t* clut_at, uint32_t* img_at)
+{
+    static Tim t[64];
+    int n = tim_chain(b, len, t, 64, NULL), j;
+    for (j = 0; j < n; j++) {
+        const uint16_t want_img[4] = {768, 0, DV_SHEET_W, DV_SHEET_H}, want_clut[4] = {384, 240, 272, 2};
+        uint32_t cbn;
+        if (!t[j].has_clut || memcmp(t[j].image, want_img, 8) || memcmp(t[j].clut, want_clut, 8)) continue;
+        cbn = le32(b + t[j].start + 16);
+        *clut_at = t[j].start + 16 + 12;
+        *img_at = t[j].start + 16 + cbn + 12;
+        if (*img_at + DV_SHEET_W * DV_SHEET_H * 2 > len || *clut_at + 512 > len) return 0;
+        return 1;
+    }
+    return 0;
+}
+
+static void mapkit_take(MapKit* m, const uint8_t* b, uint32_t clut_at, uint32_t img_at)
+{
+    uint32_t y;
+    for (y = 0; y < DV_WALK_H; y++)
+        memcpy(m->walker + y * DV_WALK_W * 2, b + img_at + (y * DV_SHEET_W + DV_WALK_X0) * 2, DV_WALK_W * 2);
+    memcpy(m->pal, b + clut_at, 512);
+    m->ready = 1;
+}
+
+static void mapkit_put(const MapKit* m, uint8_t* b, uint32_t clut_at, uint32_t img_at)
+{
+    uint32_t y;
+    for (y = 0; y < DV_WALK_H; y++)
+        memcpy(b + img_at + (y * DV_SHEET_W + DV_WALK_X0) * 2, m->walker + y * DV_WALK_W * 2, DV_WALK_W * 2);
+    memcpy(b + clut_at, m->pal, 512);
+}
+
 static void kit_free(Kit* k)
 {
     uint32_t i;
@@ -702,6 +756,13 @@ static int disc_scan(int disc)
             if (!cdr_stage(&d, area, stage, &idx, starts, counts, &nf)) continue;
             f0 = cdr_file(&d, idx, starts[0], counts[0], &l0);
             f1 = cdr_file(&d, idx, starts[1], counts[1], &l1);
+            /* a map stage of a kit's area: the walker for that hero */
+            if (f0 && ct_parse(&c0, f0, l0) && c0.n >= 2) {
+                uint32_t ca, ia;
+                for (h = 0; h < HERO_COUNT; h++)
+                    if (kKitSource[h][0] == area && !s_mapkits[h].ready && sheet_find(CT_E(&c0, 1), CT_L(&c0, 1), &ca, &ia))
+                        mapkit_take(&s_mapkits[h], CT_E(&c0, 1), ca, ia);
+            }
             if (!f0 || !f1 || !ct_parse(&cp, f1, l1) || cp.n <= 100 || memcmp(CT_E(&cp, 1), "VAB_CODE", 8)) continue;
             if (!split_pack(&s, f1, l1) || !ct_parse(&c0, f0, l0) || !file0_parts(&c0, &vab, &te)) continue;
             nt = tim_chain(CT_E(&c0, te), CT_L(&c0, te), tims, 64, &end);
@@ -815,6 +876,39 @@ static int kit_load(int h)
     return 1;
 }
 
+#define DV_MAP_MAGIC 0x4D485644u   /* "DVHM" */
+#define DV_MAP_VER   1u
+
+static void mapkit_save(int h)
+{
+    char path[256];
+    FILE* f;
+    int ok;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.map", h);
+    if (!(f = fopen(path, "wb"))) return;
+    ok = w32(f, DV_MAP_MAGIC) && w32(f, DV_MAP_VER) && w32(f, (uint32_t)h) &&
+         fwrite(s_mapkits[h].walker, 1, sizeof s_mapkits[h].walker, f) == sizeof s_mapkits[h].walker &&
+         fwrite(s_mapkits[h].pal, 1, sizeof s_mapkits[h].pal, f) == sizeof s_mapkits[h].pal;
+    fclose(f);
+    if (!ok) remove(path);
+}
+
+static int mapkit_load(int h)
+{
+    char path[256];
+    FILE* f;
+    uint32_t v;
+    int ok;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.map", h);
+    if (!(f = fopen(path, "rb"))) return 0;
+    ok = r32(f, &v) && v == DV_MAP_MAGIC && r32(f, &v) && v == DV_MAP_VER && r32(f, &v) && v == (uint32_t)h &&
+         fread(s_mapkits[h].walker, 1, sizeof s_mapkits[h].walker, f) == sizeof s_mapkits[h].walker &&
+         fread(s_mapkits[h].pal, 1, sizeof s_mapkits[h].pal, f) == sizeof s_mapkits[h].pal;
+    fclose(f);
+    s_mapkits[h].ready = ok;
+    return ok;
+}
+
 static void table_save(int disc, uint32_t key)
 {
     char path[256];
@@ -865,7 +959,9 @@ static void ensure_disc(void)
     if (disc < 0 || s_disc_ready[disc]) return;
     cache_dir();
     for (h = 0; h < HERO_COUNT; h++) if (!s_kits[h].ready) kit_load(h);
-    for (h = 0; h < HERO_COUNT; h++) need |= !s_kits[h].ready && (kKitSource[h][0] >= 7) == disc;
+    for (h = 0; h < HERO_COUNT; h++) if (!s_mapkits[h].ready) mapkit_load(h);
+    for (h = 0; h < HERO_COUNT; h++)
+        need |= (!s_kits[h].ready || !s_mapkits[h].ready) && (kKitSource[h][0] >= 7) == disc;
     if (!need && table_load(disc, key)) {
         fprintf(stderr, "%s: disc %d from the cache (%d action stages)\n", DV_HS_PLUGIN, disc + 1, s_nstages[disc]);
         return;
@@ -877,6 +973,8 @@ static void ensure_disc(void)
     table_save(disc, key);
     for (h = 0; h < HERO_COUNT; h++)
         if (s_kits[h].ready && (kKitSource[h][0] >= 7) == disc) kit_save(h);
+    for (h = 0; h < HERO_COUNT; h++)
+        if (s_mapkits[h].ready && (kKitSource[h][0] >= 7) == disc) mapkit_save(h);
     fprintf(stderr, "%s: disc %d read: %d action stages, kits:", DV_HS_PLUGIN, disc + 1, s_nstages[disc]);
     for (h = 0; h < HERO_COUNT; h++) if (s_kits[h].ready) fprintf(stderr, " %s", kHeroNames[h]);
     fprintf(stderr, "\n");
@@ -925,6 +1023,20 @@ static void restore_hero_index(void)
     }
 }
 
+/* g_Hero.index = hero (the name in the menus and the save). The value to
+ * give back later is the game's own: one this plugin wrote (the hero of a
+ * previous swap) is never taken for it. */
+static void hold_hero_index(int hero)
+{
+    uint8_t cur = psx_mod_read_byte(DV_HERO_INDEX);
+    if (s_saved_hero < 0 || (int)cur != s_written_hero) s_saved_hero = cur;
+    if (cur != (uint8_t)hero) {
+        psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)hero);
+        fprintf(stderr, "%s: g_Hero.index %u -> %d (the game's %d)\n", DV_HS_PLUGIN, cur, hero, s_saved_hero);
+    }
+    s_written_hero = hero;
+}
+
 static uint32_t sectors_bytes(uint32_t n) { return (n + DV_SECTOR - 1) / DV_SECTOR * DV_SECTOR; }
 
 /* Layout of the stage buffers (StageBuffersAlloc) and the SPU slots
@@ -970,8 +1082,15 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     dv_heroswap_restart_request = 0;   /* a stage loads anyway */
     if (!s_enabled) return;
     ensure_disc();
-    if (s_hero < 0 || s_hero == dv_area_hero(area) || !(r = stage_find(area, stage))) {
+    if (s_hero < 0) {
         restore_hero_index();
+        return;
+    }
+    if (s_hero == dv_area_hero(area) || !(r = stage_find(area, stage))) {
+        /* nothing to rebuild (the stage's own hero is the chosen one, or not
+         * an action stage: world map, scenes, the save screen), but the name
+         * stays the chosen hero's, so the menus and the save say who is played */
+        hold_hero_index(s_hero);
         return;
     }
     k = &s_kits[s_hero];
@@ -1451,12 +1570,66 @@ static uint32_t pack_room(uint32_t pack, uint32_t orig_len)
     return end - pack;
 }
 
+/* A world map stage's file 0 (program [30 chain, 21 data, 20 text, 71 10 0],
+ * decomp src/map/mod2_worldmap.c): its walker and its portrait (the map's
+ * Status screen) become the chosen hero's, in place (same sizes). */
+static void swap_map_stage(uint32_t pack)
+{
+    static Prog p;
+    static Buf e0, chain;
+    static Tim t[64];
+    uint32_t n = psx_mod_read_word(pack), a0, a1, ta = 0, tz = 0, ca, ia;
+    int j, ok30 = 0, ok21 = 0, ok71 = 0, nt, por = 0, area = (int16_t)psx_mod_read_half(DV_STAGE_AREA);
+    const Kit* k;
+    if (n < 2 || n > 16 || s_hero == dv_area_hero(area)) return;
+    a0 = psx_mod_read_word(pack + 4);
+    a1 = psx_mod_read_word(pack + 8);
+    if (a1 <= a0 || a1 - a0 > 0x1000) return;
+    if (e0.cap < a1 - a0 && !(e0.p = (uint8_t*)realloc(e0.p, e0.cap = a1 - a0))) { e0.cap = 0; return; }
+    ram_read(pack + a0, e0.p, a1 - a0);
+    if (!prog_walk(&p, e0.p, a1 - a0)) return;
+    for (j = 0; j < p.nops; j++) {
+        const Op* o = &p.ops[j];
+        if (o->op == 30 && o->nref) {
+            uint32_t e = le32(e0.p + p.refs[o->ref0]);
+            if (e >= n) return;
+            ta = psx_mod_read_word(pack + 4 + 4 * e);
+            tz = psx_mod_read_word(pack + 8 + 4 * e);
+            ok30 = 1;
+        }
+        ok21 |= o->op == 21;
+        ok71 |= o->op == 71 && le32(e0.p + o->pos + 4) == 10;
+    }
+    if (!ok30 || !ok21 || !ok71 || tz <= ta || tz - ta > 0x100000) return;
+    if (chain.cap < tz - ta && !(chain.p = (uint8_t*)realloc(chain.p, chain.cap = tz - ta))) { chain.cap = 0; return; }
+    ram_read(pack + ta, chain.p, tz - ta);
+    k = &s_kits[s_hero];
+    if (s_mapkits[s_hero].ready && sheet_find(chain.p, tz - ta, &ca, &ia))
+        mapkit_put(&s_mapkits[s_hero], chain.p, ca, ia);
+    else
+        ca = 0;
+    nt = tim_chain(chain.p, tz - ta, t, 64, NULL);
+    for (j = 0; j < nt; j++)
+        if (k->ready && tim_is_portrait(&t[j]) && t[j].end - t[j].start == k->portrait.n) {
+            memcpy(chain.p + t[j].start, k->portrait.p, k->portrait.n);
+            por++;
+        }
+    if (!ca && !por) return;
+    psx_mod_host_write_ram(pack + ta, chain.p, tz - ta);
+    fprintf(stderr, "%s: map %d/%d: %s%s for %s\n", DV_HS_PLUGIN, area, (int16_t)psx_mod_read_half(DV_STAGE_STAGE),
+            ca ? "walker" : "", por ? (ca ? " and portrait" : "portrait") : "", kHeroNames[s_hero]);
+}
+
 static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
 {
     uint32_t pack = cpu->gpr[4], n, len;
     const Kit* k;
     static Buf in, out;
     (void)address;
+    if (s_enabled && !s_swap && s_hero >= 0 && pack >= 0x80000000u && !(pack & 3u) && pack < DV_RAM_END) {
+        swap_map_stage(pack);   /* a world map stage, or nothing */
+        return;
+    }
     if (!s_enabled || !s_swap || (int16_t)psx_mod_read_half(DV_STAGE_AREA) != s_swap_area ||
         (int16_t)psx_mod_read_half(DV_STAGE_STAGE) != s_swap_stage || pack < 0x80000000u || (pack & 3u))
         return;
@@ -1510,15 +1683,8 @@ static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
         if (!merge_pack(&out, in.p, in.n, k)) { fprintf(stderr, "%s: pack not rebuilt\n", DV_HS_PLUGIN); return; }
         if (!psx_mod_host_write_ram(pack, out.p, out.n)) return;
         fprintf(stderr, "%s: stage %d/%d pack rebuilt (%u bytes)\n", DV_HS_PLUGIN, s_swap_area, s_swap_stage, out.n);
-        /* the value to give back is the game's own: one this plugin wrote
-         * (the hero of a previous swap) is never taken for it */
-        cur = psx_mod_read_byte(DV_HERO_INDEX);
-        if (s_saved_hero < 0 || (int)cur != s_written_hero) s_saved_hero = cur;
-        if (cur != (uint8_t)s_swap_hero) {
-            psx_mod_write_byte(DV_HERO_INDEX, (uint8_t)s_swap_hero);
-            fprintf(stderr, "%s: g_Hero.index %u -> %d (the game's %d)\n", DV_HS_PLUGIN, cur, s_swap_hero, s_saved_hero);
-        }
-        s_written_hero = s_swap_hero;
+        (void)cur;
+        hold_hero_index(s_swap_hero);
     }
 }
 
