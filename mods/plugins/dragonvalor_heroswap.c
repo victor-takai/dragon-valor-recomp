@@ -1860,6 +1860,103 @@ static void swap_map_stage(uint32_t pack)
             ca ? "walker" : "", por ? (ca ? " and portrait" : "portrait") : "", kHeroNames[s_hero]);
 }
 
+/* --- the chapter epilogue ----------------------------------------------------
+ * Besides the dialogues (op 62, swap_names), the only texts of either disc
+ * that name a hero are the op-20 banks of the epilogue stages (MAP.BIN mode
+ * 11, program [30 1, 20 2, 71 11 0]: 1/35, 1/37, 2/29, 3/29, 3/31, 4/27,
+ * 5/26, 6/23, 7/30, 8/30, 9/30; decomp src/map/mod2_epilogue.c) and of the
+ * character profiles after them (mode 12). The epilogue tells what the
+ * chapter's hero did ("... once Clovis rescued Princess Celia ..."), so the
+ * area hero's name becomes the chosen hero's, whole words; the lines are
+ * centred when drawn. The profiles stay: each is a character's page with its
+ * own picture. The text: glyph codes, 0x3000 / 0x1800 spaces, 0x8888 a new
+ * line, 0xFCCC + a colour, 0xFFFF the end. ACTION.BIN, where g_HeroNames
+ * lives, is not in RAM during MAP.BIN's modes, so the names are kept here
+ * (the glyph codes carry each glyph's advance in their top bits). */
+static const uint16_t kNameGlyphs[HERO_COUNT][8] = {
+    {0x2862, 0x1623, 0x1e83, 0x20c4, 0x15c3, 0x1864},                  /* Clovis */
+    {0x2822, 0x1c44, 0x1623, 0x1d43, 0x2263},                          /* Arlen */
+    {0x2962, 0x1e83, 0x2123, 0x1d43, 0x1623},                          /* Kodel */
+    {0x24c2, 0x1d43, 0x1623, 0x15c3, 0x2004, 0x2004, 0x1d43},          /* Felippe */
+    {0x2602, 0x25a3, 0x15c3, 0x1623, 0x1623, 0x15c3, 0x2004},          /* Phillip */
+    {0x28e2, 0x1d43, 0x1c44, 0x1e83, 0x2e43, 0x1d43},                  /* Gerome */
+    {0x2822, 0x2263, 0x2263, 0x20c3},                                  /* Anna */
+    {0x31a2, 0x15c3, 0x25a3, 0x20c3, 0x1d43, 0x1623},                  /* Mihael */
+    {0x2822, 0x2263, 0x15c3, 0x1884, 0x20c3},                          /* Anita */
+};
+static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5};
+
+static void swap_epilogue(uint32_t pack)
+{
+    static Ct c;
+    static Prog p;
+    static Buf in, text, out;
+    static const uint8_t* ents[64];
+    static uint32_t lens[64];
+    uint32_t n = psx_mod_read_word(pack), len, e20 = UINT32_MAX, nw, w, i, room;
+    int area = (int16_t)psx_mod_read_half(DV_STAGE_AREA), ah = dv_area_hero(area), j, mode11 = 0, hits = 0;
+    const uint16_t *on, *nn;
+    if (ah < 0 || ah == s_hero || n < 2 || n > 63) return;
+    len = psx_mod_read_word(pack + 4 + 4 * n);
+    if (len < 8 || len > 0x100000u || pack + len > DV_RAM_END) return;
+    if (in.cap < len && !(in.p = (uint8_t*)realloc(in.p, in.cap = len))) { in.cap = 0; return; }
+    ram_read(pack, in.p, len);
+    if (!ct_parse(&c, in.p, len) || !prog_walk(&p, CT_E(&c, 0), CT_L(&c, 0))) return;
+    for (j = 0; j < p.nops; j++) {
+        const Op* o = &p.ops[j];
+        mode11 |= o->op == 71 && le32(CT_E(&c, 0) + o->pos + 4) == 11;
+        if (o->op == 20 && o->nref) e20 = le32(CT_E(&c, 0) + p.refs[o->ref0]);
+    }
+    if (!mode11 || e20 >= c.n) return;
+    on = kNameGlyphs[ah];
+    nn = kNameGlyphs[s_hero];
+    text.n = 0;
+    nw = CT_L(&c, e20) / 2;
+    for (w = 0; w < nw;) {
+        const uint8_t* e = CT_E(&c, e20);
+        uint16_t cur = (uint16_t)(e[2 * w] | e[2 * w + 1] << 8);
+        int m = 0, q;
+        if (cur == 0xFCCC && w + 1 < nw) {                  /* a colour and its argument */
+            buf_put(&text, e + 2 * w, 4);
+            w += 2;
+            continue;
+        }
+        if (cur != 0xFFFF && w + (uint32_t)kNameLen[ah] <= nw &&
+            (w == 0 || !glyph_letter((uint16_t)(e[2 * w - 2] | e[2 * w - 1] << 8)))) {
+            for (q = 0; q < kNameLen[ah]; q++)
+                if ((uint16_t)(e[2 * (w + q)] | e[2 * (w + q) + 1] << 8) != on[q]) break;
+            m = q == kNameLen[ah] &&
+                (w + q == nw || !glyph_letter((uint16_t)(e[2 * (w + q)] | e[2 * (w + q) + 1] << 8)));
+        }
+        if (m) {
+            for (q = 0; q < kNameLen[s_hero]; q++) {
+                uint8_t t2[2] = {(uint8_t)nn[q], (uint8_t)(nn[q] >> 8)};
+                buf_put(&text, t2, 2);
+            }
+            w += (uint32_t)kNameLen[ah];
+            hits++;
+        } else {
+            buf_put(&text, e + 2 * w, 2);
+            w++;
+        }
+    }
+    if (!hits) return;
+    if (text.n & 3) { uint8_t z[2] = {0xFF, 0xFF}; buf_put(&text, z, 2); }   /* entries stay 4-aligned */
+    for (i = 0; i < c.n; i++) { ents[i] = CT_E(&c, i); lens[i] = CT_L(&c, i); }
+    ents[e20] = text.p;
+    lens[e20] = text.n;
+    if (!ct_build(&out, ents, lens, c.n)) return;
+    room = pack_room(pack, len);
+    if (out.n > room) {
+        fprintf(stderr, "%s: epilogue %d/%d left as it is: %u bytes, room %u\n", DV_HS_PLUGIN, area,
+                (int16_t)psx_mod_read_half(DV_STAGE_STAGE), out.n, room);
+        return;
+    }
+    psx_mod_host_write_ram(pack, out.p, out.n);
+    fprintf(stderr, "%s: epilogue %d/%d: %d name(s) for %s (%u -> %u bytes)\n", DV_HS_PLUGIN, area,
+            (int16_t)psx_mod_read_half(DV_STAGE_STAGE), hits, kHeroNames[s_hero], len, out.n);
+}
+
 static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
 {
     uint32_t pack = cpu->gpr[4], n, len;
@@ -1868,6 +1965,7 @@ static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
     (void)address;
     if (s_enabled && !s_swap && s_hero >= 0 && pack >= 0x80000000u && !(pack & 3u) && pack < DV_RAM_END) {
         swap_map_stage(pack);   /* a world map stage, or nothing */
+        swap_epilogue(pack);    /* a chapter epilogue, or nothing */
         return;
     }
     if (!s_enabled || !s_swap || (int16_t)psx_mod_read_half(DV_STAGE_AREA) != s_swap_area ||

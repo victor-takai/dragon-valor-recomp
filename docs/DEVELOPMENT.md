@@ -1215,8 +1215,25 @@ warp row runs over the enemy groups' memory, as the game's own files do).
 Checked with screenshots every 1.5 s through the scenes: 3/1's opening as
 Clovis (Clovis on screen, "Clovis:" labels), 0/1's prologue as Kodel (the
 village scene with Kodel, his texture, "Kodel:" labels), 1/23's boss intro
-and fight as Kodel. Not handled: the stage text bank (op 20) may name the
-hero. A save made while playing as another hero records that hero's name.
+and fight as Kodel. A save made while playing as another hero records that
+hero's name.
+
+**Chapter epilogues (2026-11-17).** A scan of every entry of every stage of
+both discs for the nine name glyph strings (ACTION.BIN's g_HeroNames): 305
+op-62 messages (the dialogues, above) and 19 op-20 text banks, all on
+MAP.BIN screens: the chapter epilogues (mode 11: 1/35, 1/37, 2/29, 3/29,
+3/31, 4/27, 5/26, 6/23, 7/30, 8/30, 9/30) and the character profiles after
+them (mode 12). No action stage's bank (the magic menu's texts) and no
+narration page names a hero. The `PackInstall` hook now rewrites an
+epilogue's text (program [30 1, 20 2, 71 11 0]): the area hero's name
+becomes the chosen hero's, whole words (the lines are centred when drawn;
+0xFCCC colour codes skipped), if the file still fits its buffer. The names
+are a table in the plugin, because ACTION.BIN is not in RAM in MAP.BIN's
+modes. The profiles stay as they are: each is a character's page with its
+picture. Checked: 1/35 as Kodel ("once Kodel rescued Princess Celia",
+"Kodel was coerced into becoming Princess Celia's personal bodyguard";
+"His name was Arlen" stays), 3/31 as Felippe (five names, the file 20
+bytes longer).
 
 **Twins, the area hero's look, disc change (2026-11-17).** The remaining
 scenes, read from the data and then watched:
