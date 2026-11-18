@@ -40,7 +40,7 @@ ending and the Linux / macOS builds are untested
 - Cheats: infinite HP / MP, more drops, Val, stats, spells and items
 - Widescreen (experimental), Skip Intro, rewind and turbo
 - Play as (experimental): any of the nine heroes in every stage, holding
-  any of the game's weapons (Soul, Kadum, ...)
+  any of the game's weapons (Azos, Soul, Kadum, Igunis and four more)
 - Xbox, PlayStation and Switch pads, or the keyboard
 
 ## Playing

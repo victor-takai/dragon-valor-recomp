@@ -1391,27 +1391,34 @@ first stage), and the player saw that most were the same sword: of the 9
 kits, 7 hold one and the same model (Clovis's), only Anna's and Mihael's
 differ. A scan of node 2 in all 226 action stages (geometry, and the look
 decoded through the CLUTs) found the models (2026-11-18), now the option's
-values, each taken from the first stage that has it: `clovis` Clovis's
-sword (1/1; the first weapon of Arlen, Kodel, Phillip, Gerome and Anita,
-111 stages), `felippe` Felippe's first sword (4/3..4/13), `soul` Soul
-(Felippe from 4/15, after 4/13's scene gives it; Anna's in area 7),
-`kadum` Kadum (Mihael's, area 8; 5/19..5/24's twin holds the same model
-with another palette, so Kadum is no texture-only variant), and from the
-three last campaigns (areas 10, 11, 12: Mihael, Anna, Anita), which all
-start with the hero's own weapon and give the flame sword at stage 2 and
-from stage 9 on: `dark` Mihael's (10/1, 10/4, 10/6, 10/7), `flame` the
-flame sword (10/2 and 46 more stages; "the sword Anita gets in the last
-campaign", the player's words), `red` Anna's (11/1, 11/4, 11/6, 11/7) and
-`purple` Anita's (12/6, 12/7). Not offered: the prologue's (0/1..0/5: a
-few more vertices, Clovis's texture, the same sword on screen, the
-player's check) and Anita's 12/1 / 12/4 weapon (the purple one's design
-with a turquoise palette, drawn from another page of its file 0 at VRAM
-(576, 256)). The disc scan keeps each model's node-2 prims and verts and its
-stage's last hero-page TIM (cache `weapon_<id>.bin`); a disc-2 model is
+values, each taken from the first stage that has it. The four magic
+swords carry the names the game's dialogues give them (the player named
+Azos and Igunis; the glyph text of every stage file, decoded with the
+decomp's `docs/FORMATS.md` table, agrees): `azos` Azos (1/1; the first
+weapon of Clovis, Arlen, Kodel, Phillip, Gerome and Anita, 111 stages;
+3/1 "You're stealing the magic sword Azos?", 9/1 Anita: "my sword,
+Azos"), `soul` Soul (Felippe from 4/15, 4/13 "The magic sword Soul is
+yours to protect now"; Anna's in area 7), `kadum` Kadum (Mihael's, area
+8; 5/19 "You deserve to inherit Kadum", that scene's twin holds the same
+model with another palette), `igunis` Igunis (10/2 and 46 more stages:
+the three last campaigns, areas 10, 11, 12 with Mihael, Anna, Anita,
+start with the hero's own weapon and give Igunis, 10/7 and 12/7 "The
+magic sword Igunis has chosen you as its master", held at stage 2 and
+from stage 9 on); then the other models: `felippe` Felippe's first sword
+(4/3..4/13), and the last campaigns' own weapons, `dark` Mihael's (10/1,
+10/4, 10/6, 10/7), `red` Anna's (11/1, 11/4, 11/6, 11/7) and `purple`
+Anita's (12/6, 12/7). (10/7 also says "Azos, the angel of fire. Soul, the
+angel of light. Kadum, the angel of thunder.") Not offered: the
+prologue's (0/1..0/5: a few more vertices, Azos's texture, the same sword
+on screen, the player's check) and Anita's 12/1 / 12/4 weapon (the purple
+one's design with a turquoise palette, drawn from another page of its
+file 0 at VRAM (576, 256)). The disc scan keeps each model's node-2 prims
+and verts and its stage's last hero-page TIM (cache
+`weapon_<area>_<stage>.bin`, so a renamed value keeps its cache); a disc-2 model is
 offered once disc 2 has been read, like a disc-2 hero (that read used to
 be tried once at activation, before the disc roster is registered, and
 then never again: now the try only counts once the other disc's image
-opens). A model that is the hero's own (Arlen with Clovis's sword) needs
+opens). A model that is the hero's own (Arlen with Azos) needs
 no rebuild. `arm_kit` builds an armed kit: the hero's kit with the model's node-2
 prims and verts, and the texels its hero-page prims use copied into the
 hero's page where the hero's other 13 nodes use none (its own weapon's are
@@ -1429,15 +1436,17 @@ Every hero / kit-weapon pair fits (Anna's and Mihael's pages grow for
 some). Checked: `tests/test_heroswap.py arlen --weapon kadum --ref
 <decomp>/build/heroswap/2-1_w8-1_to_1-7 --menu-weapon flame` 20/20 (pack
 head in RAM and hero page image + CLUTs in VRAM equal to `build 2 1 1 7
---prune --weapon 8 1`; the menu row restarts 1/7 with the flame sword),
-`anna --weapon felippe --ref <decomp>/build/heroswap/7-1_w4-3_to_1-7`
-18/18 (`build 7 1 1 7 --prune --weapon 4 3`), `kodel --menu stage` 14/14,
-`arlen --weapon soul --menu-weapon purple` 15/15 (the row's last value);
-close-ups of Arlen after a Continue into 1/7 with each of the other
-models, all textured right (Kadum's split ice-blue blade and ring pommel,
-Soul's gold, the flame sword's fiery tip, the red weapon's thin white
-blade), and earlier Clovis (Each stage's own) with Soul and Anna with
-Clovis's sword. (The test's GAME OVER answer pressed Cross once after a
+--prune --weapon 8 1`; the menu row restarts 1/7 with Igunis, then still
+called `flame`), `anna --weapon felippe --ref
+<decomp>/build/heroswap/7-1_w4-3_to_1-7` 18/18 (`build 7 1 1 7 --prune
+--weapon 4 3`), `kodel --menu stage` 14/14, `arlen --weapon soul
+--menu-weapon purple` 15/15 (the row's last value), and after the
+renaming `arlen --weapon kadum --menu-weapon igunis` 15/15 (the cache
+renamed to `weapon_<area>_<stage>.bin` loads, no disc read); close-ups of
+Arlen after a Continue into 1/7 with each of the other models, all
+textured right (Kadum's split ice-blue blade and ring pommel, Soul's gold,
+Igunis's fiery tip, Anna's thin white blade), and earlier Clovis (Each
+stage's own) with Soul and Anna with Azos. (The test's GAME OVER answer pressed Cross once after a
 fixed wait and sometimes missed the prompt; it now presses while mode 9
 lasts.) After a save-state load the weapon is read back too: the hero
 object's node 2 (`g_Objects[0]` `0x8008A4E0`, `nodes` at +0x80, node 2's

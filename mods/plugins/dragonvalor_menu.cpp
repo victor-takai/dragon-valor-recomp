@@ -62,11 +62,9 @@ const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felip
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
 /* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own, then the
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
-const char* const kWeaponChoices[] = {"The hero's own", "Clovis's sword", "Felippe's first sword", "Soul", "Kadum",
-                                      "Mihael's dark sword", "Flame sword (last campaigns)", "Anna's red weapon",
-                                      "Anita's purple sword"};
-const char* const kWeaponValues[] = {"hero", "clovis", "felippe", "soul", "kadum",
-                                     "dark", "flame", "red", "purple"};
+const char* const kWeaponChoices[] = {"The hero's own", "Azos", "Soul", "Kadum", "Igunis", "Felippe's first sword",
+                                      "Mihael's dark sword", "Anna's red weapon", "Anita's purple sword"};
+const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple"};
 #define DV_WEAPON_CHOICES 9
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
@@ -178,7 +176,7 @@ const RecompRuntimeUiItem kExtraItems[] = {
      "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name, story scenes and dialogues included. When you close the menu, the stage you are in restarts from its beginning with the new hero (no Game Over; HP, items and Val stay; its doors and keys reset, as with Continue). The first choice turns the feature on, which then needs a restart of the game.",
      RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
     {DV_KEY_WEAPON, "Experimental", "Weapon",
-     "The weapon the hero holds: its own, or one of the weapon models the heroes hold across both discs (dragonvalor.heroswap; the model and its texture, damage and moves stay the hero's). With Play as on Each stage's own, every stage's hero holds it. Kadum and the last four come from disc 2: offered once disc 2 has been started with Play as on. Like Play as, the stage you are in restarts from its beginning when you close the menu.",
+     "The weapon the hero holds: its own, or one of the weapon models the heroes hold across both discs (dragonvalor.heroswap; the model and its texture, damage and moves stay the hero's). With Play as on Each stage's own, every stage's hero holds it. Kadum, Igunis and the last three come from disc 2: offered once disc 2 has been started with Play as on. Like Play as, the stage you are in restarts from its beginning when you close the menu.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
 };
 

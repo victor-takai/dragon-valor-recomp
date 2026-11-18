@@ -107,24 +107,27 @@ static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5}; 
 /* The weapon models (hero node 2) of the action stages of both discs, by
  * geometry and look (a scan of the 226 stages, 2026-11-18; decomp
  * docs/targets/hero-swap.md, The weapon): each is taken from the first
- * stage that has it. Clovis's sword is also the first weapon of Arlen,
- * Kodel, Phillip, Gerome and Anita (111 stages; the prologue's, 0/1..0/5,
- * has a few more vertices and looks the same, so it is not offered). Soul:
- * Felippe's from 4/15 (4/13's scene gives it) and Anna's (area 7). Kadum:
- * Mihael's (area 8); the twin of 5/19..5/24 holds the same model with
- * another palette. The three last campaigns (areas 10, 11, 12: Mihael,
- * Anna, Anita) each start with the hero's own weapon (dark, red, purple)
- * and give the flame sword (stage 2, and from 9 on). Anita's 12/1 and 12/4
- * weapon is the purple one with a turquoise palette, drawn from another
- * page of its file 0 ((576, 256)): not offered. */
+ * stage that has it; the four magic swords are named by the game's own
+ * dialogues. Azos (Clovis's; 3/1 "You're stealing the magic sword Azos?")
+ * is also the first weapon of Arlen, Kodel, Phillip, Gerome and Anita (111
+ * stages; the prologue's, 0/1..0/5, has a few more vertices and looks the
+ * same, so it is not offered). Soul: Felippe's from 4/15 (4/13 "The magic
+ * sword Soul is yours to protect now") and Anna's (area 7). Kadum: Mihael's
+ * (area 8; 5/19 "You deserve to inherit Kadum", the twin there holds the
+ * same model with another palette). Igunis: the three last campaigns
+ * (areas 10, 11, 12: Mihael, Anna, Anita) start with the hero's own weapon
+ * (dark, red, purple) and give Igunis (10/7, 12/7 "The magic sword Igunis
+ * has chosen you as its master"; held at stage 2 and from 9 on). Anita's
+ * 12/1 and 12/4 weapon is the purple one with a turquoise palette, drawn
+ * from another page of its file 0 ((576, 256)): not offered. */
 #define WEAPON_COUNT 8
 static const struct { const char* id; const char* name; int area, stage; } kWeapons[WEAPON_COUNT] = {
-    {"clovis",   "Clovis's sword",        1, 1},
-    {"felippe",  "Felippe's first sword", 4, 3},
+    {"azos",     "Azos",                  1, 1},
     {"soul",     "Soul",                  4, 15},
     {"kadum",    "Kadum",                 8, 1},
+    {"igunis",   "Igunis",                10, 2},
+    {"felippe",  "Felippe's first sword", 4, 3},
     {"dark",     "Mihael's dark sword",   10, 1},
-    {"flame",    "the flame sword",       10, 2},
     {"red",      "Anna's red weapon",     11, 1},
     {"purple",   "Anita's purple sword",  12, 6},
 };
@@ -1098,7 +1101,7 @@ static void weapon_save(int w)
     const WKit* k = &s_wkits[w];
     FILE* f;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%s.bin", kWeapons[w].id);
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%d_%d.bin", kWeapons[w].area, kWeapons[w].stage);
     if (!(f = fopen(path, "wb"))) return;
     ok = w32(f, DV_WEAPON_MAGIC) && w32(f, DV_WEAPON_VER) && w32(f, (uint32_t)(kWeapons[w].area << 8 | kWeapons[w].stage)) &&
          wbuf(f, k->prims.p, k->prims.n) && wbuf(f, k->verts.p, k->verts.n) && wbuf(f, k->page.p, k->page.n);
@@ -1113,7 +1116,7 @@ static int weapon_load(int w)
     FILE* f;
     uint32_t v;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%s.bin", kWeapons[w].id);
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%d_%d.bin", kWeapons[w].area, kWeapons[w].stage);
     if (!(f = fopen(path, "rb"))) return 0;
     ok = r32(f, &v) && v == DV_WEAPON_MAGIC && r32(f, &v) && v == DV_WEAPON_VER && r32(f, &v) &&
          v == (uint32_t)(kWeapons[w].area << 8 | kWeapons[w].stage) && rbuf(f, &k->prims, 0x100000) &&

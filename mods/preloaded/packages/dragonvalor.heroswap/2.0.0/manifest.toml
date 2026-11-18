@@ -76,7 +76,7 @@ label = "Anita"
 feature = "play-as"
 id = "weapon"
 label = "Weapon"
-description = "The weapon the hero holds: its own, or one of the weapon models the game's heroes hold across both discs (the model and its texture; damage and moves stay the hero's). With Each stage's own above, every stage's hero holds it. The disc-2 weapons (Kadum and the last four) are offered once disc 2 has been started with this on. Applies at the next stage load."
+description = "The weapon the hero holds: its own, or one of the weapon models the game's heroes hold across both discs (the model and its texture; damage and moves stay the hero's). With Each stage's own above, every stage's hero holds it. The disc-2 weapons (Kadum, Igunis and the last three) are offered once disc 2 has been started with this on. Applies at the next stage load."
 type = "choice"
 default = "hero"
 
@@ -85,12 +85,8 @@ value = "hero"
 label = "The hero's own"
 
 [[option.choice]]
-value = "clovis"
-label = "Clovis's sword"
-
-[[option.choice]]
-value = "felippe"
-label = "Felippe's first sword"
+value = "azos"
+label = "Azos"
 
 [[option.choice]]
 value = "soul"
@@ -101,12 +97,16 @@ value = "kadum"
 label = "Kadum"
 
 [[option.choice]]
-value = "dark"
-label = "Mihael's dark sword"
+value = "igunis"
+label = "Igunis"
 
 [[option.choice]]
-value = "flame"
-label = "Flame sword (last campaigns)"
+value = "felippe"
+label = "Felippe's first sword"
+
+[[option.choice]]
+value = "dark"
+label = "Mihael's dark sword"
 
 [[option.choice]]
 value = "red"

@@ -132,9 +132,10 @@ the native 60 Hz version.
   hero keeps its scenes on that hero after the load. The hero can hold any
   of the game's eight weapon models (option `weapon`, menu row Weapon,
   2026-11-17/18; found by scanning the hero's node 2 in all 226 action
-  stages: Clovis's sword, Felippe's first, Soul, Kadum, the flame sword the
-  three last campaigns give, and Mihael's, Anna's and Anita's own weapons
-  of those campaigns): the model and its texture, moved into the hero's
+  stages, the magic swords named as the game's dialogues name them: Azos,
+  Soul, Kadum, Igunis (the three last campaigns' sword), then Felippe's
+  first and Mihael's, Anna's and Anita's own weapons of those campaigns):
+  the model and its texture, moved into the hero's
   texture page (the C port matches the decomp tool byte for byte;
   `tests/test_heroswap.py --weapon / --menu-weapon`). Before it
   (2026-11-16): one stage per folder written by the decomp's
