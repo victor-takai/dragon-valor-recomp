@@ -58,6 +58,17 @@ struct DvMenuRowInfo {
 };
 typedef void (*DvMenuRowInfoFn)(void* ctx, const RecompRuntimeUiItem* item, DvMenuRowInfo* out);
 
+/* The footer's button hints: the keyboard's keys, or the pad's buttons once
+ * the player uses a pad (shapes on a PlayStation pad, letters on the others,
+ * as SDL labels the south / east buttons). */
+struct DvMenuHints {
+    int style = 0;           /* 0 keyboard, 1 PlayStation shapes, 2 letters */
+    char accept[4] = "A";    /* style 2: the south button's letter */
+    char back[4] = "B";      /* style 2: the east button's letter */
+    char prev[4] = "LB";     /* the shoulder buttons */
+    char next[4] = "RB";
+};
+
 /* What the mouse did this frame, for the owner to route like a key. */
 struct DvMenuClick {
     int input = -1;   /* a RecompRuntimeUiInput, or -1 */
@@ -67,7 +78,7 @@ struct DvMenuClick {
 /* Draws the open menu and its dialog, then the toast (if one is up). */
 DvMenuClick dv_menu_view_draw(RecompRuntimeUi* ui, bool open, const DvMenuFonts& fonts,
                               const DvMenuHeader& header, const DvMenuDialog& dialog,
-                              const DvMenuToast& toast, uint64_t now_ms,
+                              const DvMenuToast& toast, const DvMenuHints& hints, uint64_t now_ms,
                               DvMenuRowInfoFn row_info, void* row_ctx);
 
 #endif

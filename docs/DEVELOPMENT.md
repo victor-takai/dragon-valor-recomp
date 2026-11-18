@@ -784,8 +784,9 @@ enemy of slot 0 and looks for the gem).
 
 Escape, or Select+Start on the pad, opens a menu over the game; the guest
 and audio pause while it is up (Options > Pause in menu turns that off).
-Keyboard: arrows, Enter / Space, Backspace, Escape. Pad: D-pad, Cross,
-Circle, Start closes. **Mouse (2026-10-15):** the provider feeds SDL mouse
+Keyboard: arrows, Enter / Space, Backspace, Escape, Tab / Shift+Tab (or
+Page Down / Up) for the next / previous section. Pad: D-pad or left stick,
+Cross, Circle, L1 / R1 for the sections, Start closes. **Mouse (2026-10-15):** the provider feeds SDL mouse
 events to ImGui while the menu is open (coordinates scaled from window to
 framebuffer): moving the pointer over a row or a section selects it, a click
 activates (on a value's arrows it steps that way), the wheel scrolls and the
@@ -835,6 +836,28 @@ builder plus extras with its generic drawer:
   Slot 3", "State loaded", "Arlen, holding Kadum / The stage restarts from
   its beginning", "Warping / Area 4, stage 1 in about 10 seconds",
   "Changing discs".
+- *Pad (2026-11-18, the player: "it has to be easy to navigate with a pad
+  too").* The footer shows the buttons of the device last used: keys, or
+  the pad's (SDL3 `SDL_GetGamepadButtonLabelForType` on the south button:
+  Cross / Circle shapes and L1 / R1 on a PlayStation pad, A / B and LB / RB
+  on an Xbox or unknown pad, B / A and L / R on a Nintendo one), and the
+  "Press ... to apply" status names that button. The shoulder buttons step
+  through the sections (entering the next one when inside one). SDL does
+  not repeat pad buttons, so a held D-pad direction (or the left stick past
+  half way, let go under 35 %) repeats from the draw callback: first after
+  380 ms, then every 110 ms down to 35 ms the longer it is held; a held
+  direction stops at the first / last row instead of wrapping around.
+  Checked by turning F13..F20 into pad events in a scratch build (the debug
+  server injects keys and mouse clicks, not pad events): R1 x4 highlighted
+  Items, Cross entered it, holding Down 2 s ran to Copper Key and stopped,
+  R1 entered Warp, a short stick push moved one row, L1 x3 entered Cheats,
+  Circle twice closed the menu; mouse clicks (`host_mouse`) entered Cheats
+  and switched Infinite HP on and off.
+- *Arrows.* ImGui's anti-aliased convex fill feathers the edge outward for
+  one winding only; the mirrored (left) arrows and the diamonds had the
+  other one and came out smaller and softer (the player saw one arrow
+  smaller than the other). Every filled shape in the view now lists its
+  points in the same order.
 
 | Section | Rows | Applied through |
 |---|---|---|

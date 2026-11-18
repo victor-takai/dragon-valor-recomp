@@ -55,7 +55,7 @@ jump) are the game's; the first stage's tutorial boxes introduce them.
 
 | Key / pad | Action |
 |---|---|
-| `Escape`, or **Select + Start** on the pad | In-game menu: save/load state, disc change, back to the launcher (Game), Play as and Weapon (Hero), cheats, magic, items, the stage warp, video and sound settings. Arrows / D-pad move, Left / Right change a value, `Enter` / Cross selects, `Escape` / Circle goes back; a dialog asks before anything hard to undo (Left / Right pick the button, Enter presses it). The mouse works too (moving it selects, click activates, wheel scrolls, right button goes back). |
+| `Escape`, or **Select + Start** on the pad | In-game menu: save/load state, disc change, back to the launcher (Game), Play as and Weapon (Hero), cheats, magic, items, the stage warp, video and sound settings. Arrows / D-pad / left stick move (hold to repeat), Left / Right change a value, `Enter` / Cross selects, `Escape` / Circle goes back, `Tab` / L1 / R1 jump between sections; the bottom line shows the keys or the pad buttons, whichever you used last; a dialog asks before anything hard to undo (Left / Right pick the button, Enter presses it). The mouse works too (moving it selects, click activates, wheel scrolls, right button goes back). |
 | `F7` | Save-state slot picker: Left / Right pick the slot, `S` saves, `L` loads, `F7` / `Esc` close |
 | `F8` | Rewind (hold; only when Rewind is on in the launcher's Display card) |
 | `F6` | Scanlines on / off |

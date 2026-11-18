@@ -97,8 +97,13 @@ void spaced(ImDrawList* dl, ImFont* f, ImVec2 p, ImU32 col, const char* s, float
     }
 }
 
+/* Filled shapes go through ImGui's anti-aliased convex fill, which feathers
+ * the edge outward only for one winding; the other feathers it inward and
+ * the shape comes out smaller and softer (the player saw the left arrow
+ * smaller than the right one). Every filled shape here lists its points in
+ * that one order: top, left, bottom for a triangle, and so on. */
 void diamond(ImDrawList* dl, ImVec2 c, float r, ImU32 col) {
-    dl->AddQuadFilled(ImVec2(c.x, c.y - r), ImVec2(c.x + r, c.y), ImVec2(c.x, c.y + r), ImVec2(c.x - r, c.y), col);
+    dl->AddQuadFilled(ImVec2(c.x, c.y - r), ImVec2(c.x - r, c.y), ImVec2(c.x, c.y + r), ImVec2(c.x + r, c.y), col);
 }
 
 void diamond_outline(ImDrawList* dl, ImVec2 c, float r, ImU32 col, float th) {
@@ -108,8 +113,9 @@ void diamond_outline(ImDrawList* dl, ImVec2 c, float r, ImU32 col, float th) {
 /* A filled triangle pointing left (dir -1) or right (+1), centred on c. */
 void arrow(ImDrawList* dl, ImVec2 c, float r, int dir, ImU32 col) {
     const float d = (float)dir;
-    dl->AddTriangleFilled(ImVec2(c.x + d * r * 0.7f, c.y), ImVec2(c.x - d * r * 0.55f, c.y - r),
-                          ImVec2(c.x - d * r * 0.55f, c.y + r), col);
+    const ImVec2 tip(c.x + d * r * 0.7f, c.y), top(c.x - d * r * 0.55f, c.y - r), bottom(c.x - d * r * 0.55f, c.y + r);
+    if (dir > 0) dl->AddTriangleFilled(tip, top, bottom, col);
+    else dl->AddTriangleFilled(tip, bottom, top, col);   /* mirrored: same winding */
 }
 
 void chevron(ImDrawList* dl, ImVec2 c, float r, ImU32 col, float th) {
@@ -160,9 +166,47 @@ float key_cap(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* key, c
         const ImVec2 ks = measure(f, key);
         put(dl, f, ImVec2(a.x + (kw - ks.x) * 0.5f, a.y + (h - ks.y) * 0.5f), P.text, key);
     }
+    if (!label[0]) return kw + 6.0f * s;   /* a cap followed by another (L1 R1) */
     const ImVec2 ls = measure(f, label);
     put(dl, f, ImVec2(b.x + 9.0f * s, a.y + (h - ls.y) * 0.5f), P.muted, label);
     return kw + 9.0f * s + ls.x + 26.0f * s;
+}
+
+/* A round face button: 0 PlayStation cross, 1 PlayStation circle, 2 a letter. */
+float pad_button(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, int kind, const char* letter, const char* label,
+                 const Pal& P, float s) {
+    ImFont* f = F.small;
+    const float h = f->FontSize + 10.0f * s, r = h * 0.5f, th = std::max(1.0f, 1.8f * s);
+    const ImVec2 c(p.x + r, p.y + r);
+    dl->AddCircleFilled(c, r, P.ink, 28);
+    dl->AddCircle(c, r, P.faint, 28, std::max(1.0f, 1.2f * s));
+    if (kind == 0) {
+        const float k = r * 0.38f;
+        dl->AddLine(ImVec2(c.x - k, c.y - k), ImVec2(c.x + k, c.y + k), P.text, th);
+        dl->AddLine(ImVec2(c.x - k, c.y + k), ImVec2(c.x + k, c.y - k), P.text, th);
+    } else if (kind == 1) {
+        dl->AddCircle(c, r * 0.42f, P.text, 24, th);
+    } else {
+        const ImVec2 ls = measure(F.bold, letter);
+        dl->AddText(F.bold, F.small->FontSize, ImVec2(std::floor(c.x - ls.x * F.small->FontSize / F.bold->FontSize * 0.5f),
+                                                       std::floor(c.y - F.small->FontSize * 0.5f)),
+                    P.text, letter);
+    }
+    const ImVec2 ls = measure(f, label);
+    put(dl, f, ImVec2(p.x + h + 9.0f * s, p.y + (h - ls.y) * 0.5f), P.muted, label);
+    return h + 9.0f * s + ls.x + 26.0f * s;
+}
+
+/* The D-pad, its left / right arms lit (they change a value). */
+float dpad(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* label, const Pal& P, float s) {
+    ImFont* f = F.small;
+    const float h = f->FontSize + 10.0f * s, r = h * 0.5f, w = h * 0.3f;
+    const ImVec2 c(p.x + r, p.y + r);
+    dl->AddRectFilled(ImVec2(c.x - w * 0.5f, c.y - r), ImVec2(c.x + w * 0.5f, c.y + r), P.faint, 2.0f * s);
+    dl->AddRectFilled(ImVec2(c.x - r, c.y - w * 0.5f), ImVec2(c.x + r, c.y + w * 0.5f), P.text, 2.0f * s);
+    const ImVec2 ls = measure(f, label);
+    put(dl, f, ImVec2(p.x + h + 9.0f * s, p.y + (h - ls.y) * 0.5f), P.muted, label);
+    return h + 9.0f * s + ls.x + 26.0f * s;
 }
 
 struct SectionNote { const char* name; const char* blurb; bool experimental; };
@@ -200,8 +244,8 @@ void value_text(RecompRuntimeUi* ui, const RecompRuntimeUiItem* item, char* out,
     }
 }
 
-void draw_menu(RecompRuntimeUi* ui, const DvMenuFonts& F, const DvMenuHeader& hd, bool modal,
-               DvMenuRowInfoFn row_info, void* row_ctx, DvMenuClick& click) {
+void draw_menu(RecompRuntimeUi* ui, const DvMenuFonts& F, const DvMenuHeader& hd, const DvMenuHints& hints,
+               bool modal, DvMenuRowInfoFn row_info, void* row_ctx, DvMenuClick& click) {
     ImGuiIO& io = ImGui::GetIO();
     const ImVec2 D = io.DisplaySize;
     const float s = F.scale;
@@ -268,14 +312,25 @@ void draw_menu(RecompRuntimeUi* ui, const DvMenuFonts& F, const DvMenuHeader& hd
         const float body_y1 = foot_y - 18.0f * s;
         {
             float fx = x0;
-            fx += key_cap(dl, F, ImVec2(fx, foot_y), "Enter", "Select", P, s);
-            fx += key_cap(dl, F, ImVec2(fx, foot_y), "Esc", "Back", P, s);
-            fx += key_cap(dl, F, ImVec2(fx, foot_y), nullptr, "Change", P, s);
-            const bool status = ui->status_frames && ui->status[0];
-            const char* right = status ? ui->status : "Pad: Cross \xC2\xB7 Circle \xC2\xB7 D-pad";
-            const ImVec2 rs = measure(F.small, right);
-            put(dl, F.small, ImVec2(std::max(fx, x1 - rs.x), foot_y + (foot_h - rs.y) * 0.5f),
-                status ? P.gold : P.faint, right);
+            if (hints.style == 0) {
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Enter", "Select", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Esc", "Back", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), nullptr, "Change", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Tab", "Section", P, s);
+            } else {
+                const bool ps = hints.style == 1;
+                fx += pad_button(dl, F, ImVec2(fx, foot_y), ps ? 0 : 2, hints.accept, "Select", P, s);
+                fx += pad_button(dl, F, ImVec2(fx, foot_y), ps ? 1 : 2, hints.back, "Back", P, s);
+                fx += dpad(dl, F, ImVec2(fx, foot_y), "Change", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), hints.prev, "", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), hints.next, "Section", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Start", "Close", P, s);
+            }
+            if (ui->status_frames && ui->status[0]) {
+                const ImVec2 rs = measure(F.small, ui->status);
+                put(dl, F.small, ImVec2(std::max(fx, x1 - rs.x), foot_y + (foot_h - rs.y) * 0.5f), P.gold,
+                    ui->status);
+            }
             if (ui->status_frames) --ui->status_frames;
         }
 
@@ -530,12 +585,12 @@ void draw_toast(const DvMenuToast& t, const DvMenuFonts& F, uint64_t now) {
 
 DvMenuClick dv_menu_view_draw(RecompRuntimeUi* ui, bool open, const DvMenuFonts& fonts,
                               const DvMenuHeader& header, const DvMenuDialog& dialog,
-                              const DvMenuToast& toast, uint64_t now_ms,
+                              const DvMenuToast& toast, const DvMenuHints& hints, uint64_t now_ms,
                               DvMenuRowInfoFn row_info, void* row_ctx) {
     DvMenuClick click;
     if (!ui || !fonts.body || !fonts.bold || !fonts.title || !fonts.small) return click;
     if (open) {
-        draw_menu(ui, fonts, header, dialog.open, row_info, row_ctx, click);
+        draw_menu(ui, fonts, header, hints, dialog.open, row_info, row_ctx, click);
         if (dialog.open) draw_dialog(dialog, fonts, click);
     }
     draw_toast(toast, fonts, now_ms);

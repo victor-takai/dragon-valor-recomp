@@ -151,11 +151,11 @@ const RecompRuntimeUiItem kItems[] = {
 
     {DV_KEY_PLAY_AS, "Hero", "Play as",
      "The hero of every action stage: model, moves, voice, portrait and name, story scenes included. "
-     "Pick one with Left / Right, then press Enter to apply it.",
+     "Pick one with Left / Right, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
     {DV_KEY_WEAPON, "Hero", "Weapon",
      "The sword the hero holds (its look: damage and moves stay the hero's). Kadum, Igunis and the last "
-     "four are read from disc 2 once it has been started. Press Enter to apply.",
+     "four are read from disc 2 once it has been started. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
     DV_ROW_ACTION(DV_KEY_HERO_APPLY, "Hero", "Apply",
                   "Use the hero and weapon above. In an action stage the stage restarts from its beginning: "
@@ -267,6 +267,15 @@ struct Menu {
     int slot_cached = -1, slot_saved = 0;
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
+    /* the footer's hints follow the last device used (keys or a pad) */
+    DvMenuHints hints;
+    /* a held D-pad direction or stick repeats from the draw callback (SDL
+     * repeats keys itself, not pad buttons): first after 380 ms, then
+     * faster the longer it is held */
+    int held = -1, held_count = 0;
+    bool held_stick = false;
+    uint64_t held_next = 0;
+    int stick_x = 0, stick_y = 0;
     /* mouse: window coordinates are scaled to the framebuffer ImGui draws in */
     SDL_Window* window = nullptr;
     int fb_w = 0, fb_h = 0;
@@ -276,6 +285,16 @@ struct Menu {
     bool gl_ready = false;                 /* the ImGui GL backend made its objects */
 };
 enum { DV_DIALOG_NONE, DV_DIALOG_ACTION, DV_DIALOG_HERO, DV_DIALOG_HERO_CLOSE };
+/* Inputs of our own beside recomp-ui's RecompRuntimeUiInput: the shoulder
+ * buttons (and Tab / Shift+Tab, Page Down / Up) step through the sections. */
+enum { DV_INPUT_PREV_SECTION = 100, DV_INPUT_NEXT_SECTION = 101 };
+
+/* "Enter", "Cross", "A"...: what the player presses to confirm, in texts. */
+const char* accept_name(const Menu& m) {
+    if (m.hints.style == 0) return "Enter";
+    if (m.hints.style == 1) return "Cross";
+    return m.hints.accept;
+}
 
 Menu g_menu;
 
@@ -789,7 +808,8 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
         const bool w = is(item, DV_KEY_WEAPON);
         if (value < 0 || value > (w ? DV_WEAPON_CHOICES - 1 : 9)) return 0;
         (w ? m.weapon_pend : m.play_as_pend) = value;
-        recomp_runtime_ui_set_status(m.ui, hero_pending(m) ? "Press Enter to apply" : "");
+        std::snprintf(text, sizeof text, "Press %s to apply", accept_name(m));
+        recomp_runtime_ui_set_status(m.ui, hero_pending(m) ? text : "");
         return 0;   /* 1 would let recomp-ui show "Saved" */
     }
     if (const RamRow* r = ram_row(item)) {
@@ -1064,6 +1084,7 @@ void set_open_locked(Menu& m, bool open) {
         if (m.imgui) ImGui::GetIO().ClearInputMouse();   /* a click that closed the menu never gets its release */
         m.open = false;
         m.dialog.open = false;
+        m.held = -1;                                     /* no repeat carried into the next open */
         (void)m.host->set_paused(0);
     }
 }
@@ -1141,8 +1162,92 @@ void dispatch(Menu& m, int input, bool repeat) {
         if (!repeat) request_close(m);
         return;
     }
+    if (input == DV_INPUT_PREV_SECTION || input == DV_INPUT_NEXT_SECTION) {
+        /* the next / previous section, entered if the player is in one */
+        const size_t n = m.ui->section_count;
+        if (repeat || !n) return;
+        const size_t to = input == DV_INPUT_NEXT_SECTION ? (m.ui->section_index + 1) % n
+                                                         : (m.ui->section_index + n - 1) % n;
+        if (m.ui->in_section) recomp_runtime_ui_enter_section(m.ui, to);
+        else m.ui->section_index = to;
+        return;
+    }
+    if (repeat && (input == RECOMP_RUNTIME_UI_INPUT_UP || input == RECOMP_RUNTIME_UI_INPUT_DOWN)) {
+        /* a held direction stops at the ends instead of wrapping around */
+        const size_t n = m.ui->in_section ? recomp_runtime_ui_page_entry_count(m.ui) : m.ui->section_count;
+        const size_t at = m.ui->in_section ? m.ui->row_index : m.ui->section_index;
+        if (input == RECOMP_RUNTIME_UI_INPUT_UP ? at == 0 : at + 1 >= n) return;
+    }
     (void)recomp_runtime_ui_handle_input(m.ui, (RecompRuntimeUiInput)input, 1, repeat ? 1 : 0);
     sync_open_locked(m);
+}
+
+/* ---- the pad: which buttons it shows, held directions ---------------------- */
+void note_pad(Menu& m, uint32_t which) {
+    DvMenuHints h;
+#if defined(PSX_SDL3)
+    const SDL_GamepadType type = SDL_GetGamepadTypeForID((SDL_JoystickID)which);
+    switch (SDL_GetGamepadButtonLabelForType(type, SDL_GAMEPAD_BUTTON_SOUTH)) {
+        case SDL_GAMEPAD_BUTTON_LABEL_CROSS:
+            h.style = 1;
+            std::snprintf(h.prev, sizeof h.prev, "L1");
+            std::snprintf(h.next, sizeof h.next, "R1");
+            break;
+        case SDL_GAMEPAD_BUTTON_LABEL_B:            /* Nintendo: B below, A on the right */
+            h.style = 2;
+            std::snprintf(h.accept, sizeof h.accept, "B");
+            std::snprintf(h.back, sizeof h.back, "A");
+            std::snprintf(h.prev, sizeof h.prev, "L");
+            std::snprintf(h.next, sizeof h.next, "R");
+            break;
+        default:                                    /* Xbox and unknown pads */
+            h.style = 2;
+            break;
+    }
+#else
+    (void)which;
+    h.style = 1;
+    std::snprintf(h.prev, sizeof h.prev, "L1");
+    std::snprintf(h.next, sizeof h.next, "R1");
+#endif
+    m.hints = h;
+}
+
+void hold(Menu& m, int input, bool stick) {
+    m.held = input;
+    m.held_stick = stick;
+    m.held_count = 0;
+    m.held_next = now_ms() + 380;
+}
+
+void release(Menu& m, bool stick) {
+    if (m.held >= 0 && m.held_stick == stick) m.held = -1;
+}
+
+/* The draw callback calls this every frame: a held direction repeats. */
+void repeat_held(Menu& m) {
+    if (!m.open || m.held < 0 || m.dialog.open) return;
+    const uint64_t now = now_ms();
+    if (now < m.held_next) return;
+    dispatch(m, m.held, true);
+    ++m.held_count;
+    m.held_next = now + (uint64_t)std::max(35, 110 - 6 * m.held_count);
+}
+
+/* The left stick as a D-pad: past 50 % it presses, under 35 % it lets go. */
+void stick_moved(Menu& m) {
+    const int ax = std::abs(m.stick_x), ay = std::abs(m.stick_y);
+    int dir = -1;
+    if (ay >= 16384 && ay >= ax) dir = m.stick_y < 0 ? RECOMP_RUNTIME_UI_INPUT_UP : RECOMP_RUNTIME_UI_INPUT_DOWN;
+    else if (ax >= 16384) dir = m.stick_x < 0 ? RECOMP_RUNTIME_UI_INPUT_LEFT : RECOMP_RUNTIME_UI_INPUT_RIGHT;
+    if (dir >= 0) {
+        if (!(m.held == dir && m.held_stick)) {
+            dispatch(m, dir, false);
+            hold(m, dir, true);
+        }
+    } else if (ax < 11500 && ay < 11500) {
+        release(m, true);
+    }
 }
 
 bool create_ui(Menu& m) {
@@ -1281,6 +1386,8 @@ int key_to_input(int scancode) {
         case SDL_SCANCODE_RETURN: case SDL_SCANCODE_KP_ENTER: case SDL_SCANCODE_SPACE:
             return RECOMP_RUNTIME_UI_INPUT_ACCEPT;
         case SDL_SCANCODE_BACKSPACE: return RECOMP_RUNTIME_UI_INPUT_BACK;
+        case SDL_SCANCODE_TAB: case SDL_SCANCODE_PAGEDOWN: return DV_INPUT_NEXT_SECTION;   /* Shift+Tab: below */
+        case SDL_SCANCODE_PAGEUP: return DV_INPUT_PREV_SECTION;
         default: return -1;
     }
 }
@@ -1294,6 +1401,8 @@ int pad_to_input(int button) {
         case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return RECOMP_RUNTIME_UI_INPUT_RIGHT;
         case SDL_GAMEPAD_BUTTON_SOUTH: return RECOMP_RUNTIME_UI_INPUT_ACCEPT;
         case SDL_GAMEPAD_BUTTON_EAST: return RECOMP_RUNTIME_UI_INPUT_BACK;
+        case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return DV_INPUT_PREV_SECTION;
+        case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return DV_INPUT_NEXT_SECTION;
         default: return -1;
     }
 #else
@@ -1304,6 +1413,8 @@ int pad_to_input(int button) {
         case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return RECOMP_RUNTIME_UI_INPUT_RIGHT;
         case SDL_CONTROLLER_BUTTON_A: return RECOMP_RUNTIME_UI_INPUT_ACCEPT;
         case SDL_CONTROLLER_BUTTON_B: return RECOMP_RUNTIME_UI_INPUT_BACK;
+        case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return DV_INPUT_PREV_SECTION;
+        case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return DV_INPUT_NEXT_SECTION;
         default: return -1;
     }
 #endif
@@ -1322,13 +1433,16 @@ int p_event(void* ctx, const void* sdl_event) {
         const bool down = ev->type == SDL_EVENT_KEY_DOWN;
         const int sc = ev->key.scancode;
         const bool repeat = ev->key.repeat != 0;
+        const bool shift = (ev->key.mod & SDL_KMOD_SHIFT) != 0;
 #else
     case SDL_KEYDOWN:
     case SDL_KEYUP: {
         const bool down = ev->type == SDL_KEYDOWN;
         const int sc = ev->key.keysym.scancode;
         const bool repeat = ev->key.repeat != 0;
+        const bool shift = (ev->key.keysym.mod & KMOD_SHIFT) != 0;
 #endif
+        if (down) m.hints.style = 0;   /* the footer shows keys again */
         if (sc == SDL_SCANCODE_ESCAPE) {
             if (down && !repeat) {
                 if (m.open) dispatch(m, RECOMP_RUNTIME_UI_INPUT_BACK, false);
@@ -1337,7 +1451,8 @@ int p_event(void* ctx, const void* sdl_event) {
             return 1;
         }
         if (!m.open) return 0;
-        const int input = key_to_input(sc);
+        int input = key_to_input(sc);
+        if (input == DV_INPUT_NEXT_SECTION && sc == SDL_SCANCODE_TAB && shift) input = DV_INPUT_PREV_SECTION;
         if (input >= 0 && down) dispatch(m, input, repeat);
         return 1;   /* the game never sees keys while the menu is up */
     }
@@ -1396,6 +1511,7 @@ int p_event(void* ctx, const void* sdl_event) {
         const int button = ev->gbutton.button;
         const bool is_start = button == SDL_GAMEPAD_BUTTON_START;
         const bool is_back = button == SDL_GAMEPAD_BUTTON_BACK;
+        const uint32_t which = (uint32_t)ev->gbutton.which;
 #else
     case SDL_CONTROLLERBUTTONDOWN:
     case SDL_CONTROLLERBUTTONUP: {
@@ -1403,7 +1519,9 @@ int p_event(void* ctx, const void* sdl_event) {
         const int button = ev->cbutton.button;
         const bool is_start = button == SDL_CONTROLLER_BUTTON_START;
         const bool is_back = button == SDL_CONTROLLER_BUTTON_BACK;
+        const uint32_t which = (uint32_t)ev->cbutton.which;
 #endif
+        if (down) note_pad(m, which);   /* the footer shows this pad's buttons */
         if (is_start) m.pad_start = down;
         if (is_back) m.pad_back = down;
         if (m.pad_start && m.pad_back && !m.combo_fired) {
@@ -1416,15 +1534,31 @@ int p_event(void* ctx, const void* sdl_event) {
         if (!m.open) return 0;
         if (is_start && down) { request_close(m); return 1; }
         const int input = pad_to_input(button);
-        if (input >= 0 && down) dispatch(m, input, false);
+        const bool direction = input == RECOMP_RUNTIME_UI_INPUT_UP || input == RECOMP_RUNTIME_UI_INPUT_DOWN ||
+                               input == RECOMP_RUNTIME_UI_INPUT_LEFT || input == RECOMP_RUNTIME_UI_INPUT_RIGHT;
+        if (input >= 0 && down) {
+            dispatch(m, input, false);
+            if (direction && m.open) hold(m, input, false);   /* held: repeats from the draw callback */
+        } else if (direction && !down && m.held == input) {
+            release(m, false);
+        }
         return 1;
     }
 #if defined(PSX_SDL3)
-    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
+        const int axis = ev->gaxis.axis, value = ev->gaxis.value;
+        const bool lx = axis == SDL_GAMEPAD_AXIS_LEFTX, ly = axis == SDL_GAMEPAD_AXIS_LEFTY;
 #else
-    case SDL_CONTROLLERAXISMOTION:
+    case SDL_CONTROLLERAXISMOTION: {
+        const int axis = ev->caxis.axis, value = ev->caxis.value;
+        const bool lx = axis == SDL_CONTROLLER_AXIS_LEFTX, ly = axis == SDL_CONTROLLER_AXIS_LEFTY;
 #endif
-        return m.open ? 1 : 0;
+        if (!m.open) return 0;
+        if (lx) m.stick_x = value;
+        if (ly) m.stick_y = value;
+        if (lx || ly) stick_moved(m);
+        return 1;
+    }
     default:
         return 0;
     }
@@ -1434,6 +1568,7 @@ void p_draw(void* ctx, int width, int height) {
     Menu& m = *static_cast<Menu*>(ctx);
     std::lock_guard<std::mutex> lk(m.mu);
     if (!m.ui || !m.imgui) return;
+    repeat_held(m);                     /* a held D-pad direction or stick */
     const uint64_t now = now_ms();
     const bool toast_up = m.toast.end_ms && now < m.toast.end_ms;
     if (!m.open && !toast_up) return;
@@ -1463,7 +1598,7 @@ void p_draw(void* ctx, int width, int height) {
         }
     }
     const DvMenuClick click =
-        dv_menu_view_draw(m.ui, m.open, m.fonts, hd, m.dialog, m.toast, now, row_info, &m);
+        dv_menu_view_draw(m.ui, m.open, m.fonts, hd, m.dialog, m.toast, m.hints, now, row_info, &m);
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     if (!toast_up) m.toast.end_ms = 0;
