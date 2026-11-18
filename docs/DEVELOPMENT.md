@@ -920,19 +920,31 @@ builder plus extras with its generic drawer:
   Clovis: Kodel plays from the next stage", and the player read the
   Clovis portrait and name in the next scene as the swap failing (test
   state 10, made as Clovis, again on 2026-11-18). It now sets
-  `dv_heroswap_mismatch` with the two choices, and the menu opens a dialog
-  over the paused game (no menu behind it): "This save was made as Clovis ...
-  Restart this stage from its beginning with that choice?", Play as Kodel or
-  Keep the save. Play as restarts the stage like a Hero choice
-  (`dv_heroswap_restart_request`). The OSD line is only left for builds
-  without the menu (`dv_menu_present`). `tests/test_heroswap.py` checks that
-  loading test state 10 with another hero pauses under the dialog, and that
-  it does not with the stage's own (Escape keeps the save).
+  `dv_heroswap_mismatch` with what the save holds, and the menu makes the
+  save's hero and weapon the Play as choice (`adopt_save_choice`, through
+  `mod_set` like a Hero choice; the save's area hero becomes "each stage's
+  own", its weapon "the hero's own" or a model) and says so in a notice:
+  "Playing as Clovis / As in this save: Play as follows it". A first version
+  asked in a dialog (restart with the old choice, or keep the save); the
+  player preferred no question at every load. The OSD line is only left for
+  builds without the menu (`dv_menu_present`). `tests/test_heroswap.py`
+  checks that a load asks nothing (the game keeps running), that state.toml
+  follows the save, and then picks its hero again in the Hero rows (the
+  stage restarts with it) before the rest of its checks.
 - *Arrows.* ImGui's anti-aliased convex fill feathers the edge outward for
   one winding only; the mirrored (left) arrows and the diamonds had the
   other one and came out smaller and softer (the player saw one arrow
   smaller than the other). Every filled shape in the view now lists its
   points in the same order.
+- *Labels in buttons* (same day: A and B sat off centre in their circles).
+  A label used to be centred by the font's line box, which also holds room
+  for accents and descenders; now `put_centered` / `put_mid` place it by the
+  ink of its glyphs horizontally and the capitals' height (glyph `H`)
+  vertically, for the pad letters, key caps, the save-state tabs and the
+  dialog buttons, and the hint texts beside them line up the same way.
+- *D-pad icon* (same day, the player asked for a better one than the plus):
+  a cross with rounded arm ends, a dimpled centre and an arrow embossed in
+  each arm, the left and right arms lit (they change a value).
 
 | Section | Rows | Applied through |
 |---|---|---|
@@ -1180,11 +1192,26 @@ worked examples this one follows.
   pieces behind and split the HP bar in the first try) with its edge: left
   for the spell icon and name, HP / MP and the enemy gauge (bottom left)
   and the keys, right for the enemies-left counter, the pop-up flashes by
-  the half they sit in; the title card and the pick-up banner (its icon
-  flies in from the pickup's place in the world) stay. Seen in a 16:9
-  capture of test state 10: the spell frame at x 60 of 1834 instead of
-  286, the HP / MP block whole; 60 fps; `tests/test_widescreen.py` 9/9.
-  The counter, gauge and key icons were not on screen in that capture.
+  where they sit (left of x 128, right of x 300, in place between: those
+  are the ones a flying banner icon drops on its way); the title card stays
+  centred. Seen in a 16:9 capture of test state 10: the spell frame at x 60
+  of 1834 instead of 286, the HP / MP block whole; 60 fps;
+  `tests/test_widescreen.py` 9/9. The counter, gauge and key icons were not
+  on screen in that capture.
+
+  **The pick-up banner** (same day, the player: its icon did not reach the
+  corner either) goes to the right edge too: frame, item name and count.
+  Its item icon flies there from where the pickup was in the world
+  (`HudShowPickupBanner`: `bannerPos += bannerStep`, 1/16 of the way a
+  frame, then a snap to (319, 24)), so it takes the edge's offset bit by
+  bit: it is tagged right and (1 - progress) x the offset
+  (`gpu_ws_configured_x_reveal`) is taken off the x of its corners in the
+  packet drawn this frame (the game rewrites them every frame), so it starts
+  over the pickup and lands in the shifted frame. The name that rises over
+  the pickup stays in the world. Checked by starting the banner by hand
+  (the XbHudState fields `HudShowPickupBanner` sets: group on, relink,
+  timer 70, corners and steps; scratchpad `ws_banner.py`): the icon flew
+  from mid-screen into the frame at the right edge.
 - **Culling: left stock** (widened at 14:00 on 2026-10-15, withdrawn the
   same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
   --emit-ws-sites` (`cmake --build build-recompiler --target

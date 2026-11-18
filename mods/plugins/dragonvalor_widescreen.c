@@ -271,25 +271,54 @@ static void dv_ws_hide_play_blur(uint32_t frame)
  * renderer moves it by the reveal, native-wide only, as one piece with its
  * group. Left: the spell icon and name, HP / MP, the enemy gauge (bottom
  * left), the keys. Right: the enemies-left counter. The pop-up flashes
- * follow the element they flash over (left or right half). The title card
- * and the pick-up banner (its icon flies in from the pickup's place in the
- * world) stay where they are. */
+ * follow the element they flash over: the keys' on the left, the counter's
+ * and the banner's at the right edge; the ones a flying banner icon drops
+ * on its way stay where they are. The title card stays centred.
+ *
+ * The pick-up banner (2026-11-18, the player: its icon did not reach the
+ * corner either) sits at the top right: its frame, name and count go to the
+ * right edge. Its item icon flies there from where the pickup was in the
+ * world (HudShowPickupBanner: bannerPos += bannerStep, 1/16 of the way a
+ * frame, then it snaps to (319, 24)), so it takes the edge's offset bit by
+ * bit: tagged right, with (1 - progress) x the offset taken off its x in
+ * the packet drawn this frame (the game rewrites the corners every frame),
+ * it starts over the pickup and lands in the corner. The name that rises
+ * over the pickup stays in the world. */
 #define DV_HUD_STATE          0x8009FAF8u   /* XbHudState (= g_GameState) */
 #define DV_HUD_PRIMS          (DV_HUD_STATE + 0x0Cu)
 #define DV_HUD_COUNT          61u
+#define DV_HUD_BANNER_POS     (DV_HUD_STATE + 0x124u)   /* s32 bannerPos[0]: the icon's left x, 16.16 */
+#define DV_HUD_BANNER_STEP    (DV_HUD_STATE + 0x134u)   /* s32 bannerStep[0] */
+#define DV_HUD_BANNER_ICON    45u
+#define DV_HUD_ICON_TARGET_X  0x013F0000                /* 319 << 16: the corner it flies to */
+
+int gpu_ws_configured_x_reveal(void);
 
 static int dv_ws_hud_anchor(uint32_t i)
 {
     if (i >= 6u && i <= 40u) return -1;    /* spell 6..8, HP / MP 9..34, gauge 35..40 */
     if (i >= 57u && i <= 60u) return -1;   /* keys */
     if (i >= 52u && i <= 56u) return 1;    /* enemies-left counter */
+    if (i == 44u || (i >= 46u && i <= 50u)) return 1;   /* banner frame, name, count */
+    if (i == DV_HUD_BANNER_ICON) return 3; /* the flying item icon: by its progress */
     if (i >= 1u && i <= 5u) return 2;      /* pop-up icons: by their x */
-    return 0;                              /* the groups' DR_OFFSETs, title, banner */
+    return 0;                              /* the DR_OFFSETs, title, the rising name */
+}
+
+/* How far the banner's item icon is on its way to the corner, 0..1. */
+static float dv_ws_banner_progress(void)
+{
+    const int32_t pos = (int32_t)psx_mod_read_word(DV_HUD_BANNER_POS);
+    const int32_t step = (int32_t)psx_mod_read_word(DV_HUD_BANNER_STEP);
+    float p;
+    if (step == 0) return 1.0f;
+    p = 1.0f - (float)(DV_HUD_ICON_TARGET_X - pos) / (16.0f * (float)step);
+    return p < 0.0f ? 0.0f : p > 1.0f ? 1.0f : p;
 }
 
 static void dv_ws_tag_hud(void)
 {
-    uint32_t i, b;
+    uint32_t i, b, frame = psx_mod_read_byte(DV_RENDER_FRAME) & 1u;
     if (psx_mod_read_word(DV_HUD_STATE) != 1u) return;   /* 1: the HUD runs */
     for (i = 0; i < DV_HUD_COUNT; i++) {
         int anchor = dv_ws_hud_anchor(i);
@@ -309,7 +338,24 @@ static void dv_ws_tag_hud(void)
                 w += 4u;
             }
             if (w + 4u >= end) continue;
-            if (a == 2) a = (int16_t)(psx_mod_read_word(w + 4u) & 0xFFFFu) < 192 ? -1 : 1;
+            if (a == 2) {
+                const int x = (int16_t)(psx_mod_read_word(w + 4u) & 0xFFFFu);
+                a = x < 128 ? -1 : x >= 300 ? 1 : 0;   /* a flash on the banner's way: in place */
+                if (!a) continue;
+            }
+            if (a == 3) {
+                /* the flying icon (an FT4: xy at +4, +12, +20, +28 from the
+                 * command), in the packet drawn this frame */
+                const int back = (int)((1.0f - dv_ws_banner_progress()) * (float)gpu_ws_configured_x_reveal() + 0.5f);
+                uint32_t k;
+                a = 1;
+                if (b == frame && back > 0)
+                    for (k = 0; k < 4u; k++) {
+                        const uint32_t at = w + 4u + k * 8u, xy = psx_mod_read_word(at);
+                        const int x = (int16_t)(xy & 0xFFFFu) - back;
+                        psx_mod_write_word(at, (xy & 0xFFFF0000u) | ((uint32_t)x & 0xFFFFu));
+                    }
+            }
             gpu_ws_tag_hud_prim(w - 4u, a);
         }
     }

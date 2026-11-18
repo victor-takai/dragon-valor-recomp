@@ -125,7 +125,7 @@ the native 60 Hz version.
   F7 and Game > Save / Load state open a save-state screen in the same
   style (12 slots with pictures and dates, Save and Load tabs) instead of
   the runtime's 8 x 8-font picker; loading a state made with another hero
-  than Play as asks whether to restart the stage with the chosen one.
+  than Play as makes the save's hero and weapon the choice (a notice says so).
   `tests/test_menu.py` 9/9 (now from test state 10, no longer slot 0),
   `test_heroswap.py arlen --menu kodel,stage` 19/19, `default
   --menu-weapon igunis` 9/9.

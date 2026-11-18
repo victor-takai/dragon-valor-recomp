@@ -291,7 +291,7 @@ struct Menu {
     bool gl_ready = false;                 /* the ImGui GL backend made its objects */
 };
 enum { DV_DIALOG_NONE, DV_DIALOG_ACTION, DV_DIALOG_HERO, DV_DIALOG_HERO_CLOSE, DV_DIALOG_STATE_SAVE,
-       DV_DIALOG_STATE_LOAD, DV_DIALOG_MISMATCH };
+       DV_DIALOG_STATE_LOAD };
 /* Inputs of our own beside recomp-ui's RecompRuntimeUiInput: the shoulder
  * buttons (and Tab / Shift+Tab, Page Down / Up) step through the sections. */
 enum { DV_INPUT_PREV_SECTION = 100, DV_INPUT_NEXT_SECTION = 101 };
@@ -502,7 +502,7 @@ extern "C" volatile int dv_cheats_hold_hp;
 extern "C" volatile int dv_heroswap_restart_request;
 /* dragonvalor_heroswap.c: a loaded state made with another hero / weapon */
 extern "C" volatile int dv_heroswap_mismatch, dv_menu_present;
-extern "C" char dv_heroswap_mismatch_saved[64], dv_heroswap_mismatch_wanted[64], dv_heroswap_mismatch_hero[16];
+extern "C" char dv_heroswap_mismatch_saved[64], dv_heroswap_adopt_hero[16], dv_heroswap_adopt_weapon[16];
 #define DV_MODE        0x8008634Cu
 #define DV_SUB         0x8008634Du
 #define DV_HP          0x8008A5AEu
@@ -1199,13 +1199,28 @@ void dialog_confirm(Menu& m) {
         states_save(m, m.dialog_slot);
     } else if (kind == DV_DIALOG_STATE_LOAD && m.dialog_slot >= 0) {
         states_load(m, m.dialog_slot);
-    } else if (kind == DV_DIALOG_MISMATCH) {
-        /* the stage restarts with the chosen hero (dragonvalor_heroswap.c) */
-        dv_heroswap_restart_request = 1;
-        toast(m, m.dialog.ok, "The stage restarts from its beginning.");
-        set_open_locked(m, false);
     }
     m.dialog_slot = -1;
+}
+
+/* The hero and weapon of a save state just loaded become the Play as choice
+ * (dragonvalor_heroswap.c left them in dv_heroswap_adopt_*: an empty hero
+ * keeps the current one). Draw thread, like the menu's other mod_set calls. */
+void adopt_save_choice(Menu& m) {
+    if (dv_heroswap_adopt_hero[0])
+        for (int i = 0; i < 10; ++i)
+            if (std::strcmp(kPlayAsValues[i], dv_heroswap_adopt_hero) == 0 && i != m.play_as) {
+                m.play_as = m.play_as_pend = i;
+                (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[i]);
+            }
+    for (int i = 0; i < DV_WEAPON_CHOICES; ++i)
+        if (std::strcmp(kWeaponValues[i], dv_heroswap_adopt_weapon) == 0 && i != m.weapon) {
+            m.weapon = m.weapon_pend = i;
+            (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "weapon", kWeaponValues[i]);
+        }
+    char title[96];
+    std::snprintf(title, sizeof title, "Playing as %s", dv_heroswap_mismatch_saved);
+    toast(m, title, "As in this save: Play as follows it.");
 }
 
 /* button: the Cancel button (Discard when closing) rather than Esc, which
@@ -1220,7 +1235,6 @@ void dialog_cancel(Menu& m, bool button) {
         m.weapon_pend = m.weapon;
         set_open_locked(m, false);
     }
-    if (kind == DV_DIALOG_MISMATCH) set_open_locked(m, false);   /* keep the save's hero */
     m.dialog_slot = -1;
 }
 
@@ -1750,22 +1764,11 @@ void p_draw(void* ctx, int width, int height) {
     if (!m.ui || !m.imgui) return;
     repeat_held(m);                     /* a held D-pad direction or stick */
     if (dv_heroswap_mismatch) {
-        /* a state made with another hero / weapon was loaded: offer the
-         * chosen one now, in a dialog over the paused game */
+        /* a state made with another hero / weapon was loaded: its choice
+         * becomes the current one (the player, 2026-11-18: rather than a
+         * dialog each time), written like a Hero choice and said in a notice */
         dv_heroswap_mismatch = 0;
-        if (!m.open) set_open_locked(m, true);
-        if (m.open && !m.dialog.open) {
-            char title[128], body[400], ok[64];
-            std::snprintf(title, sizeof title, "This save was made as %s", dv_heroswap_mismatch_saved);
-            std::snprintf(body, sizeof body,
-                          "Play as is set to %s. Restart this stage from its beginning with that choice? HP, "
-                          "items and Val stay; the stage's doors and keys reset. Or keep playing the save as it "
-                          "is: the choice then takes effect at the next stage.",
-                          dv_heroswap_mismatch_wanted);
-            std::snprintf(ok, sizeof ok, "Play as %s", dv_heroswap_mismatch_hero);
-            open_dialog(m, DV_DIALOG_MISMATCH, nullptr, title, body, ok, "Keep the save", false, 0);
-            m.dialog.alone = true;
-        }
+        adopt_save_choice(m);
     }
     if (m.states_pending >= 0 && !savestate_pending()) {   /* a save landed: its date and picture */
         states_refresh(m, m.states_pending);

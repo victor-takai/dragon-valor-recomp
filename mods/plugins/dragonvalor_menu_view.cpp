@@ -158,6 +158,54 @@ void toggle(ImDrawList* dl, ImVec2 right_mid, bool on, bool selected, const Pal&
     dl->AddCircleFilled(k, r, with_alpha(on ? P.panel : (selected ? P.muted : P.faint), on ? 1.0f : alpha), 20);
 }
 
+/* Text placed by the shape of its letters, not by the font's line box (which
+ * also holds room for accents and descenders, so a label sat low or high in
+ * a button: the player saw A / B off centre in their circles). Horizontally
+ * the ink of the glyphs, vertically the capital letters' height (glyph 'H'),
+ * so a word with a descender still lines up with the others. ASCII labels. */
+void ink_box(ImFont* f, float size, const char* s, float* x0, float* x1, float* top, float* base) {
+    const float k = size / f->FontSize;
+    float x = 0.0f, lo = FLT_MAX, hi = -FLT_MAX;
+    for (const char* p = s; *p; ++p) {
+        const ImFontGlyph* g = f->FindGlyph((ImWchar)(unsigned char)*p);
+        if (!g) continue;
+        if (g->Visible) {
+            lo = std::min(lo, x + g->X0 * k);
+            hi = std::max(hi, x + g->X1 * k);
+        }
+        x += g->AdvanceX * k;
+    }
+    if (lo > hi) { lo = 0.0f; hi = x; }
+    const ImFontGlyph* H = f->FindGlyph((ImWchar)'H');
+    *x0 = lo;
+    *x1 = hi;
+    *top = H ? H->Y0 * k : 0.0f;
+    *base = H ? H->Y1 * k : size;
+}
+
+/* Centred on c (both ways). */
+void put_centered(ImDrawList* dl, ImFont* f, float size, ImVec2 c, ImU32 col, const char* s) {
+    float x0, x1, top, base;
+    ink_box(f, size, s, &x0, &x1, &top, &base);
+    dl->AddText(f, size, ImVec2(std::round(c.x - (x0 + x1) * 0.5f), std::round(c.y - (top + base) * 0.5f)), col, s);
+}
+
+/* Starting at x, its capitals centred on cy. */
+void put_mid(ImDrawList* dl, ImFont* f, float x, float cy, ImU32 col, const char* s) {
+    float x0, x1, top, base;
+    ink_box(f, f->FontSize, s, &x0, &x1, &top, &base);
+    dl->AddText(f, f->FontSize, ImVec2(std::round(x), std::round(cy - (top + base) * 0.5f)), col, s);
+}
+
+/* A filled triangle pointing up (dir -1) or down (+1), centred on c; the
+ * same winding as arrow(). */
+void arrow_v(ImDrawList* dl, ImVec2 c, float r, int dir, ImU32 col) {
+    const float d = (float)dir;
+    const ImVec2 tip(c.x, c.y + d * r * 0.7f), a(c.x - r, c.y - d * r * 0.55f), b(c.x + r, c.y - d * r * 0.55f);
+    if (dir < 0) dl->AddTriangleFilled(tip, a, b, col);
+    else dl->AddTriangleFilled(tip, b, a, col);
+}
+
 /* A key cap and what it does; returns the width used. */
 float key_cap(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* key, const char* label, const Pal& P,
               float s) {
@@ -172,13 +220,11 @@ float key_cap(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* key, c
         arrow(dl, ImVec2(a.x + kw * 0.32f, a.y + h * 0.5f), 5.0f * s, -1, P.text);
         arrow(dl, ImVec2(a.x + kw * 0.68f, a.y + h * 0.5f), 5.0f * s, 1, P.text);
     } else {
-        const ImVec2 ks = measure(f, key);
-        put(dl, f, ImVec2(a.x + (kw - ks.x) * 0.5f, a.y + (h - ks.y) * 0.5f), P.text, key);
+        put_centered(dl, f, f->FontSize, ImVec2(a.x + kw * 0.5f, a.y + h * 0.5f), P.text, key);
     }
     if (!label[0]) return kw + 6.0f * s;   /* a cap followed by another (L1 R1) */
-    const ImVec2 ls = measure(f, label);
-    put(dl, f, ImVec2(b.x + 9.0f * s, a.y + (h - ls.y) * 0.5f), P.muted, label);
-    return kw + 9.0f * s + ls.x + 26.0f * s;
+    put_mid(dl, f, b.x + 9.0f * s, a.y + h * 0.5f, P.muted, label);
+    return kw + 9.0f * s + measure(f, label).x + 26.0f * s;
 }
 
 /* A round face button: 0 PlayStation cross, 1 PlayStation circle, 2 a letter. */
@@ -196,26 +242,33 @@ float pad_button(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, int kind, const
     } else if (kind == 1) {
         dl->AddCircle(c, r * 0.42f, P.text, 24, th);
     } else {
-        const ImVec2 ls = measure(F.bold, letter);
-        dl->AddText(F.bold, F.small->FontSize, ImVec2(std::floor(c.x - ls.x * F.small->FontSize / F.bold->FontSize * 0.5f),
-                                                       std::floor(c.y - F.small->FontSize * 0.5f)),
-                    P.text, letter);
+        put_centered(dl, F.bold, F.small->FontSize, c, P.text, letter);
     }
-    const ImVec2 ls = measure(f, label);
-    put(dl, f, ImVec2(p.x + h + 9.0f * s, p.y + (h - ls.y) * 0.5f), P.muted, label);
-    return h + 9.0f * s + ls.x + 26.0f * s;
+    put_mid(dl, f, p.x + h + 9.0f * s, c.y, P.muted, label);
+    return h + 9.0f * s + measure(f, label).x + 26.0f * s;
 }
 
-/* The D-pad, its left / right arms lit (they change a value). */
+/* A D-pad (2026-11-18, the player asked for a better icon than the plus):
+ * a cross with rounded arm ends and a raised centre, an arrow embossed in
+ * each arm; the left and right arms are lit, as they change a value. */
 float dpad(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* label, const Pal& P, float s) {
     ImFont* f = F.small;
-    const float h = f->FontSize + 10.0f * s, r = h * 0.5f, w = h * 0.3f;
-    const ImVec2 c(p.x + r, p.y + r);
-    dl->AddRectFilled(ImVec2(c.x - w * 0.5f, c.y - r), ImVec2(c.x + w * 0.5f, c.y + r), P.faint, 2.0f * s);
-    dl->AddRectFilled(ImVec2(c.x - r, c.y - w * 0.5f), ImVec2(c.x + r, c.y + w * 0.5f), P.text, 2.0f * s);
-    const ImVec2 ls = measure(f, label);
-    put(dl, f, ImVec2(p.x + h + 9.0f * s, p.y + (h - ls.y) * 0.5f), P.muted, label);
-    return h + 9.0f * s + ls.x + 26.0f * s;
+    const float h = f->FontSize + 12.0f * s, r = h * 0.5f, w = h * 0.36f, rr = 2.5f * s, t = w * 0.30f;
+    const ImVec2 c(p.x + r, p.y + (f->FontSize + 10.0f * s) * 0.5f);
+    const ImU32 dim = P.muted, lit = P.text, emboss = P.ink;
+    dl->AddRectFilled(ImVec2(c.x - w * 0.5f, c.y - r), ImVec2(c.x + w * 0.5f, c.y + r), dim, rr);
+    dl->AddRectFilled(ImVec2(c.x - r, c.y - w * 0.5f), ImVec2(c.x - w * 0.5f, c.y + w * 0.5f), lit, rr,
+                      ImDrawFlags_RoundCornersLeft);
+    dl->AddRectFilled(ImVec2(c.x + w * 0.5f, c.y - w * 0.5f), ImVec2(c.x + r, c.y + w * 0.5f), lit, rr,
+                      ImDrawFlags_RoundCornersRight);
+    dl->AddRectFilled(ImVec2(c.x - w * 0.5f, c.y - w * 0.5f), ImVec2(c.x + w * 0.5f, c.y + w * 0.5f), P.muted);
+    dl->AddCircleFilled(c, w * 0.22f, P.faint, 12);   /* the dimple in the middle */
+    arrow(dl, ImVec2(c.x - r + w * 0.62f, c.y), t, -1, emboss);
+    arrow(dl, ImVec2(c.x + r - w * 0.62f, c.y), t, 1, emboss);
+    arrow_v(dl, ImVec2(c.x, c.y - r + w * 0.62f), t, -1, emboss);
+    arrow_v(dl, ImVec2(c.x, c.y + r - w * 0.62f), t, 1, emboss);
+    put_mid(dl, f, p.x + h + 9.0f * s, c.y, P.muted, label);
+    return h + 9.0f * s + measure(f, label).x + 26.0f * s;
 }
 
 struct SectionNote { const char* name; const char* blurb; bool experimental; };
@@ -317,8 +370,8 @@ void draw_states(ImDrawList* dl, const DvMenuFonts& F, const DvStatesView& st, f
         const bool on = st.tab == t;
         dl->AddRectFilled(a, b, on ? P.row_sel : (hov ? P.row_hover : P.page), tab_h * 0.5f);
         dl->AddRect(a, b, on ? P.gold_soft : P.edge, tab_h * 0.5f, 0, std::max(1.0f, 1.2f * s));
-        const ImVec2 ts = measure(F.bold, tabs[t]);
-        put(dl, F.bold, ImVec2(a.x + (tw - ts.x) * 0.5f, a.y + (tab_h - ts.y) * 0.5f), on ? P.gold : P.muted, tabs[t]);
+        put_centered(dl, F.bold, F.bold->FontSize, ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f),
+                     on ? P.gold : P.muted, tabs[t]);
         tx = b.x + 12.0f * s;
     }
     {
@@ -712,13 +765,12 @@ void draw_dialog(const DvMenuDialog& dg, const DvMenuFonts& F, DvMenuClick& clic
     const bool ohov = hit(io.MousePos, oa, ob), chov = hit(io.MousePos, ca, cb);
     const float r = 10.0f * s;
     fg->AddRectFilled(oa, ob, ohov ? with_alpha(accent, 0.86f) : accent, r);
-    const ImVec2 os = measure(F.bold, dg.ok);
-    put(fg, F.bold, ImVec2(oa.x + (ow - os.x) * 0.5f, oa.y + (btn_h - os.y) * 0.5f),
-        dg.danger ? rgba(255, 244, 240) : P.dark_text, dg.ok);
+    put_centered(fg, F.bold, F.bold->FontSize, ImVec2((oa.x + ob.x) * 0.5f, (oa.y + ob.y) * 0.5f),
+                 dg.danger ? rgba(255, 244, 240) : P.dark_text, dg.ok);
     fg->AddRectFilled(ca, cb, chov ? P.row_hover : rgba(26, 23, 31), r);
     fg->AddRect(ca, cb, P.faint, r, 0, std::max(1.0f, 1.2f * s));
-    const ImVec2 cs = measure(F.bold, dg.cancel);
-    put(fg, F.bold, ImVec2(ca.x + (cw - cs.x) * 0.5f, ca.y + (btn_h - cs.y) * 0.5f), P.text, dg.cancel);
+    put_centered(fg, F.bold, F.bold->FontSize, ImVec2((ca.x + cb.x) * 0.5f, (ca.y + cb.y) * 0.5f), P.text,
+                 dg.cancel);
     const float ring = 4.0f * s;
     if (dg.focus == 0)
         fg->AddRect(oa - ImVec2(ring, ring), ob + ImVec2(ring, ring), P.text, r + ring, 0, std::max(1.0f, 2.0f * s));
