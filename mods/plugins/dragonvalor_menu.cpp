@@ -1375,6 +1375,54 @@ bool create_ui(Menu& m) {
     return true;
 }
 
+/* ---- the runtime's pad shortcut to its save-state picker ----------------------
+ * The runtime polls its [hotkeys] save_state_menu_pad (default Select + R1)
+ * straight from the pad each frame, after the provider has seen the events,
+ * and opens its own picker whatever the provider did (the player still got
+ * the old panel from Select + R1, 2026-11-18). A title cannot claim that
+ * shortcut, and the menu host's launcher-settings calls carry no shortcuts
+ * (mh_launcher_settings_get leaves them out, the in-game apply only does the
+ * video), so before main() reads settings.toml the static initializer below
+ * turns the shortcut off there while it is the default Select + R1 (the
+ * launcher then shows it unbound), and p_event opens the save-state screen
+ * on Select + R1 itself. A binding the player changed is left alone; with no
+ * settings.toml yet (the first start) nothing is written and the runtime's
+ * default stands for that session. Encoding: psxrecomp main.cpp, a
+ * combination = 1000 + a mask of SDL game-controller buttons (Back 4, right
+ * shoulder 10). */
+#define DV_PAD_SELECT_R1 (1000 + (1 << 4) + (1 << 10))
+void dv_turn_off_runtime_picker_pad() {
+    std::string dir;
+    if (const char* base = SDL_GetBasePath()) {
+        dir = base;
+#if !defined(PSX_SDL3)
+        SDL_free((void*)base);
+#endif
+    }
+    const std::string path = dir + "settings.toml";
+    FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return;
+    std::string text;
+    char buf[4096];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) text.append(buf, n);
+    std::fclose(f);
+    const size_t sec = text.find("[hotkeys]");
+    if (sec == std::string::npos) return;
+    const size_t next = text.find("\n[", sec + 1);
+    const size_t key = text.find("save_state_menu_pad", sec);
+    if (key == std::string::npos || (next != std::string::npos && key > next)) return;
+    const size_t eq = text.find('=', key), eol = text.find_first_of("\r\n", key);
+    if (eq == std::string::npos || (eol != std::string::npos && eq > eol)) return;
+    const std::string value = text.substr(eq + 1, (eol == std::string::npos ? text.size() : eol) - eq - 1);
+    if (std::atoi(value.c_str()) != DV_PAD_SELECT_R1) return;
+    text.replace(eq + 1, value.size(), " 0");
+    if (FILE* w = std::fopen(path.c_str(), "wb")) {
+        std::fwrite(text.data(), 1, text.size(), w);
+        std::fclose(w);
+    }
+}
+
 /* ---- provider -------------------------------------------------------------- */
 int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* host) {
     Menu& m = *static_cast<Menu*>(ctx);
@@ -1649,6 +1697,20 @@ int p_event(void* ctx, const void* sdl_event) {
             return 1;
         }
         if (!m.pad_start && !m.pad_back) m.combo_fired = false;
+#if defined(PSX_SDL3)
+        const bool is_r1 = button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
+#else
+        const bool is_r1 = button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
+#endif
+        if (is_r1 && m.pad_back) {
+            /* Select + R1: the save-state screen (see dv_turn_off_runtime_picker_pad) */
+            if (down && !m.dialog.open) {
+                if (!m.open) states_open(m, 1, true);
+                else if (m.states.open) states_close(m);
+                else states_open(m, 1, false);
+            }
+            return 1;
+        }
         if (!m.open) return 0;
         if (is_start && down) { request_close(m); return 1; }
         const int input = pad_to_input(button);
@@ -1762,6 +1824,7 @@ const PsxMenuProvider g_provider = {
 struct Registrar {
     Registrar() {
         (void)psx_menu_set_provider(&g_provider);
+        dv_turn_off_runtime_picker_pad();   /* Select + R1 is ours (p_event) */
         dv_menu_present = 1;   /* the heroswap plugin leaves its notices to us */
         const DvSettings d = dv_settings_load();
         if (d.volume >= 0) host_volume_set(d.volume);

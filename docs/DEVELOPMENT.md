@@ -869,8 +869,18 @@ builder plus extras with its generic drawer:
   once and asks before overwriting one; on the Load tab it asks before
   loading; the slot is re-read (date, picture) once `savestate_pending()`
   says the save landed. Opened by F7, Back closes the menu; from the Game
-  section, Back returns to it. The runtime's pad shortcut for its picker
-  (`[hotkeys]`, off by default) still opens the old one.
+  section, Back returns to it. **Select + R1** (the pad): the runtime polls
+  its `[hotkeys] save_state_menu_pad` (default 2040 = Select + R1) straight
+  from the pad after the provider has seen the events and opened its old
+  picker anyway (the player got it on 2026-11-18). A title cannot claim it
+  and the menu host's launcher-settings calls carry no shortcuts, so the
+  provider's static initializer, before `main()` reads `settings.toml`,
+  rewrites that key to 0 while it holds the default (the launcher then
+  shows the shortcut unbound; a binding the player changed is kept; with no
+  `settings.toml` yet nothing is written), and `p_event` opens the screen on
+  Select + R1 itself (again closes it). Checked with pad events made from
+  keys in a scratch build: the key read 0 after the start, Select + R1
+  opened and closed the screen.
 - *A state made with another hero.* The heroswap plugin's resync after a
   state load (see its section) used to put up an OSD line, "Save made as
   Clovis: Kodel plays from the next stage", and the player read the
