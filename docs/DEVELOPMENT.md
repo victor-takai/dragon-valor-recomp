@@ -1393,15 +1393,20 @@ differ. A scan of node 2 in all 226 action stages (geometry, and the look
 decoded through the CLUTs) found the models (2026-11-18), now the option's
 values, each taken from the first stage that has it: `clovis` Clovis's
 sword (1/1; the first weapon of Arlen, Kodel, Phillip, Gerome and Anita,
-111 stages), `prologue` (0/1..0/5: other geometry, same texture),
-`felippe` Felippe's first sword (4/3..4/13), `soul` Soul (Felippe from
-4/15, after 4/13's scene gives it; Anna's in area 7), `kadum` Kadum
-(Mihael's, area 8; 5/19..5/24's twin holds the same model with another
-palette, so Kadum is no texture-only variant), `dark` (10/1, 10/4, 10/6,
-10/7), `flame` (10/2 and 46 more stages of areas 10..12), `red` (11/1,
-11/4, 11/6, 11/7) and `purple` (12/6, 12/7). 12/1 and 12/4's weapon draws
-from a page an earlier stage leaves at VRAM (576, 256) and is not
-offered. The disc scan keeps each model's node-2 prims and verts and its
+111 stages), `felippe` Felippe's first sword (4/3..4/13), `soul` Soul
+(Felippe from 4/15, after 4/13's scene gives it; Anna's in area 7),
+`kadum` Kadum (Mihael's, area 8; 5/19..5/24's twin holds the same model
+with another palette, so Kadum is no texture-only variant), and from the
+three last campaigns (areas 10, 11, 12: Mihael, Anna, Anita), which all
+start with the hero's own weapon and give the flame sword at stage 2 and
+from stage 9 on: `dark` Mihael's (10/1, 10/4, 10/6, 10/7), `flame` the
+flame sword (10/2 and 46 more stages; "the sword Anita gets in the last
+campaign", the player's words), `red` Anna's (11/1, 11/4, 11/6, 11/7) and
+`purple` Anita's (12/6, 12/7). Not offered: the prologue's (0/1..0/5: a
+few more vertices, Clovis's texture, the same sword on screen, the
+player's check) and Anita's 12/1 / 12/4 weapon (the purple one's design
+with a turquoise palette, drawn from another page of its file 0 at VRAM
+(576, 256)). The disc scan keeps each model's node-2 prims and verts and its
 stage's last hero-page TIM (cache `weapon_<id>.bin`); a disc-2 model is
 offered once disc 2 has been read, like a disc-2 hero (that read used to
 be tried once at activation, before the disc roster is registered, and
@@ -1426,8 +1431,9 @@ some). Checked: `tests/test_heroswap.py arlen --weapon kadum --ref
 head in RAM and hero page image + CLUTs in VRAM equal to `build 2 1 1 7
 --prune --weapon 8 1`; the menu row restarts 1/7 with the flame sword),
 `anna --weapon felippe --ref <decomp>/build/heroswap/7-1_w4-3_to_1-7`
-18/18 (`build 7 1 1 7 --prune --weapon 4 3`), `kodel --menu stage` 14/14;
-close-ups of Arlen after a Continue into 1/7 with each of the eight other
+18/18 (`build 7 1 1 7 --prune --weapon 4 3`), `kodel --menu stage` 14/14,
+`arlen --weapon soul --menu-weapon purple` 15/15 (the row's last value);
+close-ups of Arlen after a Continue into 1/7 with each of the other
 models, all textured right (Kadum's split ice-blue blade and ring pommel,
 Soul's gold, the flame sword's fiery tip, the red weapon's thin white
 blade), and earlier Clovis (Each stage's own) with Soul and Anna with

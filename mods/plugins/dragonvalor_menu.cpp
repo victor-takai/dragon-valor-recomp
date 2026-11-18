@@ -62,11 +62,12 @@ const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felip
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
 /* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own, then the
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
-const char* const kWeaponChoices[] = {"The hero's own", "Clovis's sword", "Prologue sword", "Felippe's first sword",
-                                      "Soul", "Kadum", "Dark sword (10/1)", "Flame sword (areas 10-12)",
-                                      "Red weapon (11/1)", "Purple weapon (12/6)"};
-const char* const kWeaponValues[] = {"hero", "clovis", "prologue", "felippe", "soul",
-                                     "kadum", "dark", "flame", "red", "purple"};
+const char* const kWeaponChoices[] = {"The hero's own", "Clovis's sword", "Felippe's first sword", "Soul", "Kadum",
+                                      "Mihael's dark sword", "Flame sword (last campaigns)", "Anna's red weapon",
+                                      "Anita's purple sword"};
+const char* const kWeaponValues[] = {"hero", "clovis", "felippe", "soul", "kadum",
+                                     "dark", "flame", "red", "purple"};
+#define DV_WEAPON_CHOICES 9
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
@@ -178,7 +179,7 @@ const RecompRuntimeUiItem kExtraItems[] = {
      RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
     {DV_KEY_WEAPON, "Experimental", "Weapon",
      "The weapon the hero holds: its own, or one of the weapon models the heroes hold across both discs (dragonvalor.heroswap; the model and its texture, damage and moves stay the hero's). With Play as on Each stage's own, every stage's hero holds it. Kadum and the last four come from disc 2: offered once disc 2 has been started with Play as on. Like Play as, the stage you are in restarts from its beginning when you close the menu.",
-     RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kWeaponChoices, 10, nullptr},
+     RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
 };
 
 #define DV_CHEATS_PKG   "dragonvalor.cheats"
@@ -604,7 +605,7 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON)) {
         const bool w = is(item, DV_KEY_WEAPON);
-        if (value < 0 || value > 9) return 0;
+        if (value < 0 || value > (w ? DV_WEAPON_CHOICES - 1 : 9)) return 0;
         (w ? m.weapon : m.play_as) = value;
         if (!m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, w ? "weapon" : "hero", (w ? kWeaponValues : kPlayAsValues)[value])) {
             /* not in the running plan yet: switch the feature on for the next start */
@@ -839,7 +840,7 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
                 if (std::strcmp(hero, kPlayAsValues[i]) == 0) m.play_as = i;
         m.weapon = 0;
         if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "weapon", hero, sizeof hero))
-            for (int i = 1; i < 10; i++)
+            for (int i = 1; i < DV_WEAPON_CHOICES; i++)
                 if (std::strcmp(hero, kWeaponValues[i]) == 0) m.weapon = i;
     }
     if (!m.imgui) {

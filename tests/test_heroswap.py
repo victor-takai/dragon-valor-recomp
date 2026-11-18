@@ -8,7 +8,7 @@
 --menu-weapon W then picks weapon model W (or `hero`) on the menu's Weapon
 row (the row after Play as): the stage must restart with it.
 --weapon W sets the feature's `weapon` option: HERO holds weapon model W
-(clovis prologue felippe soul kadum dark flame red purple; the reference
+(clovis felippe soul kadum dark flame red purple; the reference
 then comes from `heroswap.py build ... --weapon A S` with W's source stage,
 e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen with Kadum).
 --menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Experimental > Play as
@@ -64,8 +64,8 @@ HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
 HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
-# and their source stages: 1/1 0/1 4/3 4/15 8/1 10/1 10/2 11/1 12/6)
-WEAPONS = ["hero", "clovis", "prologue", "felippe", "soul", "kadum", "dark", "flame", "red", "purple"]
+# and their source stages: 1/1 4/3 4/15 8/1 10/1 10/2 11/1 12/6)
+WEAPONS = ["hero", "clovis", "felippe", "soul", "kadum", "dark", "flame", "red", "purple"]
 DISC2 = ROOT.parent / "Dragon Valor (USA) (Disc 2)" / "Dragon Valor (USA) (Disc 2).cue"
 
 

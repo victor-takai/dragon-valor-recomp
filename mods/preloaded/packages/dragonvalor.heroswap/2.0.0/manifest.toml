@@ -89,10 +89,6 @@ value = "clovis"
 label = "Clovis's sword"
 
 [[option.choice]]
-value = "prologue"
-label = "Prologue sword"
-
-[[option.choice]]
 value = "felippe"
 label = "Felippe's first sword"
 
@@ -106,19 +102,19 @@ label = "Kadum"
 
 [[option.choice]]
 value = "dark"
-label = "Dark sword (10/1)"
+label = "Mihael's dark sword"
 
 [[option.choice]]
 value = "flame"
-label = "Flame sword (areas 10-12)"
+label = "Flame sword (last campaigns)"
 
 [[option.choice]]
 value = "red"
-label = "Red weapon (11/1)"
+label = "Anna's red weapon"
 
 [[option.choice]]
 value = "purple"
-label = "Purple weapon (12/6)"
+label = "Anita's purple sword"
 
 [[plugin]]
 feature = "play-as"

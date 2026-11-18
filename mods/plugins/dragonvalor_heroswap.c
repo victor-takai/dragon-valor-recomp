@@ -108,22 +108,25 @@ static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5}; 
  * geometry and look (a scan of the 226 stages, 2026-11-18; decomp
  * docs/targets/hero-swap.md, The weapon): each is taken from the first
  * stage that has it. Clovis's sword is also the first weapon of Arlen,
- * Kodel, Phillip, Gerome and Anita (111 stages). Soul: Felippe's from 4/15
- * (4/13's scene gives it) and Anna's (area 7). Kadum: Mihael's (area 8); the
- * twin of 5/19..5/24 holds the same model with another palette. 12/1 and
- * 12/4's weapon is drawn from a page an earlier stage leaves in VRAM
- * (576, 256): not offered. */
-#define WEAPON_COUNT 9
+ * Kodel, Phillip, Gerome and Anita (111 stages; the prologue's, 0/1..0/5,
+ * has a few more vertices and looks the same, so it is not offered). Soul:
+ * Felippe's from 4/15 (4/13's scene gives it) and Anna's (area 7). Kadum:
+ * Mihael's (area 8); the twin of 5/19..5/24 holds the same model with
+ * another palette. The three last campaigns (areas 10, 11, 12: Mihael,
+ * Anna, Anita) each start with the hero's own weapon (dark, red, purple)
+ * and give the flame sword (stage 2, and from 9 on). Anita's 12/1 and 12/4
+ * weapon is the purple one with a turquoise palette, drawn from another
+ * page of its file 0 ((576, 256)): not offered. */
+#define WEAPON_COUNT 8
 static const struct { const char* id; const char* name; int area, stage; } kWeapons[WEAPON_COUNT] = {
     {"clovis",   "Clovis's sword",        1, 1},
-    {"prologue", "the prologue sword",    0, 1},
     {"felippe",  "Felippe's first sword", 4, 3},
     {"soul",     "Soul",                  4, 15},
     {"kadum",    "Kadum",                 8, 1},
-    {"dark",     "the dark sword",        10, 1},
+    {"dark",     "Mihael's dark sword",   10, 1},
     {"flame",    "the flame sword",       10, 2},
-    {"red",      "the red weapon",        11, 1},
-    {"purple",   "the purple weapon",     12, 6},
+    {"red",      "Anna's red weapon",     11, 1},
+    {"purple",   "Anita's purple sword",  12, 6},
 };
 #define DV_WEAPON_NODE  2u
 
