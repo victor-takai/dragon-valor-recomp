@@ -5,7 +5,8 @@
 
 For every mods/preloaded/packages/<id>/<version>/manifest.toml:
   - the directory names match the manifest's id / version
-  - every feature is default-disabled, or default-on but inert (all options off)
+  - every feature is default-disabled, or default-on but inert (all options off,
+    or at a value listed in INERT_CHOICES)
   - every [[option]] / [[plugin]] names a declared feature
   - integer options have min <= default <= max on the step grid
   - every [[plugin]] id is registered in mods/plugins/*.c
@@ -25,6 +26,14 @@ PACKAGES = ROOT / "mods" / "preloaded" / "packages"
 PLUGIN_SRC = "\n".join(Path(p).read_text(encoding="utf-8", errors="replace")
                        for p in glob.glob(str(ROOT / "mods" / "plugins" / "*.c*"))
                        + glob.glob(str(ROOT / "psxrecomp" / "runtime" / "src" / "mod_builtin_*.c")))
+# Choice options whose value changes nothing: a default-on feature may ship
+# with these as defaults (the plugin does nothing at them). Play as stays in
+# the plan, like the cheats, so the in-game menu's Play as / Weapon apply at
+# once instead of after a restart (the player's report, 2026-11-18).
+INERT_CHOICES = {
+    ("dragonvalor.heroswap", "hero"): "stage",      # each stage's own hero
+    ("dragonvalor.heroswap", "weapon"): "hero",     # the hero's own weapon
+}
 
 
 def check(manifest: Path) -> list[str]:
@@ -47,10 +56,11 @@ def check(manifest: Path) -> list[str]:
             opts = [o for o in m.get("option", []) if o.get("feature") == fid]
             inert = opts and all(
                 (o.get("type") == "boolean" and str(o.get("default")).lower() == "false") or
-                (o.get("type") == "integer" and int(o.get("default", 0)) == int(o.get("min", 0)))
+                (o.get("type") == "integer" and int(o.get("default", 0)) == int(o.get("min", 0))) or
+                (o.get("type") == "choice" and INERT_CHOICES.get((m.get("id"), o.get("id"))) == o.get("default"))
                 for o in opts)
             if not inert:
-                errors.append(f"feature {fid}: default_enabled must be false (or every option must default to off)")
+                errors.append(f"feature {fid}: default_enabled must be false (or every option must default to off or to an INERT_CHOICES value)")
     for key in ("option", "plugin", "patch", "overlay"):
         for entry in m.get(key, []):
             if entry.get("feature") not in features:

@@ -2,13 +2,15 @@
 # (mods/plugins/dragonvalor_heroswap.c) loads every action stage with the
 # chosen hero: it reads the hero's data from the player's own disc
 # (DATA.CDR) at start and rebuilds each stage's files in RAM as they load.
-# The package ships no game data. Off by default.
+# The package ships no game data. On by default at its neutral choices (each
+# stage's own hero, the hero's own weapon: nothing changes), so the in-game
+# menu's Play as / Weapon apply at once, with no restart of the game.
 format_version = 7
 id = "dragonvalor.heroswap"
 version = "2.0.0"
 name = "Dragon Valor Play As"
 author = "Dragon Valor Recomp"
-description = "Play every stage as the hero you choose. Experimental, off by default."
+description = "Play every stage as the hero you choose, holding any weapon. Experimental."
 license = "MIT"
 resolver = "declarative"
 save_compatibility = "shared"
@@ -21,7 +23,7 @@ id = "play-as"
 name = "Play as"
 description = "Every action stage loads with the chosen hero: model, moves, sounds, portrait and name, story scenes and dialogues included. Takes effect when a stage loads (or with Experimental > Go now in the in-game menu). The first start reads the disc for a few seconds; Anna, Mihael and Anita are on disc 2 and Clovis to Phillip on disc 1, so a hero of the other disc is offered once that disc has been started with this on. Scenes keep the motions made for the stage's own hero. Experimental."
 group = "Experimental"
-default_enabled = false
+default_enabled = true
 channel = "experimental"
 
 [[option]]

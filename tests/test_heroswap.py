@@ -15,7 +15,13 @@ e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen with Kadum).
 row: the stage must restart with HERO2 once the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
 
-HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita.
+HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
+or `default`: a state.toml that does not name the package, as on a fresh
+install, so the feature runs as its manifest ships it (on, each stage's own
+hero, the hero's own weapon). The stage must then load untouched (no
+rebuild, the game's hero index), and --menu / --menu-weapon must still
+restart it at once (the player's 2026-11-18 report: with the feature off,
+the first menu choice only applied after restarting the game).
 The test writes its own <build>/mods/state.toml (the feature on with that
 hero, no cheats; the player's file is backed up and restored, as are
 settings.toml and dragonvalor_settings.toml), launches the build muted with a
@@ -125,10 +131,13 @@ def main(argv):
             del args[i:i + 2]
     if slot == 0:
         sys.exit("slot 0 is the player's quick save: use the test states 9 or 10")
-    if len(args) != 1 or args[0] not in HEROES:
+    if len(args) != 1 or args[0] not in HEROES + ["default"]:
         sys.exit(__doc__)
     hero_name = args[0]
-    hero = HEROES.index(hero_name)
+    default = hero_name == "default"
+    hero = -1 if default else HEROES.index(hero_name)
+    if default and ref:
+        sys.exit("--ref compares a swapped stage: not with `default`")
 
     expect_head, expect_vram = None, {}
     if ref:
@@ -163,6 +172,8 @@ enabled = true
 [feature.values]
 hero = "{hero_name}"
 """ + (f'weapon = "{weapon}"\n' if weapon else "")
+    if default:
+        state_text = "format_version = 2\n"
     results, pid = [], None
 
     def check(label, ok, detail=""):
@@ -246,8 +257,9 @@ hero = "{hero_name}"
         while time.time() - t0 < 60 and "play as" not in log_text():
             time.sleep(1)
         lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
-        check("plugin active, play as " + hero_name.capitalize(),
-              any(f"play as {hero_name.capitalize()}" in l for l in lines), " | ".join(lines))
+        shown = "each stage's hero" if default else hero_name.capitalize()
+        check("plugin active, play as " + shown,
+              any(f"play as {shown}" in l for l in lines), " | ".join(lines))
         print(f"state {slot}:", cli("state", "load", str(slot)).splitlines()[-1])
         time.sleep(4)
         index_before = rd(HERO_INDEX, 1)[0]
@@ -259,13 +271,24 @@ hero = "{hero_name}"
         ok = reload_into(*target)
         check(f"{ts} is running again", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
         text = log_text()
-        check(f"{ts} laid out for {hero_name.capitalize()}", f"stage {ts} as {hero_name.capitalize()}" in text)
-        if weapon:
-            check(f"{hero_name.capitalize()} holds weapon {weapon}",
-                  f"stage {ts} as {hero_name.capitalize()} with weapon {weapon}:" in text)
-        check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
-        check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
-        check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+        if default:
+            # the shipped defaults change nothing: no layout, no rebuild, the
+            # game's own hero index
+            check(f"{ts} loaded untouched (no rebuild)",
+                  f"stage {ts} as " not in text and "rebuilt" not in text,
+                  next((l for l in text.splitlines() if "rebuilt" in l or f"stage {ts} as " in l), ""))
+            check(f"g_Hero.index = the game's ({index_before})", rd(HERO_INDEX, 1)[0] == index_before,
+                  str(rd(HERO_INDEX, 1)[0]))
+            leave = None      # the leave check below is about a chosen hero
+        else:
+            check(f"{ts} laid out for {hero_name.capitalize()}", f"stage {ts} as {hero_name.capitalize()}" in text)
+        if not default:
+            if weapon:
+                check(f"{hero_name.capitalize()} holds weapon {weapon}",
+                      f"stage {ts} as {hero_name.capitalize()} with weapon {weapon}:" in text)
+            check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
+            check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
+            check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
         for label, (rect, data) in expect_vram.items():
@@ -286,12 +309,20 @@ hero = "{hero_name}"
             check(f"VRAM {label} = reference file 0's", got == data, f"{same} of {len(data)} bytes")
         rpc(port, "screenshot", path=str(bdir / "test_heroswap_after.png"))
 
-        cli("press", "triangle")
-        time.sleep(4)
+        # a press while the stage still settles can be lost: Triangle again
+        # until the Status screen is up, then until play is back
+        for _ in range(4):
+            cli("press", "triangle")
+            time.sleep(4)
+            if rd(MODE, 1)[0] == 7:
+                break
         rpc(port, "screenshot", path=str(bdir / "test_heroswap_status.png"))
         check("Triangle opened the Status screen (mode 7)", rd(MODE, 1)[0] == 7, f"mode {rd(MODE, 1)[0]}")
-        cli("press", "triangle")
-        time.sleep(3)
+        for _ in range(4):
+            cli("press", "triangle")
+            time.sleep(3)
+            if rd(MODE, 1)[0] == 8:
+                break
 
         f0, t0, k = frame(), time.time(), 0
         moves = ["square", "left:20", "square", "right:30", "up:20", "square:4", "down:20", "circle"]
@@ -377,8 +408,9 @@ hero = "{hero_name}"
                 time.sleep(0.3)
             time.sleep(4)
             tail = log_text().split("restarts as")[-1]
-            want = (f"stage {ts} as {hero_name.capitalize()} with weapon {menu_weapon}:"
-                    if menu_weapon != "hero" else f"stage {ts} as {hero_name.capitalize()}:")
+            who = (hero_name if hero >= 0 else HEROES[index_before]).capitalize()   # `default`: the stage's own
+            want = (f"stage {ts} as {who} with weapon {menu_weapon}:"
+                    if menu_weapon != "hero" else f"stage {ts} as {who}:")
             check(f"menu Weapon -> {menu_weapon}: {ts} restarted with it", want in tail,
                   next((l for l in tail.splitlines() if f"stage {ts} as" in l), "no stage line after the restart"))
             check(f"menu Weapon -> {menu_weapon}: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")

@@ -109,7 +109,9 @@ the native 60 Hz version.
   another area's stage (Kodel's save + area 0 = Clovis in the prologue).
 - **Play as** (2026-11-17, branch `hero-swap`, experimental): pick the hero
   of every action stage in the launcher or the in-game menu
-  (`dragonvalor.heroswap` 2.0.0). The plugin reads the heroes from the disc
+  (`dragonvalor.heroswap` 2.0.0; on by default since 2026-11-18 at the
+  neutral choices, so a menu choice applies at once: off, the first choice
+  only took effect after restarting the game). The plugin reads the heroes from the disc
   at start (cached afterwards; a disc-2 hero needs disc 2 started once) and
   rebuilds each stage's files in RAM as they load (hooks on
   `StageBuffersAlloc` and `PackInstall`), model, moves, sounds, portrait and

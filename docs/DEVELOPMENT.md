@@ -1188,7 +1188,7 @@ worked examples this one follows.
 #### This project's package: `dragonvalor.heroswap` "Play as" (2026-11-17, experimental)
 
 Every action stage loads with the hero the player picks. Package 2.0.0,
-feature `play-as` (channel experimental, off by default), option `hero`
+feature `play-as` (channel experimental, on by default since 2026-11-18 at its neutral choices, see below), option `hero`
 (`stage` = each stage's own, or `clovis` … `anita`); the in-game menu's
 Experimental section has the same choice as **Play as** (the first choice
 also switches the feature on, for the next start). The choice applies when a
@@ -1199,7 +1199,20 @@ script, no load busy) and writes what a stage exit or the CONTINUE prompt
 writes, `g_GameFlow` mode 17 / sub-mode 0 and `g_GameState.stagePhase = 1`
 (0x800A2D18): the stage loads again from its start with the new hero, with no
 GAME OVER, Val and HP kept; the stage's doors and keys reset as with
-Continue. The hero
+Continue. Until 2026-11-18 the feature was off by default, so a player's
+first choice in the menu only saved it for the next start: the plugin was
+not running, the stage did not restart and a GAME OVER / Continue changed
+nothing (the player's report on the release build). It is now on by default
+with the neutral choices, where the plugin does nothing to the game (no
+stage rebuild: hero and weapon equal the stage's own; map and epilogue
+swaps only run with a hero chosen) beyond reading the disc once at the
+first start and checking save-state loads, so a choice in the menu applies
+at once (`tests/test_manifests.py` accepts it through `INERT_CHOICES`;
+`tests/test_heroswap.py default --menu-weapon turquoise`, a state.toml that
+does not name the package: 1/7 loads untouched, then the menu's Weapon
+restarts it with Clovis holding the turquoise sword, 9/9). A player who
+switched the feature off in the launcher gets the old behaviour.
+The hero
 is data, not code: the decomp (github victor-takai/dragon-valor-decomp,
 `docs/targets/hero-swap.md`) found it, and its `tools/heroswap.py` is the
 reference this plugin's C rebuild is checked against.
@@ -1647,7 +1660,7 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`,
   `test_bilinear_seam.py`, `test_heroswap.py HERO`).
   `python tests/test_manifests.py` checks every mod
-  manifest statically (ids, default-off features except the listed fixes,
+  manifest statically (ids, default-off features unless every option is off or at a value in `INERT_CHOICES`,
   option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
   exercises the cheat plugins on a running debug build from slot 0 (see *This
