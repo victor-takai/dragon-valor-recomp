@@ -10,6 +10,7 @@ For every mods/preloaded/packages/<id>/<version>/manifest.toml:
   - every [[option]] / [[plugin]] names a declared feature
   - integer options have min <= default <= max on the step grid
   - every [[plugin]] id is registered in mods/plugins/*.c
+  - feature and option descriptions fit the launcher's 512-byte buffer
 Exit code 0 when all checks pass.
 """
 import glob
@@ -61,6 +62,14 @@ def check(manifest: Path) -> list[str]:
                 for o in opts)
             if not inert:
                 errors.append(f"feature {fid}: default_enabled must be false (or every option must default to off or to an INERT_CHOICES value)")
+    # The launcher copies a feature's / option's description into a 512-byte
+    # buffer (recomp-ui recomp_launcher.h): a longer one is cut mid-sentence on
+    # the Mods page (Play as lost its last sentence, 2026-11-18).
+    for key in ("feature", "option"):
+        for entry in m.get(key, []):
+            n = len(entry.get("description", "").encode("utf-8"))
+            if n > 511:
+                errors.append(f"[[{key}]] {entry.get('id')}: description is {n} bytes; the launcher keeps 511")
     for key in ("option", "plugin", "patch", "overlay"):
         for entry in m.get(key, []):
             if entry.get("feature") not in features:

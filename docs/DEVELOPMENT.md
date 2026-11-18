@@ -751,11 +751,17 @@ Experimental, Convenience, Advanced, Quality of Life, Visual). Now:
   framework already;
 - the row and detail layout is recomp-ui's: `patches/recomp-ui/0005-...`
   (name + summary rows; package, version, author and source at the detail
-  pane's foot).
+  pane's foot; no short "EXP" channel tag before a row's name, which pushed
+  it out of line: the detail pane still shows EXPERIMENTAL and its blurb);
+- the launcher keeps 511 bytes of a description (recomp-ui's 512-byte
+  buffers): Play as's was cut mid-sentence, so it was shortened and
+  `tests/test_manifests.py` now fails a longer one.
 
-Checked in the debug launcher (window capture, `PrintWindow`): the two
-groups, the summaries, Cheats' options and the "Package: Dragon Valor
-Cheats 1.3.0" foot.
+Checked in the debug launcher (window capture, `PrintWindow`; a scratch
+build opened it on the Mods page with Play as selected, since clicks posted
+to the window do not reach SDL): the two groups, the summaries, the
+options, the EXPERIMENTAL tag and blurb in the detail pane and the
+"Package: ..." foot.
 
 #### This project's package: `dragonvalor.cheats`
 

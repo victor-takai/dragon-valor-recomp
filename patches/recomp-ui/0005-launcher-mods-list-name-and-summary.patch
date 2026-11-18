@@ -1,7 +1,16 @@
 diff --git a/src/common/backends/imgui/launcher_imgui.cpp b/src/common/backends/imgui/launcher_imgui.cpp
-index cbae6e9..4dd1b1a 100644
+index cbae6e9..9dd8ed7 100644
 --- a/src/common/backends/imgui/launcher_imgui.cpp
 +++ b/src/common/backends/imgui/launcher_imgui.cpp
+@@ -11266,7 +11266,7 @@ static bool mod_text_matches(const char* search, const RecompLauncherCModPackage
+  * form is for the list, where rows are 330px wide and already carry a name and
+  * a package; the long form and the explanation are for the detail pane. Same
+  * word stem and same colour in both, so the two read as one marker. */
+-static const char* mod_channel_tag_short(int channel) {
++[[maybe_unused]] static const char* mod_channel_tag_short(int channel) {
+     switch (channel) {
+         case RECOMP_MOD_CHANNEL_EXPERIMENTAL: return ui_text("EXP");
+         case RECOMP_MOD_CHANNEL_DEVELOPER:    return ui_text("DEV");
 @@ -11975,6 +11975,22 @@ static void draw_mod_catalog_diagnostics(LauncherModel* m,
      ImGui::Spacing();
  }
@@ -25,10 +34,22 @@ index cbae6e9..4dd1b1a 100644
  static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
      const auto* mods = m ? m->mods : nullptr;
      if (!mods || !mods->feature_count || !mods->feature_get ||
-@@ -12122,18 +12138,30 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+@@ -12110,30 +12126,35 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+                             ImGui::SetTooltip("%s", feature.status);
                          ImGui::SameLine();
                      }
- 
+-                    if (const char* channel_tag =
+-                            mod_channel_tag_short(feature.channel)) {
+-                        ImGui::TextColored(
+-                            col(mod_channel_color(feature.channel, th)), "%s",
+-                            channel_tag);
+-                        if (ImGui::IsItemHovered())
+-                            ImGui::SetTooltip("%s\n%s",
+-                                              mod_channel_tag(feature.channel),
+-                                              mod_channel_blurb(feature.channel));
+-                        ImGui::SameLine();
+-                    }
+-
 -                    char label[320];
 -                    std::snprintf(label, sizeof(label), "%s\n%s%s%s",
 -                                  feature.name,
@@ -36,6 +57,11 @@ index cbae6e9..4dd1b1a 100644
 -                                                          : feature.package_id,
 -                                  feature.package_version[0] ? "  " : "",
 -                                  feature.package_version);
++                    /* No short channel tag ("EXP") before the name: it pushed
++                     * the row's text out of line with the others (the player
++                     * found it ugly, 2026-11-18). The detail pane shows the
++                     * channel in full, with its blurb. */
++
 +                    /* Two lines: the feature's name, then what it does (the
 +                     * first sentence of its description, muted, cut to the
 +                     * row). The package name and version said nothing to a
@@ -64,7 +90,7 @@ index cbae6e9..4dd1b1a 100644
                      ImGui::PopID();
                      ImGui::PopID();
                  }
-@@ -12167,23 +12195,7 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+@@ -12167,23 +12188,7 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
                  ImGui::SameLine();
                  ImGui::TextColored(col(th.text_muted), "%s", feature.group);
              }
@@ -89,7 +115,7 @@ index cbae6e9..4dd1b1a 100644
              if (const char* channel_blurb = mod_channel_blurb(feature.channel)) {
                  ImGui::PushStyleColor(
                      ImGuiCol_Text,
-@@ -12329,6 +12341,29 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+@@ -12329,6 +12334,29 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
                  }
                  draw_mod_feature_option(m, feature, option);
              }
