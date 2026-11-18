@@ -2,9 +2,15 @@
 """Check dragonvalor.heroswap ("Play as") on the debug build:
 
   python tests/test_heroswap.py HERO [--ref FOLDER] [--state 10|9] [--leave A/S] [--prime-disc2]
-                                     [--build build-debug] [--port N] [--play SECONDS]
+                                     [--build build-debug] [--port N] [--play SECONDS] [--weapon HERO2]
 
 --state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
+--menu-weapon HERO3|hero then picks a weapon on the menu's Weapon row (the
+row after Play as): the stage must restart with it.
+--weapon HERO2 sets the feature's `weapon` option: HERO holds HERO2's weapon
+(the reference then comes from `heroswap.py build ... --weapon A S` with
+HERO2's kit stage, e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen
+with Mihael's weapon).
 --menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Experimental > Play as
 row: the stage must restart with HERO2 once the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
@@ -93,10 +99,15 @@ def main(argv):
     slot, leave, menu_hero = 10, (1, 9), None
     if prime:
         args.remove("--prime-disc2")
-    for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu"):
+    weapon = menu_weapon = None
+    for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu", "--weapon", "--menu-weapon"):
         if flag in args:
             i = args.index(flag)
-            if flag == "--build":
+            if flag == "--weapon":
+                weapon = args[i + 1]
+            elif flag == "--menu-weapon":
+                menu_weapon = args[i + 1]
+            elif flag == "--build":
                 build = args[i + 1]
             elif flag == "--play":
                 play = float(args[i + 1])
@@ -148,7 +159,7 @@ id = "play-as"
 enabled = true
 [feature.values]
 hero = "{hero_name}"
-"""
+""" + (f'weapon = "{weapon}"\n' if weapon else "")
     results, pid = [], None
 
     def check(label, ok, detail=""):
@@ -241,6 +252,9 @@ hero = "{hero_name}"
         check(f"{ts} is running again", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
         text = log_text()
         check(f"{ts} laid out for {hero_name.capitalize()}", f"stage {ts} as {hero_name.capitalize()}" in text)
+        if weapon:
+            check(f"{hero_name.capitalize()} holds {weapon.capitalize()}'s weapon",
+                  f"stage {ts} as {hero_name.capitalize()} with the weapon of {weapon.capitalize()}" in text)
         check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
         check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
         check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
@@ -331,6 +345,37 @@ hero = "{hero_name}"
             else:
                 hero = HEROES.index(last)
                 hero_name = last
+
+        if menu_weapon:
+            # The 5th Experimental row, Weapon (0 = the hero's own, 1.. the
+            # heroes' weapons): a new choice restarts the stage like Play as.
+            def wkey(name, n=1):
+                for _ in range(n):
+                    rpc(port, "host_key", name=name)
+                    time.sleep(0.35)
+            values = ["hero"] + HEROES
+            steps = values.index(menu_weapon) - values.index(weapon or "hero")
+            time.sleep(2)
+            restarts0 = log_text().count("restarts as")
+            wkey("Escape"); time.sleep(0.4)
+            wkey("Up"); wkey("Return")
+            wkey("Down", 4)
+            wkey("Right" if steps > 0 else "Left", abs(steps))
+            wkey("Escape", 2); time.sleep(0.5)
+            t0 = time.time()
+            while time.time() - t0 < 40:
+                if rd(MODE, 1)[0] == 8 and log_text().count("restarts as") > restarts0:
+                    break
+                time.sleep(0.3)
+            time.sleep(4)
+            tail = log_text().split("restarts as")[-1]
+            want = (f"stage {ts} as {hero_name.capitalize()} with the weapon of {menu_weapon.capitalize()}"
+                    if menu_weapon != "hero" else f"stage {ts} as {hero_name.capitalize()}:")
+            check(f"menu Weapon -> {menu_weapon}: {ts} restarted with it", want in tail,
+                  next((l for l in tail.splitlines() if f"stage {ts} as" in l), "no stage line after the restart"))
+            check(f"menu Weapon -> {menu_weapon}: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")
+            rpc(port, "screenshot", path=str(bdir / f"test_heroswap_weapon_{menu_weapon}.png"))
+            weapon = None if menu_weapon == "hero" else menu_weapon
 
         if leave:
             ok = reload_into(*leave)

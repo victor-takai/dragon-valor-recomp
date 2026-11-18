@@ -72,6 +72,54 @@ label = "Mihael"
 value = "anita"
 label = "Anita"
 
+[[option]]
+feature = "play-as"
+id = "weapon"
+label = "Weapon"
+description = "The weapon the hero holds: its own, or another hero's (the model and its texture; damage and moves stay the hero's). With Each stage's own above, every stage's hero holds this weapon. Applies at the next stage load."
+type = "choice"
+default = "hero"
+
+[[option.choice]]
+value = "hero"
+label = "The hero's own"
+
+[[option.choice]]
+value = "clovis"
+label = "Clovis's"
+
+[[option.choice]]
+value = "arlen"
+label = "Arlen's"
+
+[[option.choice]]
+value = "kodel"
+label = "Kodel's"
+
+[[option.choice]]
+value = "felippe"
+label = "Felippe's"
+
+[[option.choice]]
+value = "phillip"
+label = "Phillip's"
+
+[[option.choice]]
+value = "gerome"
+label = "Gerome's"
+
+[[option.choice]]
+value = "anna"
+label = "Anna's"
+
+[[option.choice]]
+value = "mihael"
+label = "Mihael's"
+
+[[option.choice]]
+value = "anita"
+label = "Anita's"
+
 [[plugin]]
 feature = "play-as"
 id = "dragonvalor.heroswap"

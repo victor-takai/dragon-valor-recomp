@@ -129,7 +129,11 @@ the native 60 Hz version.
   the hero they were taken with (the swap happens when a stage loads): a
   state taken as another hero plays on as it was and an on-screen notice
   says the choice applies from the next stage; a state taken with a swapped
-  hero keeps its scenes on that hero after the load. Before it
+  hero keeps its scenes on that hero after the load. The hero can hold any
+  hero's weapon (option `weapon`, menu row Weapon, 2026-11-17): the weapon
+  model and its texture, moved into the hero's texture page (all 72 pairs
+  fit; the C port matches the decomp tool byte for byte;
+  `tests/test_heroswap.py --weapon / --menu-weapon`). Before it
   (2026-11-16): one stage per folder written by the decomp's
   `tools/heroswap.py`. Open: long play, 9/10's scene not watched, a scene
   pack installed right after a save-state load not watched

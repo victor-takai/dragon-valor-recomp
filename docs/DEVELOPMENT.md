@@ -1373,11 +1373,49 @@ Clovis: Arlen plays from the next stage" (a stage cannot be rebuilt in the
 middle; picking another hero in the menu restarts it). Checked in one
 session: Continue as Arlen, save to a scratch slot (deleted afterwards),
 load test state 10 (the notice), load the scratch slot ("save state 1/7
-played as Arlen: its scenes follow Arlen"); `tests/test_heroswap.py arlen`
+played as Arlen: its scenes follow"); `tests/test_heroswap.py arlen`
 12/12. Not checked: a scene pack installed after such a load (a read
 queued by hand into the warp row right after a load stays in its read
 state, with or without the plugin; reads the game queues itself after a
 load were not affected in play).
+
+**Weapon (2026-11-17, the player's request: "being able to swap the hero's
+sword too").** A second option of the feature, `weapon` (`hero` = the
+hero's own, else a hero's name), and a menu row Weapon after Play as (a
+change restarts the stage the same way). The weapon is node 2 of the hero
+object (decomp `docs/targets/hero-swap.md`, *The weapon*: the node a
+spell's power-up trades, the one with the sword trail's attach points, in
+no weld list); a model only, damage stays STR and the moves the hero's.
+`arm_kit` builds an armed kit: the hero's kit with the weapon hero's node-2
+prims and verts, and the texels its hero-page prims use copied into the
+hero's page where the hero's other 13 nodes use none (its own weapon's are
+free then); prims sharing texels move together, an island keeps its place
+if free, else the first free place by rows then 16-bit units; the CLUTs
+keep their slot or take the first free one; if needed the image grows to
+64 units x the CLUT block's first row (a scan of both discs: nothing but
+the hero's own texture uploads into the page). It is the decomp tool's
+`arm` (`heroswap.py build ... --weapon A S`) in C, and the swap uses the
+armed kit wherever it used the kit (file 0, the pack, scene copies,
+texture reloads), so scenes show the weapon too. The swap now also runs
+when only the weapon differs (the stage's own hero, rebuilt from its kit
+with the other weapon; its portrait and dialogue names are left alone).
+All 72 pairs fit (Anna's and Mihael's pages grow for some). Checked:
+`tests/test_heroswap.py arlen --weapon mihael --ref <decomp>/build/heroswap/2-1_w8-1_to_1-7`
+18/18 (pack head in RAM and hero page image + CLUTs in VRAM equal to
+`build 2 1 1 7 --prune --weapon 8 1`), `arlen --menu-weapon anita` 14/14
+(the row restarts 1/7 with Anita's weapon), `kodel --menu stage` 14/14;
+close-ups after a Continue into 1/7: Arlen with Mihael's blue blade,
+Clovis (Each stage's own) with Anna's golden weapon, Anna with Clovis's
+sword, all textured right. After a save-state load the weapon is read back
+too: the hero object's node 2 (`g_Objects[0]` `0x8008A4E0`, `nodes` at
++0x80, node 2's verts at +0x6C) points at a vertex entry that is byte for
+byte one kit's node-2 entry (an armed stage holds the weapon kit's
+unchanged), so the swap state is set with the armed kit again ("save
+state 1/7 played as Arlen with the weapon of Mihael: its scenes follow";
+the stage's own hero with another weapon: "... as Clovis with the weapon
+of Anna"), and a state whose weapon is not the chosen one gets the
+notice "Save made with Clovis's weapon: Anna's from the next stage".
+Checked in one session with a scratch slot (deleted), as above.
 
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild

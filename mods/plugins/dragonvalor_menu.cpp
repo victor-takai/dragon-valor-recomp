@@ -59,6 +59,12 @@ const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Ko
                                       "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
 const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
                                      "phillip", "gerome", "anna", "mihael", "anita"};
+#define DV_KEY_WEAPON      "dv.heroswap.weapon"
+/* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own. */
+const char* const kWeaponChoices[] = {"The hero's own", "Clovis's", "Arlen's", "Kodel's", "Felippe's",
+                                      "Phillip's", "Gerome's", "Anna's", "Mihael's", "Anita's"};
+const char* const kWeaponValues[] = {"hero", "clovis", "arlen", "kodel", "felippe",
+                                     "phillip", "gerome", "anna", "mihael", "anita"};
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
@@ -168,6 +174,9 @@ const RecompRuntimeUiItem kExtraItems[] = {
     {DV_KEY_PLAY_AS, "Experimental", "Play as",
      "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name, story scenes and dialogues included. When you close the menu, the stage you are in restarts from its beginning with the new hero (no Game Over; HP, items and Val stay; its doors and keys reset, as with Continue). The first choice turns the feature on, which then needs a restart of the game.",
      RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
+    {DV_KEY_WEAPON, "Experimental", "Weapon",
+     "The weapon the hero holds: its own, or another hero's (dragonvalor.heroswap; the model and its texture, damage and moves stay the hero's). With Play as on Each stage's own, every stage's hero holds it. Like Play as, the stage you are in restarts from its beginning when you close the menu.",
+     RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kWeaponChoices, 10, nullptr},
 };
 
 #define DV_CHEATS_PKG   "dragonvalor.cheats"
@@ -191,6 +200,7 @@ struct Menu {
     int cheat_hp = 0, cheat_mp = 0, skip_intro = 0;
     int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
     int play_as = 0;                       /* index in kPlayAsValues */
+    int weapon = 0;                        /* index in kWeaponValues */
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
     /* mouse: window coordinates are scaled to the framebuffer ImGui draws in */
@@ -540,6 +550,7 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, DV_KEY_SCROLL_EVERY)) { *out = m.scroll_every; return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { *out = m.skip_intro; return 1; }
     if (is(item, DV_KEY_PLAY_AS)) { *out = m.play_as; return 1; }
+    if (is(item, DV_KEY_WEAPON)) { *out = m.weapon; return 1; }
     if (const RamRow* r = ram_row(item)) {
         const int v = hero_loaded() ? ram_read(*r) : 0;
         *out = v > item->maximum ? item->maximum : v < item->minimum ? item->minimum : v;
@@ -589,10 +600,11 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_GEM_EVERY)) { m.gem_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", text); return 1; }
     if (is(item, DV_KEY_SCROLL_EVERY)) { m.scroll_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", text); return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
-    if (is(item, DV_KEY_PLAY_AS)) {
+    if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON)) {
+        const bool w = is(item, DV_KEY_WEAPON);
         if (value < 0 || value > 9) return 0;
-        m.play_as = value;
-        if (!m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[value])) {
+        (w ? m.weapon : m.play_as) = value;
+        if (!m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, w ? "weapon" : "hero", (w ? kWeaponValues : kPlayAsValues)[value])) {
             /* not in the running plan yet: switch the feature on for the next start */
             if (value) (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, nullptr, "true");
             recomp_runtime_ui_set_status(m.ui, value ? "Saved; takes effect at the next start" : "Saved");
@@ -602,7 +614,8 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
          * closes (dv_hs_vblank in dragonvalor_heroswap.c waits for plain play) */
         if (hero_loaded() && psx_mod_read_byte(0x8008634Cu) == 8) {
             dv_heroswap_restart_request = 1;
-            recomp_runtime_ui_set_status(m.ui, "This stage restarts with this hero when you close the menu");
+            recomp_runtime_ui_set_status(m.ui, w ? "This stage restarts with this weapon when you close the menu"
+                                                 : "This stage restarts with this hero when you close the menu");
         } else {
             recomp_runtime_ui_set_status(m.ui, "From the next stage");
         }
@@ -822,6 +835,10 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
         if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "hero", hero, sizeof hero))
             for (int i = 1; i < 10; i++)
                 if (std::strcmp(hero, kPlayAsValues[i]) == 0) m.play_as = i;
+        m.weapon = 0;
+        if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "weapon", hero, sizeof hero))
+            for (int i = 1; i < 10; i++)
+                if (std::strcmp(hero, kWeaponValues[i]) == 0) m.weapon = i;
     }
     if (!m.imgui) {
         IMGUI_CHECKVERSION();

@@ -39,7 +39,8 @@ ending and the Linux / macOS builds are untested
 - In-game menu: pause, save states, video and audio settings
 - Cheats: infinite HP / MP, more drops, Val, stats, spells and items
 - Widescreen (experimental), Skip Intro, rewind and turbo
-- Play as (experimental): any of the nine heroes in every stage
+- Play as (experimental): any of the nine heroes in every stage, holding
+  any hero's weapon
 - Xbox, PlayStation and Switch pads, or the keyboard
 
 ## Playing
