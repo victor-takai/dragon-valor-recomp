@@ -17,8 +17,8 @@ game_id = "SLUS-01092"
 [[feature]]
 id = "widescreen"
 name = "Widescreen"
-description = "Stages render at the chosen aspect with real scenery in the extra columns; the HUD keeps its 4:3 positions and the dialogue window spans the whole width. The title screen, menus (the magic / item menu too), screen transitions and movies stay 4:3 with side bars. Experimental: tested on the first two chapters only."
-group = "Display"
+description = "Wide screen with real scenery. Stages render at the chosen aspect with real scenery in the extra columns, not a stretch; the HUD sits at the screen's edges and the dialogue window spans the whole width. The title screen, menus (the magic / item menu too), screen transitions and movies stay 4:3. Tested on the first two chapters."
+group = "Graphics"
 default_enabled = false
 
 [[option]]

@@ -16,9 +16,9 @@ game_id = "SLUS-01092"
 
 [[feature]]
 id = "skip-intro"
-name = "Skip intro"
-description = "The intro movie is skipped the moment it starts, so power-on reaches the title with no button press. The Namco logo stays: the title screen loads its data behind it."
-group = "Convenience"
+name = "Skip intro movie"
+description = "Straight to the title screen. The intro movie is skipped the moment it starts, so power-on reaches the title with no button press. The Namco logo stays: the title screen loads its data behind it."
+group = "Game"
 default_enabled = false
 
 [[option]]

@@ -107,6 +107,12 @@ the native 60 Hz version.
   `DEVELOPMENT.md`, *Character and weapon*: the hero follows the area, so
   the Cheats page gained an **Area (next Continue)** row that reloads
   another area's stage (Kodel's save + area 0 = Clovis in the prologue).
+- **Launcher Mods page cleaned up** (2026-11-18, branch `hero-swap`): two
+  groups (Game, Graphics), names a player understands (Faster loading,
+  Steady 3D (PGXP), ...), a one-line summary per row instead of the package
+  name and version (`patches/recomp-ui/0005-...`), current descriptions;
+  title overrides of the framework's cd-speed, hd-textures and bezel
+  packages for the texts.
 - **In-game menu redesigned** (2026-11-18, branch `hero-swap`, the player's
   request): the title draws its own menu (`dragonvalor_menu_view.cpp`: dark
   panel with a gold accent, the hero, HP / MP and stage on top, one line

@@ -729,6 +729,34 @@ or installed by the player through the launcher's Mods page) can carry:
 - **HD texture packs** and **string translation** are built-in features with
   their own docs.
 
+**The launcher's Mods page (2026-11-18).** The player found it cryptic: a
+row read "CD Speed / CD Speed 1.0.0" or "Cheats / Dragon Valor Cheats
+1.3.0", and nine features sat in seven groups (Cheats, Display,
+Experimental, Convenience, Advanced, Quality of Life, Visual). Now:
+
+- two groups, **Game** (Cheats, Faster loading, Play as, Skip intro movie)
+  and **Graphics** (Bezel artwork, HD texture packs, Steady 3D (PGXP),
+  Widescreen); the list sorts by group, then name;
+- every feature description opens with a short sentence the row shows as
+  its summary ("Infinite HP and MP, more drops.", "Shorter loading from the
+  CD."), then the details; "Disabled by default" / "On by default in this
+  title" openings are gone (the checkbox says it), and the texts are
+  current (Widescreen's HUD at the edges, Play as through the Hero section);
+- the framework packages shown on the page get title overrides like the
+  PGXP one (same id and version under `mods/preloaded/packages`, the
+  builtin manifest verbatim but for the feature's name, description and
+  group): `psx.enhancement.cd-speed` ("Faster loading", options group
+  Speed, still off by default), `psx.enhancement.hd-textures` and
+  `psx.presentation.bezel`; `psx.enhancement.8mb-ram` is hidden by the
+  framework already;
+- the row and detail layout is recomp-ui's: `patches/recomp-ui/0005-...`
+  (name + summary rows; package, version, author and source at the detail
+  pane's foot).
+
+Checked in the debug launcher (window capture, `PrintWindow`): the two
+groups, the summaries, Cheats' options and the "Package: Dragon Valor
+Cheats 1.3.0" foot.
+
 #### This project's package: `dragonvalor.cheats`
 
 `mods/preloaded/packages/dragonvalor.cheats/1.3.0/manifest.toml` (format 7)
@@ -1814,7 +1842,7 @@ aot/overlays.json     AOT profile for the five BIN/*.BIN modules (docs/AOT.md)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
 launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon (tools/make_app_icon.py)
-mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen, dragonvalor.heroswap; the psx.enhancement.pgxp override)
+mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen, dragonvalor.heroswap; overrides of psx.enhancement.pgxp, cd-speed, hd-textures and psx.presentation.bezel)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonvalor_menu.cpp = in-game menu provider
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C

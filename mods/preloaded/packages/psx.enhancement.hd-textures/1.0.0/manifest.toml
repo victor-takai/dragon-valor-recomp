@@ -1,0 +1,52 @@
+# Title override of the framework's psx.enhancement.hd-textures (same id and version, so it
+# shadows the builtin in mods/bundled), for the launcher's Mods page only:
+# a name and a description a player understands (the first sentence is the
+# list row's summary) and this title's groups, Game / Graphics
+# (2026-11-18, the player found the page cryptic). Everything else is the
+# builtin manifest verbatim (psxrecomp/mods/builtin/packages).
+format_version = 5
+id = "psx.enhancement.hd-textures"
+version = "1.0.0"
+name = "HD Texture Packs"
+author = "psxrecomp"
+description = "Load compatible DuckStation PNG/JPEG/WebP packs with OpenGL or capture originals during gameplay. Exit the game to finish capture PNGs. No artwork is bundled."
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "*"
+
+[[feature]]
+id = "hd-textures"
+name = "HD texture packs"
+description = "Your own high-resolution textures. Put PNG/JPEG/WebP images in the pack folder's replacements (no pack is included), or turn on Dump textures to collect the game's originals to redraw; they are written when the game exits. OpenGL only; options apply on Play."
+group = "Graphics"
+default_enabled = false
+
+[[resource]]
+feature = "hd-textures"
+id = "pack"
+label = "Texture pack folder"
+description = "The launcher creates mods/texture-packs/<game-id> beside the executable on first use. Open folder to add replacement images or read captured originals; Change folder selects another compatible pack or empty directory."
+format = "directory"
+required = true
+
+[[option]]
+feature = "hd-textures"
+id = "replacements"
+label = "Load replacements"
+description = "Display matching PNG/JPEG/WebP artwork from replacements in OpenGL. Unsupported or missing replacements retain the original artwork."
+type = "boolean"
+default = "true"
+
+[[option]]
+feature = "hd-textures"
+id = "dump"
+label = "Dump textures"
+description = "Collect original texture usage while playing. Exit the game to finish capture PNGs under dumps, then edit the files you need."
+type = "boolean"
+default = "false"
+
+[[plugin]]
+feature = "hd-textures"
+id = "psx.hd-textures"

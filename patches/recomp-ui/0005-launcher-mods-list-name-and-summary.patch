@@ -1,0 +1,121 @@
+diff --git a/src/common/backends/imgui/launcher_imgui.cpp b/src/common/backends/imgui/launcher_imgui.cpp
+index cbae6e9..4dd1b1a 100644
+--- a/src/common/backends/imgui/launcher_imgui.cpp
++++ b/src/common/backends/imgui/launcher_imgui.cpp
+@@ -11975,6 +11975,22 @@ static void draw_mod_catalog_diagnostics(LauncherModel* m,
+     ImGui::Spacing();
+ }
+ 
++/* A feature's one-line summary for the list: the first sentence of its
++ * description, cut to `width` pixels with an ellipsis (whole UTF-8
++ * characters). */
++static std::string mod_summary_line(const char* description, float width) {
++    std::string s = description ? description : "";
++    const size_t end = s.find(". ");
++    if (end != std::string::npos) s.resize(end + 1);
++    if (ImGui::CalcTextSize(s.c_str()).x <= width) return s;
++    while (!s.empty() && ImGui::CalcTextSize((s + "...").c_str()).x > width) {
++        while (!s.empty() && (static_cast<unsigned char>(s.back()) & 0xC0) == 0x80) s.pop_back();
++        if (!s.empty()) s.pop_back();   /* the character's lead byte */
++    }
++    while (!s.empty() && s.back() == ' ') s.pop_back();
++    return s + "...";
++}
++
+ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+     const auto* mods = m ? m->mods : nullptr;
+     if (!mods || !mods->feature_count || !mods->feature_get ||
+@@ -12122,18 +12138,30 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+                         ImGui::SameLine();
+                     }
+ 
+-                    char label[320];
+-                    std::snprintf(label, sizeof(label), "%s\n%s%s%s",
+-                                  feature.name,
+-                                  feature.package_name[0] ? feature.package_name
+-                                                          : feature.package_id,
+-                                  feature.package_version[0] ? "  " : "",
+-                                  feature.package_version);
++                    /* Two lines: the feature's name, then what it does (the
++                     * first sentence of its description, muted, cut to the
++                     * row). The package name and version said nothing to a
++                     * player ("CD Speed / CD Speed 1.0.0"); they moved to the
++                     * foot of the detail pane. */
+                     if (ImGui::Selectable(
+-                            label, m->mod_selected == item.index, 0,
++                            "##feature_row", m->mod_selected == item.index, 0,
+                             ImVec2(0, px(44)))) {
+                         m->mod_selected = item.index;
+                     }
++                    {
++                        const ImVec2 rmin = ImGui::GetItemRectMin();
++                        const ImVec2 rmax = ImGui::GetItemRectMax();
++                        const float pad = px(2);
++                        const std::string summary = mod_summary_line(
++                            feature.description, rmax.x - rmin.x - pad * 2.0f);
++                        ImDrawList* dl = ImGui::GetWindowDrawList();
++                        dl->AddText(ImVec2(rmin.x + pad, rmin.y + pad),
++                                    ImGui::GetColorU32(col(th.text)), feature.name);
++                        dl->AddText(ImVec2(rmin.x + pad,
++                                           rmin.y + pad + ImGui::GetTextLineHeight() + px(2)),
++                                    ImGui::GetColorU32(col(th.text_muted)),
++                                    summary.c_str());
++                    }
+                     ImGui::PopID();
+                     ImGui::PopID();
+                 }
+@@ -12167,23 +12195,7 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::SameLine();
+                 ImGui::TextColored(col(th.text_muted), "%s", feature.group);
+             }
+-            ImGui::TextColored(
+-                col(th.text_muted), "%s %s%s%s", ui_text("From"),
+-                feature.package_name[0] ? feature.package_name
+-                                        : feature.package_id,
+-                feature.package_version[0] ? " " : "",
+-                feature.package_version);
+-            if (feature.author[0])
+-                draw_linkified_mod_author(
+-                    feature.author, feature.author_links,
+-                    feature.author_link_count, th);
+-            if (feature.source_url[0]) {
+-                ImGui::TextColored(col(th.text_muted), "%s", ui_text("Source: "));
+-                ImGui::SameLine(0, 0);
+-                ImGui::TextLinkOpenURL(
+-                    feature.source_name[0] ? feature.source_name : ui_text("Project page"),
+-                    feature.source_url);
+-            }
++            ImGui::Spacing();
+             if (const char* channel_blurb = mod_channel_blurb(feature.channel)) {
+                 ImGui::PushStyleColor(
+                     ImGuiCol_Text,
+@@ -12329,6 +12341,29 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+                 }
+                 draw_mod_feature_option(m, feature, option);
+             }
++            /* Where the feature comes from, at the foot: the package and its
++             * version, its author and source (once under the title, where
++             * they read as part of the feature). */
++            ImGui::Spacing();
++            ImGui::Spacing();
++            ImGui::Separator();
++            ImGui::TextColored(
++                col(th.text_muted), "%s %s%s%s", ui_text("Package:"),
++                feature.package_name[0] ? feature.package_name
++                                        : feature.package_id,
++                feature.package_version[0] ? " " : "",
++                feature.package_version);
++            if (feature.author[0])
++                draw_linkified_mod_author(
++                    feature.author, feature.author_links,
++                    feature.author_link_count, th);
++            if (feature.source_url[0]) {
++                ImGui::TextColored(col(th.text_muted), "%s", ui_text("Source: "));
++                ImGui::SameLine(0, 0);
++                ImGui::TextLinkOpenURL(
++                    feature.source_name[0] ? feature.source_name : ui_text("Project page"),
++                    feature.source_url);
++            }
+         } else {
+             ImGui::TextColored(col(th.text_muted),
+                                "%s", ui_text("Install or select a feature to configure it."));
