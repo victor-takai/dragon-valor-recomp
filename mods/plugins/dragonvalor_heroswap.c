@@ -1179,6 +1179,7 @@ static uint64_t s_hero_verts[14];          /* the stage hero's vertex entries (h
 static uint32_t s_hero_verts_len[14];
 static uint16_t s_name_old[16], s_name_new[16];   /* the stage hero's and the chosen hero's names (glyphs) */
 static int s_name_old_n, s_name_new_n;
+static int s_resync;                       /* a save state was loaded: re-read the swap from RAM */
 
 static void read_options(void)
 {
@@ -1322,6 +1323,28 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
             DV_HS_PLUGIN, area, stage, kHeroNames[s_hero], f0, pk, sizes[0], snd[1]);
 }
 
+/* The stage hero's portrait and hero-page TIMs, from the stage's own file 0
+ * (for the portraits and texture reloads of the stage's other packs). */
+static void note_orig_file0(const uint8_t* b, uint32_t len)
+{
+    static Ct c;
+    static Tim tims[64];
+    uint32_t vab, te;
+    int nt, j;
+    s_orig_portrait.n = 0;
+    s_orig_page.n = 0;
+    if (!ct_parse(&c, b, len) || c.n > 16 || !file0_parts(&c, &vab, &te)) return;
+    nt = tim_chain(CT_E(&c, te), CT_L(&c, te), tims, 64, NULL);
+    for (j = 0; j < nt; j++) {
+        const uint8_t* e = CT_E(&c, te);
+        if (tim_is_portrait(&tims[j])) {
+            s_orig_portrait.n = 0;
+            buf_put(&s_orig_portrait, e + tims[j].start, tims[j].end - tims[j].start);
+        }
+        if (tim_in_page(&tims[j])) buf_put(&s_orig_page, e + tims[j].start, tims[j].end - tims[j].start);
+    }
+}
+
 /* File 0 with the kit's VAB, hero-page TIMs and portrait. */
 static int merge_file0(Buf* out, const uint8_t* b, uint32_t len, const Kit* k)
 {
@@ -1333,20 +1356,15 @@ static int merge_file0(Buf* out, const uint8_t* b, uint32_t len, const Kit* k)
     uint32_t vab, te, end, i, pos = 0;
     int nt, nk, j, m, slots = 0, slot = 0;
     if (!ct_parse(&c, b, len) || c.n > 16 || !file0_parts(&c, &vab, &te)) return 0;
+    note_orig_file0(b, len);
     nt = tim_chain(CT_E(&c, te), CT_L(&c, te), tims, 64, &end);
     nk = tim_chain(k->page.p, k->page.n, kt, 64, NULL);
-    s_orig_page.n = 0;
     for (j = 0; j < nt; j++) slots += tim_in_page(&tims[j]);
     /* the hero-page TIMs: the kit's take their places in turn, any left over
      * go in the last (tools/heroswap.py replace_page_tims) */
     for (j = 0; j < nt; j++) {
         const uint8_t* e = CT_E(&c, te);
-        if (tim_is_portrait(&tims[j])) {
-            s_orig_portrait.n = 0;
-            buf_put(&s_orig_portrait, e + tims[j].start, tims[j].end - tims[j].start);
-        }
         if (!tim_in_page(&tims[j])) continue;
-        buf_put(&s_orig_page, e + tims[j].start, tims[j].end - tims[j].start);   /* for reloads elsewhere */
         buf_put(&chain, e + pos, tims[j].start - pos);
         for (m = slot; m < nk && (m == slot || slot == slots - 1); m++)
             buf_put(&chain, k->page.p + kt[m].start, kt[m].end - kt[m].start);
@@ -2061,9 +2079,88 @@ static int dv_hs_option_changed(const char* option_id, const char* value)
 #define DV_STAGE_PHASE   0x800A2D18u   /* g_GameState.stagePhase */
 volatile int dv_heroswap_restart_request = 0;
 
+/* --- save states ------------------------------------------------------------
+ * A save state brings back the RAM of its moment, the stage's packs as they
+ * were installed then: a stage played as another hero (rebuilt when it
+ * loaded) or with its own. The swap state above belongs to the session's
+ * last stage load, so after a load it is read again from RAM at the next
+ * VBlank: the hero in g_Hero.index says whether the stage in RAM was rebuilt.
+ * If it was, the stage's other packs (scenes, dialogues, texture reloads)
+ * must keep following that hero, and they need the stage hero's own
+ * portrait, hero page and vertex entries. Those come from the area hero's
+ * kit: the stage's own files would mean reading DATA.CDR, which the mod API
+ * only does whole (over 4 s on the emulation thread: the runtime's
+ * starvation watchdog stopped the game), and the kit is what the portrait
+ * and scene-copy matches already fall back on (12/29's Anita, 5/20's
+ * Phillip). A state taken with a hero other than the one chosen now plays
+ * on as it was (a stage cannot be rebuilt in the middle); a notice says the
+ * choice applies from the next stage load. */
+void host_osd_push(const char* msg, int duration_ms);   /* runtime host_osd.h */
+
+static int originals_from_kit(int ah)
+{
+    const Kit* k = ah >= 0 ? &s_kits[ah] : NULL;
+    const uint8_t* v[14];
+    uint32_t l[14], i;
+    if (!k || !k->ready || !k->portrait.n || !k->page.n) return 0;
+    s_orig_portrait.n = 0;
+    s_orig_page.n = 0;
+    buf_put(&s_orig_portrait, k->portrait.p, k->portrait.n);
+    buf_put(&s_orig_page, k->page.p, k->page.n);
+    kit_verts(k, v, l);
+    for (i = 0; i < 14; i++) {
+        s_hero_verts_len[i] = v[i] ? l[i] : 0;
+        if (v[i]) s_hero_verts[i] = fnv64(v[i], l[i]);
+    }
+    return 1;
+}
+
+static void resync_after_load(void)
+{
+    int area = (int16_t)psx_mod_read_half(DV_STAGE_AREA), stage = (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
+    int h = psx_mod_read_byte(DV_HERO_INDEX), ah = dv_area_hero(area), want;
+    char msg[160];
+    s_resync = 0;
+    s_swap = 0;
+    s_saved_hero = s_written_hero = -1;
+    if (!s_enabled || psx_mod_read_byte(DV_MODE) != 8 || ah < 0 || h >= HERO_COUNT || !stage_find(area, stage))
+        return;   /* not in an action stage: the next stage load decides */
+    if (h != ah && s_kits[h].ready) {
+        if (!originals_from_kit(ah)) {
+            fprintf(stderr, "%s: save state %d/%d as %s: no %s kit; its scenes keep %s\n",
+                    DV_HS_PLUGIN, area, stage, kHeroNames[h], kHeroNames[ah], kHeroNames[ah]);
+        } else {
+            s_swap = 1;
+            s_swap_area = area;
+            s_swap_stage = stage;
+            s_swap_hero = h;
+            s_name_old_n = read_hero_name(ah, s_name_old);
+            s_name_new_n = read_hero_name(h, s_name_new);
+            if (!s_name_old_n || !s_name_new_n) s_name_old_n = s_name_new_n = 0;
+            s_saved_hero = ah;      /* the game's own, given back at a stage without a swap */
+            s_written_hero = h;
+            fprintf(stderr, "%s: save state %d/%d played as %s: its scenes follow %s\n", DV_HS_PLUGIN, area, stage,
+                    kHeroNames[h], kHeroNames[h]);
+        }
+    }
+    want = s_hero >= 0 ? s_hero : ah;
+    if (h != want) {
+        snprintf(msg, sizeof msg, "Save made as %s: %s plays from the next stage", kHeroNames[h], kHeroNames[want]);
+        host_osd_push(msg, 6000);
+        fprintf(stderr, "%s: %s\n", DV_HS_PLUGIN, msg);
+    }
+}
+
+static void dv_hs_savestate_loaded(void)
+{
+    s_swap = 0;          /* until the next VBlank reads the loaded RAM */
+    s_resync = 1;
+}
+
 static void dv_hs_vblank(void)
 {
     uint32_t r, c;
+    if (s_resync) resync_after_load();
     if (!dv_heroswap_restart_request) return;
     if (!s_enabled) { dv_heroswap_restart_request = 0; return; }
     if (psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_byte(DV_MODE + 1) != 7 || psx_mod_read_byte(DV_PAUSE_STATE) ||
@@ -2085,6 +2182,7 @@ PSX_MOD_CONSTRUCTOR(dv_register_heroswap)
     int ok = psx_mod_register_activation_plugin(DV_HS_PLUGIN, dv_hs_activate)
           && psx_mod_register_option_changed_plugin(DV_HS_PLUGIN, dv_hs_option_changed)
           && psx_mod_register_vblank_plugin(DV_HS_PLUGIN, dv_hs_vblank)
+          && psx_mod_register_savestate_plugin(DV_HS_PLUGIN, dv_hs_savestate_loaded)
           && psx_mod_register_function_entry_plugin(DV_HS_PLUGIN, DV_STAGE_BUFFERS_ALLOC,
                                                     dv_hs_buffers_entry)
           && psx_mod_register_function_entry_plugin(DV_HS_PLUGIN, DV_PACK_INSTALL,

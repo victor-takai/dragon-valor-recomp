@@ -125,9 +125,14 @@ the native 60 Hz version.
   12/29's ending portrait, and disc 2 after a disc change in the same
   session (read from its image; its heroes no longer need disc 2 started
   once). The chapter epilogues name the chosen hero too (the only other
-  texts that name a hero; the character profiles stay). Before it
+  texts that name a hero; the character profiles stay). Save states keep
+  the hero they were taken with (the swap happens when a stage loads): a
+  state taken as another hero plays on as it was and an on-screen notice
+  says the choice applies from the next stage; a state taken with a swapped
+  hero keeps its scenes on that hero after the load. Before it
   (2026-11-16): one stage per folder written by the decomp's
-  `tools/heroswap.py`. Open: long play, 9/10's scene not watched
+  `tools/heroswap.py`. Open: long play, 9/10's scene not watched, a scene
+  pack installed right after a save-state load not watched
   (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own

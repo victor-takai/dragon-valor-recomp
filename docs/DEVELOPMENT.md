@@ -1350,6 +1350,35 @@ a map stage's file 0 (program [30, 21, 20, 71 10 0]) in place. Checked: 1/2
 (Clovis's map) as Kodel shows Kodel walking, as Gerome the Status screen
 shows Gerome's portrait and name.
 
+**Save states (2026-11-17, from the player's play test: "in the first
+cutscene after the stage of save 11, the name and the picture are still
+Clovis's").** The swap happens when a stage loads; a save state brings back
+the RAM of its moment, packs included. The player's menu slot 11 is test
+state 10 (file slot 10, 1/7, taken as Clovis on 2026-10-15): with Play as
+Arlen it loads with `g_Hero.index` 0 and Clovis's packs, so the stage, and
+its closing scene (room 5's event pack, file 112: "Carolina: ... Thanks for
+saving me again!"), stayed Clovis's; the same scene after a Continue as
+Arlen shows "Arlen:" and Arlen's portrait in every line (the plugin swaps 1
+portrait and 1 name in that pack). The plugin now registers a save-state
+callback and, at the next VBlank, reads the loaded RAM: in an action stage
+whose `g_Hero.index` is not the area hero, the stage was rebuilt for that
+hero, so the swap state is set for it (the stage's other packs keep
+following that hero: dialogue names, portraits, scene copies, texture
+reloads) with the area hero's kit as the original (portrait, hero page,
+vertex entries; the stage's own file 0 / 1 would mean reading all of
+`DATA.CDR`, which on the emulation thread took over 4 s and the runtime's
+starvation watchdog stopped the game). When the state's hero is not the
+one chosen now, an on-screen notice (`host_osd_push`) says "Save made as
+Clovis: Arlen plays from the next stage" (a stage cannot be rebuilt in the
+middle; picking another hero in the menu restarts it). Checked in one
+session: Continue as Arlen, save to a scratch slot (deleted afterwards),
+load test state 10 (the notice), load the scratch slot ("save state 1/7
+played as Arlen: its scenes follow Arlen"); `tests/test_heroswap.py arlen`
+12/12. Not checked: a scene pack installed after such a load (a read
+queued by hand into the warp row right after a load stays in its read
+state, with or without the plugin; reads the game queues itself after a
+load were not affected in play).
+
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
 itself for every stage.
