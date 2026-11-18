@@ -197,14 +197,6 @@ void put_mid(ImDrawList* dl, ImFont* f, float x, float cy, ImU32 col, const char
     dl->AddText(f, f->FontSize, ImVec2(std::round(x), std::round(cy - (top + base) * 0.5f)), col, s);
 }
 
-/* A filled triangle pointing up (dir -1) or down (+1), centred on c; the
- * same winding as arrow(). */
-void arrow_v(ImDrawList* dl, ImVec2 c, float r, int dir, ImU32 col) {
-    const float d = (float)dir;
-    const ImVec2 tip(c.x, c.y + d * r * 0.7f), a(c.x - r, c.y - d * r * 0.55f), b(c.x + r, c.y - d * r * 0.55f);
-    if (dir < 0) dl->AddTriangleFilled(tip, a, b, col);
-    else dl->AddTriangleFilled(tip, b, a, col);
-}
 
 /* A key cap and what it does; returns the width used. */
 float key_cap(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* key, const char* label, const Pal& P,
@@ -249,13 +241,14 @@ float pad_button(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, int kind, const
 }
 
 /* A D-pad (2026-11-18, the player asked for a better icon than the plus):
- * a cross with rounded arm ends and a raised centre, an arrow embossed in
- * each arm; the left and right arms are lit, as they change a value. */
+ * a cross with rounded arm ends and a dimpled centre; the left and right
+ * arms are lit, as they change a value. (Arrows embossed in the arms were
+ * tried and dropped: too busy at this size, the player's call.) */
 float dpad(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* label, const Pal& P, float s) {
     ImFont* f = F.small;
-    const float h = f->FontSize + 12.0f * s, r = h * 0.5f, w = h * 0.36f, rr = 2.5f * s, t = w * 0.30f;
+    const float h = f->FontSize + 12.0f * s, r = h * 0.5f, w = h * 0.36f, rr = 2.5f * s;
     const ImVec2 c(p.x + r, p.y + (f->FontSize + 10.0f * s) * 0.5f);
-    const ImU32 dim = P.muted, lit = P.text, emboss = P.ink;
+    const ImU32 dim = P.muted, lit = P.text;
     dl->AddRectFilled(ImVec2(c.x - w * 0.5f, c.y - r), ImVec2(c.x + w * 0.5f, c.y + r), dim, rr);
     dl->AddRectFilled(ImVec2(c.x - r, c.y - w * 0.5f), ImVec2(c.x - w * 0.5f, c.y + w * 0.5f), lit, rr,
                       ImDrawFlags_RoundCornersLeft);
@@ -263,10 +256,6 @@ float dpad(ImDrawList* dl, const DvMenuFonts& F, ImVec2 p, const char* label, co
                       ImDrawFlags_RoundCornersRight);
     dl->AddRectFilled(ImVec2(c.x - w * 0.5f, c.y - w * 0.5f), ImVec2(c.x + w * 0.5f, c.y + w * 0.5f), P.muted);
     dl->AddCircleFilled(c, w * 0.22f, P.faint, 12);   /* the dimple in the middle */
-    arrow(dl, ImVec2(c.x - r + w * 0.62f, c.y), t, -1, emboss);
-    arrow(dl, ImVec2(c.x + r - w * 0.62f, c.y), t, 1, emboss);
-    arrow_v(dl, ImVec2(c.x, c.y - r + w * 0.62f), t, -1, emboss);
-    arrow_v(dl, ImVec2(c.x, c.y + r - w * 0.62f), t, 1, emboss);
     put_mid(dl, f, p.x + h + 9.0f * s, c.y, P.muted, label);
     return h + 9.0f * s + measure(f, label).x + 26.0f * s;
 }

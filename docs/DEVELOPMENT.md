@@ -943,8 +943,9 @@ builder plus extras with its generic drawer:
   vertically, for the pad letters, key caps, the save-state tabs and the
   dialog buttons, and the hint texts beside them line up the same way.
 - *D-pad icon* (same day, the player asked for a better one than the plus):
-  a cross with rounded arm ends, a dimpled centre and an arrow embossed in
-  each arm, the left and right arms lit (they change a value).
+  a cross with rounded arm ends and a dimpled centre, the left and right
+  arms lit (they change a value). Dark arrows embossed in the arms were
+  tried first and dropped: too busy at footer size (the player's call).
 
 | Section | Rows | Applied through |
 |---|---|---|
