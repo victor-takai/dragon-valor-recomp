@@ -64,8 +64,20 @@
  *     copy: a lighter 4:3 rectangle in a wide frame. A native-scene
  *     predicate (gpu_ws_set_native_scene_predicate: nonzero = present this
  *     frame at 4:3 with side bars) says so for mode 7, while a transition
- *     runs (g_Transition.state != 0) and while the blur is on, sampled once
- *     per VBlank like the world predicate.
+ *     runs (g_Transition.state != 0) and while the blur is on in an event
+ *     scene (sub-mode 5), sampled once per VBlank like the world predicate.
+ *
+ *   - The blur in play (side bars during a special attack, player's report
+ *     2026-11-17). The hero's script (action pack entry 2, two moves) and
+ *     some enemy groups switch the blur on in the middle of the action:
+ *     blurOn 1, tint 0x9B, no line offset, so the two sprites draw the
+ *     4:3 frame over itself about 10 % lighter while the game runs at 20
+ *     frames a second. Bars that come and go in a fight look like a bug,
+ *     and the lighter part cannot reach the margins (they are not in VRAM),
+ *     so outside event scenes the frame stays wide and the hook below takes
+ *     the blur's four packets out of this frame's ordering table (the
+ *     table is rebuilt every frame; the packets themselves are untouched).
+ *     The slow motion stays.
  *
  *   - The dialogue window's top border (src/main/exeE_msgwin.c): six
  *     identical 64 x 8 sprites from x 0 to 383 along the top of the black
@@ -76,7 +88,8 @@
  *     repeats it into the side margins only.
  *
  * The only guest RAM written is the lens packets of the buffer about to be
- * drawn. Everything is inert unless the package is enabled: activation is
+ * drawn and, while a blur runs in play, one link of the ordering table being
+ * built. Everything is inert unless the package is enabled: activation is
  * the only thing that sets s_enabled, and the predicates check it first;
  * the hook runs only while the package's plan is active.
  */
@@ -96,6 +109,8 @@
 #define DV_MODE_MENU    7u            /* magic / item menu (Triangle) */
 #define DV_TRANSITION   0x800A2EF8u   /* g_Transition: s32 state (0 = off) */
 #define DV_BLUR_ON      0x8009F8A8u   /* u8 g_Render.blurOn (g_Render + 0x1068) */
+#define DV_SUBMODE      0x8008634Du   /* u8 sub-mode: 5 = event script, 7 = play */
+#define DV_SUB_EVENT    5u
 
 /* Renderer services of psxrecomp's gpu.h (runtime/include/gpu.h) that
  * mod_plugins.h does not re-export; mod activation clears the native-scene
@@ -114,11 +129,19 @@ static int dv_ws_scene_live(void)
     return s_enabled && psx_mod_read_byte(DV_MODE) == DV_MODE_ACTION;
 }
 
+/* The blur of an event scene (sub-mode 5): present at 4:3. Anywhere else in
+ * the stage (the hero's specials, enemy moves) the frame stays wide and the
+ * hook below leaves the blur out. */
+static int dv_ws_event_blur(void)
+{
+    return psx_mod_read_byte(DV_BLUR_ON) != 0u && psx_mod_read_byte(DV_SUBMODE) == DV_SUB_EVENT;
+}
+
 static int dv_ws_native_live(void)
 {
     return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_MENU ||
                          psx_mod_read_word(DV_TRANSITION) != 0u ||
-                         psx_mod_read_byte(DV_BLUR_ON) != 0u);
+                         dv_ws_event_blur());
 }
 
 static int dv_ws_scene(void)
@@ -196,6 +219,44 @@ static void dv_ws_tag_dialogue_border(uint32_t frame)
     gpu_ws_tag_repeat_rect(sprt + 0x08u, DV_MW_BORDER_PERIOD);
 }
 
+/* FrameDraw (decomp src/main/exeA_frame.c) links the blur at ot[blurOtz] of
+ * g_FrameBuf[frame].ot: ot -> tpage[1] -> sprite[1] -> tpage[0] -> sprite[0]
+ * -> what was there; whatever is linked later into that slot comes before
+ * tpage[1]. Unlinking the four leaves the packets and the next frame alone. */
+#define DV_FRAMEBUF           0x80086358u   /* g_FrameBuf[2], 0x2070 bytes each */
+#define DV_FRAMEBUF_SIZE      0x2070u
+#define DV_FRAMEBUF_OT        0x70u
+#define DV_OT_LEN             0x800
+#define DV_BLUR_TPAGE         (DV_RENDER + 0x109Cu)   /* DR_TPAGE blurTpage[2][2], 8 bytes */
+#define DV_BLUR_SPRT          (DV_RENDER + 0x10BCu)   /* SPRT blur[2][2], 0x14 bytes */
+#define DV_BLUR_OTZ           (DV_RENDER + 0x110Eu)   /* s16 blurOtz */
+
+static void dv_ws_hide_play_blur(uint32_t frame)
+{
+    uint32_t p, tp1, s0, after, k;
+    int16_t otz;
+    if (psx_mod_read_byte(DV_BLUR_ON) == 0u || psx_mod_read_byte(DV_MODE) != DV_MODE_ACTION ||
+        psx_mod_read_byte(DV_SUBMODE) == DV_SUB_EVENT || psx_mod_read_word(DV_TRANSITION) != 0u)
+        return;
+    otz = (int16_t)psx_mod_read_half(DV_BLUR_OTZ);
+    if (otz < 0 || otz >= DV_OT_LEN) return;
+    tp1 = DV_BLUR_TPAGE + (frame * 2u + 1u) * 8u;
+    s0 = DV_BLUR_SPRT + frame * 2u * 0x14u;
+    after = psx_mod_read_word(s0) & 0x00FFFFFFu;
+    p = DV_FRAMEBUF + frame * DV_FRAMEBUF_SIZE + DV_FRAMEBUF_OT + (uint32_t)otz * 4u;
+    for (k = 0; k < 4096u; k++) {
+        uint32_t w = psx_mod_read_word(p), next = w & 0x00FFFFFFu;
+        if (next == 0x00FFFFFFu) return;
+        if ((next | 0x80000000u) == tp1) {
+            psx_mod_write_word(p, (w & 0xFF000000u) | after);
+            psx_mod_counter_add("dv.ws.play_blur_hidden", 1);
+            return;
+        }
+        p = next | 0x80000000u;
+        if (!dv_ws_ram_ptr(p)) return;
+    }
+}
+
 static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
 {
     uint32_t frame, list, i, k, hidden = 0;
@@ -204,6 +265,7 @@ static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
     if (!s_enabled) return;
     frame = psx_mod_read_byte(DV_RENDER_FRAME) & 1u;
     dv_ws_tag_dialogue_border(frame);
+    dv_ws_hide_play_blur(frame);
     for (list = 0; list < 2u; list++) {
         uint32_t count = psx_mod_read_word(DV_RENDER_COUNTS + list * 4u);
         if (count > DV_RENDER_LIST_SLOTS) continue;

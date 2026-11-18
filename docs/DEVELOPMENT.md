@@ -985,10 +985,35 @@ worked examples this one follows.
   runtime's `gpu.h`, not re-exported by `mod_plugins.h`; nonzero = present
   this frame at 4:3 with side bars; activation clears it, so it belongs to
   the session's plugin) that says so for mode 7, while
-  `g_Transition.state != 0` and while the blur is on, sampled per VBlank
-  like the world predicate. The pause screen (Start) stays wide: its
-  darkening tile is extended by the renderer. The world map and its Status
-  screen (modes 10 / 13) were already 4:3 (2D, no projection).
+  `g_Transition.state != 0` and while the blur is on in an event scene
+  (sub-mode 5, `0x8008634D`), sampled per VBlank like the world predicate.
+  The pause screen (Start) stays wide: its darkening tile is extended by
+  the renderer. The world map and its Status screen (modes 10 / 13) were
+  already 4:3 (2D, no projection).
+- **The blur in play** (2026-11-17, the player's report: "with the special
+  (hold X, press Square) the black bars appear at the sides"). The blur is
+  not only an event effect: every action pack's hero script (entry 2) has
+  two moves (animations `0x2036` and `0x204E`) that write `blurOn = 1` and
+  the tint `0x9B` through object-script space 4 (`g_Render`; `SET_B`
+  index `0x1068`), and some enemy-group files do the same (a scan of
+  every stage file of disc 1 for the instruction words
+  `03 07 04 00 68 10 00 00` + value). There `blurY` is 0, so the two sprites draw
+  the 4:3 frame over itself about 10 % lighter while the game runs at 20
+  frames a second; with the predicate above, the bars came and went in
+  the middle of a fight. The lighter part cannot be carried into the
+  margins (they are not in VRAM), so the predicate now asks for 4:3 only
+  in event scenes, and in play the `ModelWeldReset` hook takes the blur's
+  four packets (`blurTpage[f][1]`, `blur[f][1]`, `blurTpage[f][0]`,
+  `blur[f][0]`, linked in that order at `ot[blurOtz]` of
+  `g_FrameBuf[f]`, `0x80086358 + f × 0x2070 + 0x70`) out of the ordering
+  table being built: one link rewritten, the table is cleared again next
+  frame, the packets stay as they are. The slow motion stays. Checked with
+  `blurOn` held at 1 in play from test state 10: wide in all 103 samples,
+  `dv.ws.play_blur_hidden` 80 frames, no lighter rectangle; in the 1/7
+  event scene (sub-mode 5) the blur still presents at 4:3;
+  `tests/test_widescreen.py on` 9/9. The special's exact input was not
+  reproduced here (the script tests the held Attack and Magic actions and
+  a pressed Jump).
 - **Dialogue border** (2026-11-17, "the dialogue bar does not span the
   screen"). The message window's black band is a 384-wide TILE the renderer
   already extends; its top border is six identical 64 × 8 sprites from x 0

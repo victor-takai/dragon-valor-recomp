@@ -78,7 +78,9 @@ the native 60 Hz version.
   sprites of prim record 16, collapsed by the plugin (`BACKLOG.md`,
   section F). After the player's play test (2026-11-17): the magic / item
   menu, the screen transitions and the event motion blur present at 4:3
-  with side bars (they only cover the 4:3 frame), and the dialogue
+  with side bars (they only cover the 4:3 frame; the blur only in event
+  scenes: in play, where the hero's specials switch it on, the frame stays
+  wide and the blur is left out), and the dialogue
   window's top border runs to both edges; the streaks in the left margin
   (town of 1/7) were the left-side twin of the noise block (off-frame
   lens sprites drawn inverted) and are collapsed by the same hook. Black
