@@ -1117,11 +1117,30 @@ worked examples this one follows.
   `ws_nw` (mode 2 = native-wide engaged), `gpu_state` → `ws.*`
   (`game_mode`, `present_native_43`, `x_margin`), `present_shot path=` for
   the window image (`shot` is the canonical 4:3 VRAM only).
-- **HUD** stays at its 4:3 positions (HP/MP bars 64 columns in from the
-  left edge at 16:9, enemy counter the same from the right). The
-  framework's `nw_hud_corners` thirds shift is left off: ENHANCEMENTS.md
-  records composite tears (dialogue boxes split) on the title that tried it,
-  and this game's tutorial boxes span the full width.
+- **HUD at the edges** (2026-11-18; until then it stayed at its 4:3
+  positions, the HP / MP block 64 columns in from the left edge at 16:9,
+  and the player asked for it at the edge). The framework's
+  `nw_hud_corners` thirds shift stays off (ENHANCEMENTS.md records
+  composite tears on the title that tried it, and this game's tutorial
+  boxes span the full width); instead the plugin names the HUD's own
+  primitives. The decomp rebuilt the HUD (`src/main/r2A_hud.c`,
+  `include/dv/r2A_hud.h`): 61 elements built once by `HudInit`, pointers in
+  `XbHudState.prim[]` at `0x8009FAF8 + 0x0C`, two copies each (one per
+  display buffer, back to back), eight groups each opened by a DR_OFFSET
+  and hung on `g_Transition.ot` by `HudLinkGroups`. Every frame, in the
+  `ModelWeldReset` hook (inside `FrameDraw`, after the mode handler's
+  `HudUpdate` and before the HUD is drawn), each element of a corner group
+  is tagged with `gpu_ws_tag_hud_prim` (valid for that frame and packet
+  content; the address is the word before the drawing command, so a
+  T-SPRT's E1 word is skipped: tagging the packet's head left those
+  pieces behind and split the HP bar in the first try) with its edge: left
+  for the spell icon and name, HP / MP and the enemy gauge (bottom left)
+  and the keys, right for the enemies-left counter, the pop-up flashes by
+  the half they sit in; the title card and the pick-up banner (its icon
+  flies in from the pickup's place in the world) stay. Seen in a 16:9
+  capture of test state 10: the spell frame at x 60 of 1834 instead of
+  286, the HP / MP block whole; 60 fps; `tests/test_widescreen.py` 9/9.
+  The counter, gauge and key icons were not on screen in that capture.
 - **Culling: left stock** (widened at 14:00 on 2026-10-15, withdrawn the
   same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
   --emit-ws-sites` (`cmake --build build-recompiler --target

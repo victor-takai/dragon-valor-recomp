@@ -117,6 +117,7 @@
  * predicate, so it belongs to this session's plugin like the world one. */
 void gpu_ws_set_native_scene_predicate(int (*predicate)(void));
 void gpu_ws_tag_repeat_rect(uint32_t prim, int32_t period);
+void gpu_ws_tag_hud_prim(uint32_t prim, int anchor);
 
 static int s_enabled;
 /* The predicate runs on every primitive and GTE projection, so the mode byte
@@ -257,6 +258,63 @@ static void dv_ws_hide_play_blur(uint32_t frame)
     }
 }
 
+/* The HUD at the wide frame's edges (the player, 2026-11-18: in widescreen
+ * the HP / MP block sat 64 columns in from the left edge). The HUD (decomp
+ * src/main/r2A_hud.c, include/dv/r2A_hud.h) is 61 elements built once by
+ * HudInit, their pointers in XbHudState.prim[] at g_GameState +0x0C, two
+ * copies each (one per display buffer, back to back), in eight groups that
+ * each start with a DR_OFFSET; HudLinkGroups hangs the enabled groups on
+ * g_Transition.ot, drawn after the 3D frame. Each frame, after HudUpdate
+ * (the mode handler) and before that draw (FrameDraw calls ModelWeldReset in
+ * between), every element of a corner group is tagged with its edge
+ * (gpu_ws_tag_hud_prim, valid for this frame and this packet content): the
+ * renderer moves it by the reveal, native-wide only, as one piece with its
+ * group. Left: the spell icon and name, HP / MP, the enemy gauge (bottom
+ * left), the keys. Right: the enemies-left counter. The pop-up flashes
+ * follow the element they flash over (left or right half). The title card
+ * and the pick-up banner (its icon flies in from the pickup's place in the
+ * world) stay where they are. */
+#define DV_HUD_STATE          0x8009FAF8u   /* XbHudState (= g_GameState) */
+#define DV_HUD_PRIMS          (DV_HUD_STATE + 0x0Cu)
+#define DV_HUD_COUNT          61u
+
+static int dv_ws_hud_anchor(uint32_t i)
+{
+    if (i >= 6u && i <= 40u) return -1;    /* spell 6..8, HP / MP 9..34, gauge 35..40 */
+    if (i >= 57u && i <= 60u) return -1;   /* keys */
+    if (i >= 52u && i <= 56u) return 1;    /* enemies-left counter */
+    if (i >= 1u && i <= 5u) return 2;      /* pop-up icons: by their x */
+    return 0;                              /* the groups' DR_OFFSETs, title, banner */
+}
+
+static void dv_ws_tag_hud(void)
+{
+    uint32_t i, b;
+    if (psx_mod_read_word(DV_HUD_STATE) != 1u) return;   /* 1: the HUD runs */
+    for (i = 0; i < DV_HUD_COUNT; i++) {
+        int anchor = dv_ws_hud_anchor(i);
+        uint32_t p = psx_mod_read_word(DV_HUD_PRIMS + i * 4u), len;
+        if (!anchor || !dv_ws_ram_ptr(p)) continue;
+        len = psx_mod_read_word(p) >> 24;                /* the P_TAG's word count */
+        if (len < 3u || len > 12u) continue;             /* also skips a DR_OFFSET (2 words) */
+        for (b = 0; b < 2u; b++) {
+            uint32_t q = p + b * (len + 1u) * 4u, w = q + 4u, end = q + 4u + len * 4u;
+            int a = anchor;
+            /* the drawing command, after the state words (a T-SPRT's E1
+             * tpage, nops): the renderer keys a tag on the word before it,
+             * as for the dialogue border above */
+            while (w < end) {
+                uint32_t c = psx_mod_read_word(w) >> 24;
+                if (c != 0u && (c < 0xE1u || c > 0xE6u)) break;
+                w += 4u;
+            }
+            if (w + 4u >= end) continue;
+            if (a == 2) a = (int16_t)(psx_mod_read_word(w + 4u) & 0xFFFFu) < 192 ? -1 : 1;
+            gpu_ws_tag_hud_prim(w - 4u, a);
+        }
+    }
+}
+
 static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
 {
     uint32_t frame, list, i, k, hidden = 0;
@@ -265,6 +323,7 @@ static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
     if (!s_enabled) return;
     frame = psx_mod_read_byte(DV_RENDER_FRAME) & 1u;
     dv_ws_tag_dialogue_border(frame);
+    dv_ws_tag_hud();
     dv_ws_hide_play_blur(frame);
     for (list = 0; list < 2u; list++) {
         uint32_t count = psx_mod_read_word(DV_RENDER_COUNTS + list * 4u);
