@@ -5,12 +5,12 @@
                                      [--build build-debug] [--port N] [--play SECONDS] [--weapon HERO2]
 
 --state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
---menu-weapon HERO3|hero then picks a weapon on the menu's Weapon row (the
-row after Play as): the stage must restart with it.
---weapon HERO2 sets the feature's `weapon` option: HERO holds HERO2's weapon
-(the reference then comes from `heroswap.py build ... --weapon A S` with
-HERO2's kit stage, e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen
-with Mihael's weapon).
+--menu-weapon W then picks weapon model W (or `hero`) on the menu's Weapon
+row (the row after Play as): the stage must restart with it.
+--weapon W sets the feature's `weapon` option: HERO holds weapon model W
+(clovis prologue felippe soul kadum dark flame red purple; the reference
+then comes from `heroswap.py build ... --weapon A S` with W's source stage,
+e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen with Kadum).
 --menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Experimental > Play as
 row: the stage must restart with HERO2 once the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
@@ -63,6 +63,9 @@ HERO_INDEX = 0x80086318    # g_Hero.index
 HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
 HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
+# the `weapon` option's values, in the menu row's order (kWeapons of the plugin
+# and their source stages: 1/1 0/1 4/3 4/15 8/1 10/1 10/2 11/1 12/6)
+WEAPONS = ["hero", "clovis", "prologue", "felippe", "soul", "kadum", "dark", "flame", "red", "purple"]
 DISC2 = ROOT.parent / "Dragon Valor (USA) (Disc 2)" / "Dragon Valor (USA) (Disc 2).cue"
 
 
@@ -207,8 +210,13 @@ hero = "{hero_name}"
         t0 = time.time()
         while time.time() - t0 < 15 and rd(MODE, 1)[0] == 8:
             time.sleep(0.5)
-        time.sleep(6)
-        cli("press", "cross")
+        # the prompt ignores the pad until it is up (its state 2): one press
+        # after a fixed wait was missed now and then, so Cross again and
+        # again while the GAME OVER (mode 9) lasts
+        t0 = time.time()
+        while time.time() - t0 < 40 and rd(MODE, 1)[0] == 9:
+            cli("press", "cross")
+            time.sleep(0.7)
         t0 = time.time()
         while time.time() - t0 < 60 and not (rd(MODE, 1)[0] == 8 and time.time() - t0 > 4):
             time.sleep(0.5)
@@ -253,8 +261,8 @@ hero = "{hero_name}"
         text = log_text()
         check(f"{ts} laid out for {hero_name.capitalize()}", f"stage {ts} as {hero_name.capitalize()}" in text)
         if weapon:
-            check(f"{hero_name.capitalize()} holds {weapon.capitalize()}'s weapon",
-                  f"stage {ts} as {hero_name.capitalize()} with the weapon of {weapon.capitalize()}" in text)
+            check(f"{hero_name.capitalize()} holds weapon {weapon}",
+                  f"stage {ts} as {hero_name.capitalize()} with weapon {weapon}:" in text)
         check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
         check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
         check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
@@ -348,12 +356,12 @@ hero = "{hero_name}"
 
         if menu_weapon:
             # The 5th Experimental row, Weapon (0 = the hero's own, 1.. the
-            # heroes' weapons): a new choice restarts the stage like Play as.
+            # weapon models): a new choice restarts the stage like Play as.
             def wkey(name, n=1):
                 for _ in range(n):
                     rpc(port, "host_key", name=name)
                     time.sleep(0.35)
-            values = ["hero"] + HEROES
+            values = WEAPONS
             steps = values.index(menu_weapon) - values.index(weapon or "hero")
             time.sleep(2)
             restarts0 = log_text().count("restarts as")
@@ -369,7 +377,7 @@ hero = "{hero_name}"
                 time.sleep(0.3)
             time.sleep(4)
             tail = log_text().split("restarts as")[-1]
-            want = (f"stage {ts} as {hero_name.capitalize()} with the weapon of {menu_weapon.capitalize()}"
+            want = (f"stage {ts} as {hero_name.capitalize()} with weapon {menu_weapon}:"
                     if menu_weapon != "hero" else f"stage {ts} as {hero_name.capitalize()}:")
             check(f"menu Weapon -> {menu_weapon}: {ts} restarted with it", want in tail,
                   next((l for l in tail.splitlines() if f"stage {ts} as" in l), "no stage line after the restart"))

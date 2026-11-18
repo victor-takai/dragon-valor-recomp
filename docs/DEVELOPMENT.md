@@ -1381,12 +1381,33 @@ load were not affected in play).
 
 **Weapon (2026-11-17, the player's request: "being able to swap the hero's
 sword too").** A second option of the feature, `weapon` (`hero` = the
-hero's own, else a hero's name), and a menu row Weapon after Play as (a
+hero's own, else a weapon model), and a menu row Weapon after Play as (a
 change restarts the stage the same way). The weapon is node 2 of the hero
 object (decomp `docs/targets/hero-swap.md`, *The weapon*: the node a
 spell's power-up trades, the one with the sword trail's attach points, in
 no weld list); a model only, damage stays STR and the moves the hero's.
-`arm_kit` builds an armed kit: the hero's kit with the weapon hero's node-2
+The first version offered "each hero's weapon" from the kits (each hero's
+first stage), and the player saw that most were the same sword: of the 9
+kits, 7 hold one and the same model (Clovis's), only Anna's and Mihael's
+differ. A scan of node 2 in all 226 action stages (geometry, and the look
+decoded through the CLUTs) found the models (2026-11-18), now the option's
+values, each taken from the first stage that has it: `clovis` Clovis's
+sword (1/1; the first weapon of Arlen, Kodel, Phillip, Gerome and Anita,
+111 stages), `prologue` (0/1..0/5: other geometry, same texture),
+`felippe` Felippe's first sword (4/3..4/13), `soul` Soul (Felippe from
+4/15, after 4/13's scene gives it; Anna's in area 7), `kadum` Kadum
+(Mihael's, area 8; 5/19..5/24's twin holds the same model with another
+palette, so Kadum is no texture-only variant), `dark` (10/1, 10/4, 10/6,
+10/7), `flame` (10/2 and 46 more stages of areas 10..12), `red` (11/1,
+11/4, 11/6, 11/7) and `purple` (12/6, 12/7). 12/1 and 12/4's weapon draws
+from a page an earlier stage leaves at VRAM (576, 256) and is not
+offered. The disc scan keeps each model's node-2 prims and verts and its
+stage's last hero-page TIM (cache `weapon_<id>.bin`); a disc-2 model is
+offered once disc 2 has been read, like a disc-2 hero (that read used to
+be tried once at activation, before the disc roster is registered, and
+then never again: now the try only counts once the other disc's image
+opens). A model that is the hero's own (Arlen with Clovis's sword) needs
+no rebuild. `arm_kit` builds an armed kit: the hero's kit with the model's node-2
 prims and verts, and the texels its hero-page prims use copied into the
 hero's page where the hero's other 13 nodes use none (its own weapon's are
 free then); prims sharing texels move together, an island keeps its place
@@ -1399,23 +1420,29 @@ armed kit wherever it used the kit (file 0, the pack, scene copies,
 texture reloads), so scenes show the weapon too. The swap now also runs
 when only the weapon differs (the stage's own hero, rebuilt from its kit
 with the other weapon; its portrait and dialogue names are left alone).
-All 72 pairs fit (Anna's and Mihael's pages grow for some). Checked:
-`tests/test_heroswap.py arlen --weapon mihael --ref <decomp>/build/heroswap/2-1_w8-1_to_1-7`
-18/18 (pack head in RAM and hero page image + CLUTs in VRAM equal to
-`build 2 1 1 7 --prune --weapon 8 1`), `arlen --menu-weapon anita` 14/14
-(the row restarts 1/7 with Anita's weapon), `kodel --menu stage` 14/14;
-close-ups after a Continue into 1/7: Arlen with Mihael's blue blade,
-Clovis (Each stage's own) with Anna's golden weapon, Anna with Clovis's
-sword, all textured right. After a save-state load the weapon is read back
-too: the hero object's node 2 (`g_Objects[0]` `0x8008A4E0`, `nodes` at
-+0x80, node 2's verts at +0x6C) points at a vertex entry that is byte for
-byte one kit's node-2 entry (an armed stage holds the weapon kit's
+Every hero / kit-weapon pair fits (Anna's and Mihael's pages grow for
+some). Checked: `tests/test_heroswap.py arlen --weapon kadum --ref
+<decomp>/build/heroswap/2-1_w8-1_to_1-7 --menu-weapon flame` 20/20 (pack
+head in RAM and hero page image + CLUTs in VRAM equal to `build 2 1 1 7
+--prune --weapon 8 1`; the menu row restarts 1/7 with the flame sword),
+`anna --weapon felippe --ref <decomp>/build/heroswap/7-1_w4-3_to_1-7`
+18/18 (`build 7 1 1 7 --prune --weapon 4 3`), `kodel --menu stage` 14/14;
+close-ups of Arlen after a Continue into 1/7 with each of the eight other
+models, all textured right (Kadum's split ice-blue blade and ring pommel,
+Soul's gold, the flame sword's fiery tip, the red weapon's thin white
+blade), and earlier Clovis (Each stage's own) with Soul and Anna with
+Clovis's sword. (The test's GAME OVER answer pressed Cross once after a
+fixed wait and sometimes missed the prompt; it now presses while mode 9
+lasts.) After a save-state load the weapon is read back too: the hero
+object's node 2 (`g_Objects[0]` `0x8008A4E0`, `nodes` at +0x80, node 2's
+verts at +0x6C) points at a vertex entry that is byte for byte the hero
+kit's (its own) or one model's (an armed stage holds the model's entry
 unchanged), so the swap state is set with the armed kit again ("save
-state 1/7 played as Arlen with the weapon of Mihael: its scenes follow";
-the stage's own hero with another weapon: "... as Clovis with the weapon
-of Anna"), and a state whose weapon is not the chosen one gets the
-notice "Save made with Clovis's weapon: Anna's from the next stage".
-Checked in one session with a scratch slot (deleted), as above.
+state 1/7 played as Arlen with weapon kadum: its scenes follow"; the
+stage's own hero with another weapon: "... as Clovis with weapon soul"),
+and a state whose weapon is not the chosen one gets the notice "Save made
+with the hero's own weapon: Soul from the next stage". Checked in one
+session with a scratch slot (deleted), as above.
 
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild

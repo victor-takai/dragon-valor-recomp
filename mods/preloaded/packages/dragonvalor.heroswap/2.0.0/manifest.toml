@@ -76,7 +76,7 @@ label = "Anita"
 feature = "play-as"
 id = "weapon"
 label = "Weapon"
-description = "The weapon the hero holds: its own, or another hero's (the model and its texture; damage and moves stay the hero's). With Each stage's own above, every stage's hero holds this weapon. Applies at the next stage load."
+description = "The weapon the hero holds: its own, or one of the weapon models the game's heroes hold across both discs (the model and its texture; damage and moves stay the hero's). With Each stage's own above, every stage's hero holds it. The disc-2 weapons (Kadum and the last four) are offered once disc 2 has been started with this on. Applies at the next stage load."
 type = "choice"
 default = "hero"
 
@@ -86,39 +86,39 @@ label = "The hero's own"
 
 [[option.choice]]
 value = "clovis"
-label = "Clovis's"
+label = "Clovis's sword"
 
 [[option.choice]]
-value = "arlen"
-label = "Arlen's"
-
-[[option.choice]]
-value = "kodel"
-label = "Kodel's"
+value = "prologue"
+label = "Prologue sword"
 
 [[option.choice]]
 value = "felippe"
-label = "Felippe's"
+label = "Felippe's first sword"
 
 [[option.choice]]
-value = "phillip"
-label = "Phillip's"
+value = "soul"
+label = "Soul"
 
 [[option.choice]]
-value = "gerome"
-label = "Gerome's"
+value = "kadum"
+label = "Kadum"
 
 [[option.choice]]
-value = "anna"
-label = "Anna's"
+value = "dark"
+label = "Dark sword (10/1)"
 
 [[option.choice]]
-value = "mihael"
-label = "Mihael's"
+value = "flame"
+label = "Flame sword (areas 10-12)"
 
 [[option.choice]]
-value = "anita"
-label = "Anita's"
+value = "red"
+label = "Red weapon (11/1)"
+
+[[option.choice]]
+value = "purple"
+label = "Purple weapon (12/6)"
 
 [[plugin]]
 feature = "play-as"

@@ -104,6 +104,29 @@ static const int kKitSource[HERO_COUNT][2] = {
     {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1}};
 static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5};   /* 0x8006CC70 */
 
+/* The weapon models (hero node 2) of the action stages of both discs, by
+ * geometry and look (a scan of the 226 stages, 2026-11-18; decomp
+ * docs/targets/hero-swap.md, The weapon): each is taken from the first
+ * stage that has it. Clovis's sword is also the first weapon of Arlen,
+ * Kodel, Phillip, Gerome and Anita (111 stages). Soul: Felippe's from 4/15
+ * (4/13's scene gives it) and Anna's (area 7). Kadum: Mihael's (area 8); the
+ * twin of 5/19..5/24 holds the same model with another palette. 12/1 and
+ * 12/4's weapon is drawn from a page an earlier stage leaves in VRAM
+ * (576, 256): not offered. */
+#define WEAPON_COUNT 9
+static const struct { const char* id; const char* name; int area, stage; } kWeapons[WEAPON_COUNT] = {
+    {"clovis",   "Clovis's sword",        1, 1},
+    {"prologue", "the prologue sword",    0, 1},
+    {"felippe",  "Felippe's first sword", 4, 3},
+    {"soul",     "Soul",                  4, 15},
+    {"kadum",    "Kadum",                 8, 1},
+    {"dark",     "the dark sword",        10, 1},
+    {"flame",    "the flame sword",       10, 2},
+    {"red",      "the red weapon",        11, 1},
+    {"purple",   "the purple weapon",     12, 6},
+};
+#define DV_WEAPON_NODE  2u
+
 /* g_Hero.index during an area's chapter: ChapterInit writes g_HeroByArea,
  * ChapterStashMerge 8 in area 12 (decomp src/main/exeB_stats.c). */
 static int dv_area_hero(int area) { return area == 12 ? 8 : (area >= 0 && area < 13 ? kHeroByArea[area] : -1); }
@@ -394,6 +417,11 @@ typedef struct {
 } Kit;
 
 static Kit s_kits[HERO_COUNT];
+
+/* A weapon model: its stage's hero node-2 prims and verts entries and the
+ * stage's (last) hero-page TIM, where the weapon's texels and CLUTs are. */
+typedef struct { int ready; Buf prims, verts, page; } WKit;
+static WKit s_wkits[WEAPON_COUNT];
 
 /* The world map's walker (decomp src/map/mod2_worldmap.c, MapWalkerDraw):
  * an 8-bit sprite on page (832, 0), 8 frames of 32 px per direction, CLUT
@@ -882,6 +910,30 @@ static uint8_t* disc_data_cdr(int disc, uint32_t* size, uint32_t* key)
     return data;
 }
 
+/* A weapon model from its stage's file 0 and action pack (tools/heroswap.py
+ * arm takes the same: node 2's prims and verts, file 0's last page TIM). */
+static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1)
+{
+    static Ct c0, cp;
+    static Tim tims[64];
+    uint32_t vab, te, pe, ve, last = 0, lastlen = 0;
+    int nt, j;
+    if (!ct_parse(&cp, f1, l1) || !ct_parse(&c0, f0, l0) || !file0_parts(&c0, &vab, &te)) return 0;
+    pe = le32(CT_E(&cp, 0) + 16 + DV_WEAPON_NODE * DV_NODE + 0x68);
+    ve = le32(CT_E(&cp, 0) + 16 + DV_WEAPON_NODE * DV_NODE + 0x6C);
+    if (!pe || pe >= cp.n || !ve || ve >= cp.n) return 0;
+    nt = tim_chain(CT_E(&c0, te), CT_L(&c0, te), tims, 64, NULL);
+    for (j = 0; j < nt; j++)
+        if (tim_in_page(&tims[j])) { last = tims[j].start; lastlen = tims[j].end - tims[j].start; }
+    if (!lastlen) return 0;
+    w->prims.n = w->verts.n = w->page.n = 0;
+    if (!buf_put(&w->prims, CT_E(&cp, pe), CT_L(&cp, pe)) || !buf_put(&w->verts, CT_E(&cp, ve), CT_L(&cp, ve)) ||
+        !buf_put(&w->page, CT_E(&c0, te) + last, lastlen))
+        return 0;
+    w->ready = 1;
+    return 1;
+}
+
 /* Table and kits of disc 0 (areas 0..6) or 1 (7..12). */
 static int disc_scan(int disc)
 {
@@ -939,6 +991,10 @@ static int disc_scan(int disc)
                         fprintf(stderr, "%s: no kit for %s from %d/%d\n", DV_HS_PLUGIN, kHeroNames[h], area, stage);
                     }
                 }
+            for (h = 0; h < WEAPON_COUNT; h++)
+                if (kWeapons[h].area == area && kWeapons[h].stage == stage && !s_wkits[h].ready &&
+                    !weapon_take(&s_wkits[h], f0, l0, f1, l1))
+                    fprintf(stderr, "%s: no %s from %d/%d\n", DV_HS_PLUGIN, kWeapons[h].name, area, stage);
         }
     }
     free(data);
@@ -1030,6 +1086,39 @@ static int kit_load(int h)
 
 #define DV_MAP_MAGIC 0x4D485644u   /* "DVHM" */
 #define DV_MAP_VER   1u
+#define DV_WEAPON_MAGIC 0x57485644u   /* "DVHW" */
+#define DV_WEAPON_VER   1u
+
+static void weapon_save(int w)
+{
+    char path[256];
+    const WKit* k = &s_wkits[w];
+    FILE* f;
+    int ok;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%s.bin", kWeapons[w].id);
+    if (!(f = fopen(path, "wb"))) return;
+    ok = w32(f, DV_WEAPON_MAGIC) && w32(f, DV_WEAPON_VER) && w32(f, (uint32_t)(kWeapons[w].area << 8 | kWeapons[w].stage)) &&
+         wbuf(f, k->prims.p, k->prims.n) && wbuf(f, k->verts.p, k->verts.n) && wbuf(f, k->page.p, k->page.n);
+    fclose(f);
+    if (!ok) remove(path);
+}
+
+static int weapon_load(int w)
+{
+    char path[256];
+    WKit* k = &s_wkits[w];
+    FILE* f;
+    uint32_t v;
+    int ok;
+    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%s.bin", kWeapons[w].id);
+    if (!(f = fopen(path, "rb"))) return 0;
+    ok = r32(f, &v) && v == DV_WEAPON_MAGIC && r32(f, &v) && v == DV_WEAPON_VER && r32(f, &v) &&
+         v == (uint32_t)(kWeapons[w].area << 8 | kWeapons[w].stage) && rbuf(f, &k->prims, 0x100000) &&
+         rbuf(f, &k->verts, 0x100000) && rbuf(f, &k->page, 0x100000);
+    fclose(f);
+    k->ready = ok && k->prims.n && k->verts.n && k->page.n;
+    return k->ready;
+}
 
 static void mapkit_save(int h)
 {
@@ -1129,8 +1218,10 @@ static void disc_prepare(int disc)
     cache_dir();
     for (h = 0; h < HERO_COUNT; h++) if (!s_kits[h].ready) kit_load(h);
     for (h = 0; h < HERO_COUNT; h++) if (!s_mapkits[h].ready) mapkit_load(h);
+    for (h = 0; h < WEAPON_COUNT; h++) if (!s_wkits[h].ready) weapon_load(h);
     for (h = 0; h < HERO_COUNT; h++)
         need |= (!s_kits[h].ready || !s_mapkits[h].ready) && (kKitSource[h][0] >= 7) == disc;
+    for (h = 0; h < WEAPON_COUNT; h++) need |= !s_wkits[h].ready && (kWeapons[h].area >= 7) == disc;
     if (!need && table_load(disc, key)) {
         fprintf(stderr, "%s: disc %d from the cache (%d action stages)\n", DV_HS_PLUGIN, disc + 1, s_nstages[disc]);
         return;
@@ -1144,8 +1235,12 @@ static void disc_prepare(int disc)
         if (s_kits[h].ready && (kKitSource[h][0] >= 7) == disc) kit_save(h);
     for (h = 0; h < HERO_COUNT; h++)
         if (s_mapkits[h].ready && (kKitSource[h][0] >= 7) == disc) mapkit_save(h);
+    for (h = 0; h < WEAPON_COUNT; h++)
+        if (s_wkits[h].ready && (kWeapons[h].area >= 7) == disc) weapon_save(h);
     fprintf(stderr, "%s: disc %d read: %d action stages, kits:", DV_HS_PLUGIN, disc + 1, s_nstages[disc]);
     for (h = 0; h < HERO_COUNT; h++) if (s_kits[h].ready) fprintf(stderr, " %s", kHeroNames[h]);
+    fprintf(stderr, "; weapons:");
+    for (h = 0; h < WEAPON_COUNT; h++) if (s_wkits[h].ready) fprintf(stderr, " %s", kWeapons[h].id);
     fprintf(stderr, "\n");
 }
 
@@ -1156,10 +1251,14 @@ static void ensure_disc(void)
 {
     static int tried_other[2];
     int disc = mounted_disc(), h, missing = 0;
+    uint32_t key;
     if (disc < 0) return;
     disc_prepare(disc);
     for (h = 0; h < HERO_COUNT; h++) missing |= !s_kits[h].ready && (kKitSource[h][0] >= 7) != disc;
-    if (missing && !tried_other[1 - disc]) {
+    for (h = 0; h < WEAPON_COUNT; h++) missing |= !s_wkits[h].ready && (kWeapons[h].area >= 7) != disc;
+    /* (only once its image opens: at activation the disc roster may not be
+     * registered yet, and that must not count as the one try) */
+    if (missing && !tried_other[1 - disc] && disc_key(1 - disc, &key)) {
         tried_other[1 - disc] = 1;
         disc_prepare(1 - disc);
     }
@@ -1181,10 +1280,11 @@ static uint16_t s_name_old[16], s_name_new[16];   /* the stage hero's and the ch
 static int s_name_old_n, s_name_new_n;
 static int s_resync;                       /* a save state was loaded: re-read the swap from RAM */
 
-static int s_weapon = -1;                  /* chosen weapon (a hero's), -1 = the hero's own */
+static int s_weapon = -1;                  /* chosen weapon model (kWeapons), -1 = the hero's own */
 static int s_swap_armed, s_swap_same;      /* the swap's kit is the armed one / the stage's own hero */
-static Kit s_armed;                        /* a hero's kit with another hero's weapon (arm_kit) */
+static Kit s_armed;                        /* a hero's kit with another weapon model (arm_kit) */
 static const Kit* arm_kit(int hero, int weapon);
+static int weapon_is_own(int hero, int w);
 
 static int option_hero(const char* id)
 {
@@ -1199,8 +1299,13 @@ static int option_hero(const char* id)
 
 static void read_options(void)
 {
+    char v[32];
+    int w;
     s_hero = option_hero("hero");
-    s_weapon = option_hero("weapon");
+    s_weapon = -1;
+    if (psx_mod_current_option_value("weapon", v, sizeof v) ||
+        psx_mod_option_value(DV_HS_PKG, DV_HS_FEATURE, "weapon", v, sizeof v))
+        for (w = 0; w < WEAPON_COUNT; w++) if (!strcmp(v, kWeapons[w].id)) s_weapon = w;
 }
 
 static void ram_read(uint32_t addr, uint8_t* out, uint32_t n)
@@ -1280,9 +1385,15 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     dv_heroswap_restart_request = 0;   /* a stage loads anyway */
     if (!s_enabled) return;
     ensure_disc();
-    eh = s_hero >= 0 ? s_hero : ah;            /* the hero played, its weapon */
-    ew = s_weapon >= 0 ? s_weapon : eh;
-    if (eh < 0 || !(r = stage_find(area, stage)) || (eh == ah && ew == eh)) {
+    eh = s_hero >= 0 ? s_hero : ah;            /* the hero played, its weapon model (-1: its own) */
+    ew = s_weapon;
+    if (eh >= 0 && ew >= 0 && !s_wkits[ew].ready) {
+        fprintf(stderr, "%s: %s not read yet (start disc %d once): the hero's own weapon\n", DV_HS_PLUGIN,
+                kWeapons[ew].name, kWeapons[ew].area >= 7 ? 2 : 1);
+        ew = -1;
+    }
+    if (eh >= 0 && ew >= 0 && weapon_is_own(eh, ew)) ew = -1;
+    if (eh < 0 || !(r = stage_find(area, stage)) || (eh == ah && ew < 0)) {
         /* nothing to rebuild (the stage's own hero with its own weapon, or
          * not an action stage: world map, scenes, the save screen); a chosen
          * hero's name stays in g_Hero.index, so the menus and the save say
@@ -1292,11 +1403,13 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
         return;
     }
     s_armed.ready = 0;                          /* the kits may be new (a disc change) */
-    k = ew != eh ? arm_kit(eh, ew) : &s_kits[eh];
+    k = ew >= 0 ? arm_kit(eh, ew) : &s_kits[eh];
     if (!k || !k->ready) {
-        int miss = !s_kits[eh].ready ? eh : ew;
-        fprintf(stderr, "%s: stage %d/%d: no %s kit yet (start the disc that has %d/%d once)\n", DV_HS_PLUGIN,
-                area, stage, kHeroNames[miss], kKitSource[miss][0], kKitSource[miss][1]);
+        if (!s_kits[eh].ready)
+            fprintf(stderr, "%s: stage %d/%d: no %s kit yet (start the disc that has %d/%d once)\n", DV_HS_PLUGIN,
+                    area, stage, kHeroNames[eh], kKitSource[eh][0], kKitSource[eh][1]);
+        else
+            fprintf(stderr, "%s: stage %d/%d: %s not armed\n", DV_HS_PLUGIN, area, stage, kWeapons[ew].name);
         restore_hero_index();
         return;
     }
@@ -1330,14 +1443,14 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     s_swap_area = area;
     s_swap_stage = stage;
     s_swap_hero = eh;
-    s_swap_armed = ew != eh;
+    s_swap_armed = ew >= 0;
     s_swap_same = eh == ah;                     /* only the weapon changes: portrait and names stay */
     s_orig_portrait.n = 0;
     memset(s_hero_verts_len, 0, sizeof s_hero_verts_len);   /* noted again from this stage's pack */
     s_name_old_n = s_name_new_n = 0;
     fprintf(stderr, "%s: stage %d/%d as %s%s%s: file 0 %u B, pack %u B, row 0 %u words, slot 1 %u B\n",
-            DV_HS_PLUGIN, area, stage, kHeroNames[eh], ew != eh ? " with the weapon of " : "",
-            ew != eh ? kHeroNames[ew] : "", f0, pk, sizes[0], snd[1]);
+            DV_HS_PLUGIN, area, stage, kHeroNames[eh], ew >= 0 ? " with weapon " : "",
+            ew >= 0 ? kWeapons[ew].id : "", f0, pk, sizes[0], snd[1]);
 }
 
 /* The kit the swap uses: the chosen hero's, or the armed one. */
@@ -1533,18 +1646,18 @@ static uint32_t kit_node_ref(const Kit* k, uint32_t i, uint32_t field)
  * The weapon is node 2 of the hero object (a spell's power-up trades exactly
  * this node, decomp src/main/exeC_hero.c; no weld list names it). Its
  * texture is in its hero's page (4-bit, the CLUTs in the page's bottom
- * rows) where another hero's body has its own. To give hero A hero B's
- * weapon, B's node-2 prims and verts replace A's, and the texels B's weapon
- * prims use are copied into A's page where A's other 13 nodes use none (A's
- * own weapon texels are free then). Prims that share texels move together
- * ("islands", u aligned to whole 16-bit units); an island keeps its place if
- * free, else takes the first free place scanning rows, then units. B's CLUTs
- * keep their slot if A's body leaves it free, else take the first free slot
- * of A's CLUT block. If the islands do not fit, A's image grows to 64 units
- * x the CLUT block's first row: on both discs nothing but the hero's own
- * texture uploads into the page (file 0, the twin variants neutralised
- * below, 0/1's reload of the hero texture). All 72 pairs fit. */
-#define DV_WEAPON_NODE  2u
+ * rows) where another hero's body has its own. To give hero A weapon model
+ * W (kWeapons: node 2 of W's stage), W's node-2 prims and verts replace A's,
+ * and the texels W's prims use are copied from W's stage's page into A's
+ * where A's other 13 nodes use none (A's own weapon texels are free then).
+ * Prims that share texels move together ("islands", u aligned to whole
+ * 16-bit units); an island keeps its place if free, else takes the first
+ * free place scanning rows, then units. W's CLUTs keep their slot if A's
+ * body leaves it free, else take the first free slot of A's CLUT block. If
+ * the islands do not fit, A's image grows to 64 units x the CLUT block's
+ * first row: on both discs nothing but the hero's own texture uploads into
+ * the page (file 0, the twin variants neutralised below, 0/1's reload of
+ * the hero texture). */
 #define DV_HERO_TPAGE   6u
 #define DV_MAX_TPRIMS   256
 
@@ -1792,8 +1905,24 @@ static int place_weapon(const PageTim* pg, const uint8_t* body, const uint8_t* b
     return 1;
 }
 
-/* The armed kit: hero `hero`'s kit with hero `weapon`'s node 2 (entries and
- * page are this plugin's; the rest is the hero kit's, never freed here). */
+/* Whether weapon model `w` is the one hero `hero`'s kit holds already (the
+ * same node-2 prims and verts): then there is nothing to arm. */
+static int weapon_is_own(int hero, int w)
+{
+    const Kit* hk = &s_kits[hero];
+    const WKit* wk = &s_wkits[w];
+    uint32_t hp, hv;
+    if (!hk->ready || !wk->ready) return 0;
+    hp = kit_node_ref(hk, DV_WEAPON_NODE, 0x68);
+    hv = kit_node_ref(hk, DV_WEAPON_NODE, 0x6C);
+    return hp && hp <= hk->nent && hv && hv <= hk->nent && hk->entlen[hp - 1] == wk->prims.n &&
+           hk->entlen[hv - 1] == wk->verts.n && !memcmp(hk->ent[hp - 1], wk->prims.p, wk->prims.n) &&
+           !memcmp(hk->ent[hv - 1], wk->verts.p, wk->verts.n);
+}
+
+/* The armed kit: hero `hero`'s kit with weapon model `weapon`'s node 2
+ * (entries and page are this plugin's; the rest is the hero kit's, never
+ * freed here). */
 static Buf s_armed_prims;
 static PageTim s_armed_page;
 static int s_armed_hero = -1, s_armed_weapon = -1;
@@ -1807,23 +1936,22 @@ static const Kit* arm_kit(int hero, int weapon)
     static uint8_t body[256 * 256], body_clut[65536 / 8];
     static PageTim src;
     static Tim t[64];
-    const Kit *hk, *wk;
-    uint32_t hp, hv, wp, wv, nn, node, j;
+    const Kit* hk;
+    const WKit* wk;
+    uint32_t hp, hv, nn, node, j;
     uint16_t cfrom[64], cto[64];
     int n, nr, nc, i, nt, grown = 0;
 
     if (s_armed.ready && s_armed_hero == hero && s_armed_weapon == weapon) return &s_armed;
     s_armed.ready = 0;
     s_armed_hero = s_armed_weapon = -1;
-    if (hero < 0 || weapon < 0 || hero >= HERO_COUNT || weapon >= HERO_COUNT) return NULL;
+    if (hero < 0 || weapon < 0 || hero >= HERO_COUNT || weapon >= WEAPON_COUNT) return NULL;
     hk = &s_kits[hero];
-    wk = &s_kits[weapon];
+    wk = &s_wkits[weapon];
     if (!hk->ready || !wk->ready) return NULL;
     hp = kit_node_ref(hk, DV_WEAPON_NODE, 0x68);
     hv = kit_node_ref(hk, DV_WEAPON_NODE, 0x6C);
-    wp = kit_node_ref(wk, DV_WEAPON_NODE, 0x68);
-    wv = kit_node_ref(wk, DV_WEAPON_NODE, 0x6C);
-    if (!hp || hp > hk->nent || !hv || hv > hk->nent || !wp || wp > wk->nent || !wv || wv > wk->nent) return NULL;
+    if (!hp || hp > hk->nent || !hv || hv > hk->nent) return NULL;
     /* the hero's body: texels and CLUTs of its other nodes' hero-page prims */
     memset(body, 0, sizeof body);
     memset(body_clut, 0, sizeof body_clut);
@@ -1842,20 +1970,20 @@ static const Kit* arm_kit(int hero, int weapon)
                 for (u = b.u0; u <= b.u1; u++) body[v * 256 + u] = 1;
         }
     }
-    /* the weapon's prims, its islands; the two pages (each kit's last page TIM) */
-    n = tex_prims(wk->ent[wp - 1], wk->entlen[wp - 1], tp, DV_MAX_TPRIMS);
+    /* the weapon's prims, its islands; the two pages (the weapon's stage's and
+     * the hero kit's last page TIM) */
+    n = tex_prims(wk->prims.p, wk->prims.n, tp, DV_MAX_TPRIMS);
     if (n < 0) return NULL;
-    for (i = 0; i < n; i++) prim_box(wk->ent[wp - 1], &tp[i], &bx[i]);
+    for (i = 0; i < n; i++) prim_box(wk->prims.p, &tp[i], &bx[i]);
     nr = weapon_islands(bx, n, isl, owner);
-    nt = tim_chain(wk->page.p, wk->page.n, t, 64, NULL);
-    if (nt < 1 || !page_parse(&src, wk->page.p + t[nt - 1].start, t[nt - 1].end - t[nt - 1].start)) return NULL;
+    if (!page_parse(&src, wk->page.p, wk->page.n)) return NULL;
     nt = tim_chain(hk->page.p, hk->page.n, t, 64, NULL);
     if (nt < 1 || !page_parse(&s_armed_page, hk->page.p + t[nt - 1].start, t[nt - 1].end - t[nt - 1].start))
         return NULL;
     if (!place_weapon(&s_armed_page, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
         if (!pg_grow(&s_armed_page) ||
             !place_weapon(&s_armed_page, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
-            fprintf(stderr, "%s: %s's weapon does not fit in %s's page\n", DV_HS_PLUGIN, kHeroNames[weapon],
+            fprintf(stderr, "%s: %s does not fit in %s's page\n", DV_HS_PLUGIN, kWeapons[weapon].name,
                     kHeroNames[hero]);
             return NULL;
         }
@@ -1874,7 +2002,7 @@ static const Kit* arm_kit(int hero, int weapon)
         memcpy(pg_clut(&s_armed_page, cto[i]), pg_clut(&src, cfrom[i]), 32);
     }
     s_armed_prims.n = 0;
-    if (!buf_put(&s_armed_prims, wk->ent[wp - 1], wk->entlen[wp - 1])) return NULL;
+    if (!buf_put(&s_armed_prims, wk->prims.p, wk->prims.n)) return NULL;
     for (i = 0; i < n; i++) {
         int du, dv, buf;
         if (owner[i] < 0) continue;
@@ -1893,15 +2021,15 @@ static const Kit* arm_kit(int hero, int weapon)
     s_armed = *hk;
     s_armed.ent[hp - 1] = s_armed_prims.p;
     s_armed.entlen[hp - 1] = s_armed_prims.n;
-    s_armed.ent[hv - 1] = wk->ent[wv - 1];
-    s_armed.entlen[hv - 1] = wk->entlen[wv - 1];
+    s_armed.ent[hv - 1] = wk->verts.p;
+    s_armed.entlen[hv - 1] = wk->verts.n;
     s_armed.page = s_armed_page.tim;
     s_armed.npage = 1;
     s_armed.ready = 1;
     s_armed_hero = hero;
     s_armed_weapon = weapon;
-    fprintf(stderr, "%s: %s with %s's weapon: %d island(s)%s, %d CLUT(s)\n", DV_HS_PLUGIN, kHeroNames[hero],
-            kHeroNames[weapon], nr, grown ? " (page grown)" : "", nc);
+    fprintf(stderr, "%s: %s with %s: %d island(s)%s, %d CLUT(s)\n", DV_HS_PLUGIN, kHeroNames[hero],
+            kWeapons[weapon].name, nr, grown ? " (page grown)" : "", nc);
     return &s_armed;
 }
 
@@ -2517,28 +2645,29 @@ static int originals_from_kit(int ah)
 
 /* The weapon the hero object holds in RAM: the hero whose kit's node-2
  * vertex entry is byte for byte what g_Objects[0].nodes[2].verts points at
- * (an armed stage holds the weapon kit's entry unchanged), `h` tried first;
- * -1 when none matches. */
+ * (an armed stage holds the weapon model's entry unchanged): -1 for hero
+ * `h`'s own (or none recognised), else the weapon model. */
 #define DV_HERO_OBJECT   0x8008A4E0u   /* g_Objects[0] */
 #define DV_OBJ_NODES     0x80u         /* Object.nodes */
-static int weapon_in_ram(int h)
+static int ram_is(uint32_t vp, const uint8_t* b, uint32_t n)
 {
     static uint8_t ram[8192];
-    uint32_t nodes = psx_mod_read_word(DV_HERO_OBJECT + DV_OBJ_NODES), vp, k;
-    int pass;
+    if (!n || n > sizeof ram || vp + n > DV_RAM_END) return 0;
+    ram_read(vp, ram, n);
+    return !memcmp(ram, b, n);
+}
+static int weapon_in_ram(int h)
+{
+    uint32_t nodes = psx_mod_read_word(DV_HERO_OBJECT + DV_OBJ_NODES), vp, e;
+    int w;
     if (nodes < 0x80000000u || nodes >= DV_RAM_END) return -1;
     vp = psx_mod_read_word(nodes + DV_WEAPON_NODE * DV_NODE + 0x6C);
     if (vp < 0x80000000u || vp >= DV_RAM_END) return -1;
-    for (pass = 0; pass < 2; pass++)
-        for (k = 0; k < HERO_COUNT; k++) {
-            const Kit* kt = &s_kits[k];
-            uint32_t e;
-            if ((pass == 0) != ((int)k == h) || !kt->ready) continue;
-            e = kit_node_ref(kt, DV_WEAPON_NODE, 0x6C);
-            if (!e || e > kt->nent || kt->entlen[e - 1] > sizeof ram || vp + kt->entlen[e - 1] > DV_RAM_END) continue;
-            ram_read(vp, ram, kt->entlen[e - 1]);
-            if (!memcmp(ram, kt->ent[e - 1], kt->entlen[e - 1])) return (int)k;
-        }
+    if (s_kits[h].ready && (e = kit_node_ref(&s_kits[h], DV_WEAPON_NODE, 0x6C)) && e <= s_kits[h].nent &&
+        ram_is(vp, s_kits[h].ent[e - 1], s_kits[h].entlen[e - 1]))
+        return -1;
+    for (w = 0; w < WEAPON_COUNT; w++)
+        if (s_wkits[w].ready && ram_is(vp, s_wkits[w].verts.p, s_wkits[w].verts.n)) return w;
     return -1;
 }
 
@@ -2553,8 +2682,8 @@ static void resync_after_load(void)
     if (!s_enabled || psx_mod_read_byte(DV_MODE) != 8 || ah < 0 || h >= HERO_COUNT || !stage_find(area, stage))
         return;   /* not in an action stage: the next stage load decides */
     w = weapon_in_ram(h);
-    if (w < 0) w = h;
-    if ((h != ah || w != h) && s_kits[h].ready) {
+    if (w >= 0 && weapon_is_own(h, w)) w = -1;
+    if ((h != ah || w >= 0) && s_kits[h].ready) {
         if (!originals_from_kit(ah)) {
             fprintf(stderr, "%s: save state %d/%d as %s: no %s kit; its scenes keep %s\n",
                     DV_HS_PLUGIN, area, stage, kHeroNames[h], kHeroNames[ah], kHeroNames[ah]);
@@ -2565,7 +2694,7 @@ static void resync_after_load(void)
             s_swap_hero = h;
             s_swap_same = h == ah;
             s_armed.ready = 0;
-            s_swap_armed = w != h && arm_kit(h, w) != NULL;
+            s_swap_armed = w >= 0 && arm_kit(h, w) != NULL;
             s_name_old_n = read_hero_name(ah, s_name_old);
             s_name_new_n = read_hero_name(h, s_name_new);
             if (!s_name_old_n || !s_name_new_n || s_swap_same) s_name_old_n = s_name_new_n = 0;
@@ -2574,16 +2703,19 @@ static void resync_after_load(void)
                 s_written_hero = h;
             }
             fprintf(stderr, "%s: save state %d/%d played as %s%s%s: its scenes follow\n", DV_HS_PLUGIN, area, stage,
-                    kHeroNames[h], s_swap_armed ? " with the weapon of " : "", s_swap_armed ? kHeroNames[w] : "");
+                    kHeroNames[h], s_swap_armed ? " with weapon " : "", s_swap_armed ? kWeapons[w].id : "");
         }
     }
     want = s_hero >= 0 ? s_hero : ah;
     msg[0] = 0;
-    if (h != want)
+    if (h != want) {
         snprintf(msg, sizeof msg, "Save made as %s: %s plays from the next stage", kHeroNames[h], kHeroNames[want]);
-    else if (w != (s_weapon >= 0 ? s_weapon : want))
-        snprintf(msg, sizeof msg, "Save made with %s's weapon: %s's from the next stage", kHeroNames[w],
-                 kHeroNames[s_weapon >= 0 ? s_weapon : want]);
+    } else {
+        int ww = s_weapon >= 0 && !weapon_is_own(h, s_weapon) ? s_weapon : -1;   /* the weapon chosen now */
+        if (w != ww)
+            snprintf(msg, sizeof msg, "Save made with %s: %s from the next stage",
+                     w >= 0 ? kWeapons[w].name : "the hero's own weapon", ww >= 0 ? kWeapons[ww].name : "the own one");
+    }
     if (msg[0]) {
         host_osd_push(msg, 6000);
         fprintf(stderr, "%s: %s\n", DV_HS_PLUGIN, msg);
