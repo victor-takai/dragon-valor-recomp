@@ -1857,7 +1857,7 @@ tools/datacdr.py      DATA.CDR areas / stages / files, action stages vs scenes (
 tools/make_app_icon.py  draws the app icon into assets/ (.ico, .png, .svg; needs Pillow)
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
 tests/states/         save states 0, 9 and 10, local only (not in git) + README;  tests/test_*.py  checks
-scripts/package_release.sh  local release zip (framework packager with --stage-only, minus mods/texture-packs, then its create_release_zip.py)
+scripts/package_release.sh  local release zip (framework packager with --stage-only, minus mods/texture-packs, then its create_release_zip.py; mods/cache, the Play as data read from the disc, is parked outside the build tree for the run: the packager's BIOS guard refused its .bin files on 2026-11-18)
 DragonValor.bat, DragonValorDebug.bat  player / debug launch (were Play.bat, PlayDebug.bat)
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
 CONTROLS.md           pads, keyboard binds, the game's default buttons, host hotkeys
