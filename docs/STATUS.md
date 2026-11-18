@@ -130,11 +130,12 @@ the native 60 Hz version.
   state taken as another hero plays on as it was and an on-screen notice
   says the choice applies from the next stage; a state taken with a swapped
   hero keeps its scenes on that hero after the load. The hero can hold any
-  of the game's eight weapon models (option `weapon`, menu row Weapon,
+  of the game's nine weapon models (option `weapon`, menu row Weapon,
   2026-11-17/18; found by scanning the hero's node 2 in all 226 action
   stages, the magic swords named as the game's dialogues name them: Azos,
   Soul, Kadum, Igunis (the three last campaigns' sword), then Felippe's
-  first and Mihael's, Anna's and Anita's own weapons of those campaigns):
+  first and Mihael's, Anna's and Anita's own weapons of those campaigns,
+  Anita's in its purple and its turquoise colours):
   the model and its texture, moved into the hero's
   texture page (the C port matches the decomp tool byte for byte;
   `tests/test_heroswap.py --weapon / --menu-weapon`). Before it

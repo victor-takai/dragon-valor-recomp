@@ -1406,15 +1406,21 @@ start with the hero's own weapon and give Igunis, 10/7 and 12/7 "The
 magic sword Igunis has chosen you as its master", held at stage 2 and
 from stage 9 on); then the other models: `felippe` Felippe's first sword
 (4/3..4/13), and the last campaigns' own weapons, `dark` Mihael's (10/1,
-10/4, 10/6, 10/7), `red` Anna's (11/1, 11/4, 11/6, 11/7) and `purple`
-Anita's (12/6, 12/7). (10/7 also says "Azos, the angel of fire. Soul, the
-angel of light. Kadum, the angel of thunder.") Not offered: the
-prologue's (0/1..0/5: a few more vertices, Azos's texture, the same sword
-on screen, the player's check) and Anita's 12/1 / 12/4 weapon (the purple
-one's design with a turquoise palette, drawn from another page of its
-file 0 at VRAM (576, 256)). The disc scan keeps each model's node-2 prims
-and verts and its stage's last hero-page TIM (cache
-`weapon_<area>_<stage>.bin`, so a renamed value keeps its cache); a disc-2 model is
+10/4, 10/6, 10/7), `red` Anna's (11/1, 11/4, 11/6, 11/7), `purple`
+Anita's (12/6, 12/7) and `turquoise` Anita's of 12/1 and 12/4 (the purple
+one's design with a turquoise palette, the player's wish; its texture is
+on another page of its file 0, VRAM (576, 256): `arm_kit` takes a
+weapon's texels from the TIM its prims draw from, page-relative, and
+gives the moved prims the hero page's tpage, as the decomp tool's `arm`
+does; `tests/test_heroswap.py arlen --weapon turquoise --ref
+<decomp>/build/heroswap/2-1_w12-1_to_1-7 --prime-disc2` 19/19, the hero-page
+weapons' references rebuild unchanged). The last four have no name in the
+game's text. (10/7 also says "Azos, the angel of fire. Soul, the angel of
+light. Kadum, the angel of thunder.") Not offered: the prologue's
+(0/1..0/5: a few more vertices, Azos's texture, the same sword on screen,
+the player's check). The disc scan keeps each model's node-2 prims and
+verts and the TIM they draw from (cache `weapon_<area>_<stage>.bin`, so a
+renamed value keeps its cache); a disc-2 model is
 offered once disc 2 has been read, like a disc-2 hero (that read used to
 be tried once at activation, before the disc roster is registered, and
 then never again: now the try only counts once the other disc's image

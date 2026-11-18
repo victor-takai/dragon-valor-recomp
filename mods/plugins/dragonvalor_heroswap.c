@@ -118,9 +118,10 @@ static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5}; 
  * (areas 10, 11, 12: Mihael, Anna, Anita) start with the hero's own weapon
  * (dark, red, purple) and give Igunis (10/7, 12/7 "The magic sword Igunis
  * has chosen you as its master"; held at stage 2 and from 9 on). Anita's
- * 12/1 and 12/4 weapon is the purple one with a turquoise palette, drawn
- * from another page of its file 0 ((576, 256)): not offered. */
-#define WEAPON_COUNT 8
+ * 12/1 and 12/4 weapon is the purple one's design with a turquoise
+ * palette, drawn from another page of its file 0 ((576, 256)): arm_kit
+ * moves its texels into the hero page like the others'. */
+#define WEAPON_COUNT 9
 static const struct { const char* id; const char* name; int area, stage; } kWeapons[WEAPON_COUNT] = {
     {"azos",     "Azos",                  1, 1},
     {"soul",     "Soul",                  4, 15},
@@ -130,6 +131,7 @@ static const struct { const char* id; const char* name; int area, stage; } kWeap
     {"dark",     "Mihael's dark sword",   10, 1},
     {"red",      "Anna's red weapon",     11, 1},
     {"purple",   "Anita's purple sword",  12, 6},
+    {"turquoise", "Anita's turquoise sword", 12, 1},
 };
 #define DV_WEAPON_NODE  2u
 
@@ -917,20 +919,36 @@ static uint8_t* disc_data_cdr(int disc, uint32_t* size, uint32_t* key)
 }
 
 /* A weapon model from its stage's file 0 and action pack (tools/heroswap.py
- * arm takes the same: node 2's prims and verts, file 0's last page TIM). */
+ * arm / weapon_texture take the same): node 2's prims and verts, and the
+ * TIM they draw from, the last 4-bit TIM with a CLUT block of file 0's
+ * chain in the page of the first textured prim's tpage (the hero page,
+ * but Anita's 12/1-12/4 weapon is drawn from page (576, 256)). */
 static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1)
 {
     static Ct c0, cp;
     static Tim tims[64];
-    uint32_t vab, te, pe, ve, last = 0, lastlen = 0;
-    int nt, j;
+    uint32_t vab, te, pe, ve, last = 0, lastlen = 0, tp = 0xFFFFFFFFu, w1;
+    int nt, j, r;
     if (!ct_parse(&cp, f1, l1) || !ct_parse(&c0, f0, l0) || !file0_parts(&c0, &vab, &te)) return 0;
     pe = le32(CT_E(&cp, 0) + 16 + DV_WEAPON_NODE * DV_NODE + 0x68);
     ve = le32(CT_E(&cp, 0) + 16 + DV_WEAPON_NODE * DV_NODE + 0x6C);
-    if (!pe || pe >= cp.n || !ve || ve >= cp.n) return 0;
+    if (!pe || pe >= cp.n || !ve || ve >= cp.n || CT_L(&cp, pe) < 17 * 16) return 0;
+    /* the first textured prim (records 0..3 in order): its tpage, in the
+     * word holding the second u / v (word 5 of FT3 / FT4, 6 of GT3 / GT4) */
+    for (r = 0; r < 4 && tp == 0xFFFFFFFFu; r++) {
+        const uint8_t* tab = CT_E(&cp, pe);
+        if (!(tab[16 * r + 2] | tab[16 * r + 3] << 8)) continue;
+        w1 = le32(tab + 16 * r + 4) + 4u * (r < 2 ? 5u : 6u);
+        if (w1 + 4 > CT_L(&cp, pe)) return 0;
+        tp = (le32(tab + w1) >> 16) & 0x1F;
+    }
+    if (tp == 0xFFFFFFFFu) return 0;
     nt = tim_chain(CT_E(&c0, te), CT_L(&c0, te), tims, 64, NULL);
     for (j = 0; j < nt; j++)
-        if (tim_in_page(&tims[j])) { last = tims[j].start; lastlen = tims[j].end - tims[j].start; }
+        if (tims[j].has_clut && tims[j].image[0] / 64 == (tp & 0xF) && tims[j].image[1] / 256 == ((tp >> 4) & 1)) {
+            last = tims[j].start;
+            lastlen = tims[j].end - tims[j].start;
+        }
     if (!lastlen) return 0;
     w->prims.n = w->verts.n = w->page.n = 0;
     if (!buf_put(&w->prims, CT_E(&cp, pe), CT_L(&cp, pe)) || !buf_put(&w->verts, CT_E(&cp, ve), CT_L(&cp, ve)) ||
@@ -1669,7 +1687,7 @@ static uint32_t kit_node_ref(const Kit* k, uint32_t i, uint32_t field)
 
 typedef struct { uint32_t off, size, nuv; uint8_t uvw[4]; } TexPrim;
 typedef struct { int u0, v0, u1, v1; uint16_t clut; uint8_t tpage; } PBox;
-typedef struct { Buf tim; uint32_t ihead; int cx, cy, cw, ch, iw, ih; } PageTim;
+typedef struct { Buf tim; uint32_t ihead; int cx, cy, cw, ch, iw, ih, ox, oy, tpage; } PageTim;
 
 static uint16_t le16u(const uint8_t* p) { return (uint16_t)(p[0] | p[1] << 8); }
 
@@ -1715,21 +1733,31 @@ static void prim_box(const uint8_t* tab, const TexPrim* p, PBox* b)
     }
 }
 
-static int page_parse(PageTim* pg, const uint8_t* t, uint32_t n)
+/* The hero page's TIM (hero: image at (384, 0), CLUTs below it), or any
+ * page's (a weapon drawn from another page): where in its texture page the
+ * image starts (ox, oy; u / v of a prim are page-relative) and that page's
+ * tpage bits 0..4. */
+static int page_parse(PageTim* pg, const uint8_t* t, uint32_t n, int hero)
 {
     uint32_t bn;
+    int ix, iy;
     pg->tim.n = 0;
     if (n < 0x1C || memcmp(t, "TIM_CODE", 8) || !(le32(t + 12) & 8)) return 0;
     bn = le32(t + 0x10);
     pg->cx = le16s(t + 0x14); pg->cy = le16s(t + 0x16); pg->cw = le16s(t + 0x18); pg->ch = le16s(t + 0x1A);
     pg->ihead = 0x10 + bn;
     if (pg->ihead + 12 > n || 0x1Cu + 2u * (uint32_t)(pg->cw * pg->ch) > pg->ihead) return 0;
+    ix = le16s(t + pg->ihead + 4);
+    iy = le16s(t + pg->ihead + 6);
     pg->iw = le16s(t + pg->ihead + 8);
     pg->ih = le16s(t + pg->ihead + 10);
-    if (le16s(t + pg->ihead + 4) != 384 || le16s(t + pg->ihead + 6) != 0 || pg->cx != 384 ||
-        pg->iw <= 0 || pg->iw > 64 || pg->ih <= 0 || pg->ih > pg->cy ||
+    if (ix < 0 || iy < 0 || pg->iw <= 0 || pg->iw > 64 || pg->ih <= 0 ||
         pg->ihead + 12 + 2u * (uint32_t)(pg->iw * pg->ih) > n)
         return 0;
+    if (hero && (ix != 384 || iy != 0 || pg->cx != 384 || pg->ih > pg->cy)) return 0;
+    pg->ox = ix % 64;
+    pg->oy = iy % 256;
+    pg->tpage = (ix / 64) | ((iy / 256) << 4);
     return buf_put(&pg->tim, t, pg->ihead + 12 + 2u * (uint32_t)(pg->iw * pg->ih));
 }
 
@@ -1803,13 +1831,13 @@ static int occ_free(int u, int v, int w, int h, int W, int H)
 
 typedef struct { int u0, v0, u1, v1; } Isl;
 
-/* Islands of the hero-page prims (tools/heroswap.py weapon_islands). */
-static int weapon_islands(const PBox* b, int n, Isl* isl, int* owner)
+/* Islands of the prims on page `tpage` (tools/heroswap.py weapon_islands). */
+static int weapon_islands(const PBox* b, int n, Isl* isl, int* owner, int tpage)
 {
     int nr = 0, i, j, p;
     for (p = 0; p < n; p++) {
         owner[p] = -1;
-        if (b[p].tpage != DV_HERO_TPAGE) continue;
+        if (b[p].tpage != tpage) continue;
         isl[nr].u0 = b[p].u0 & ~3;
         isl[nr].v0 = b[p].v0;
         isl[nr].u1 = b[p].u1 | 3;
@@ -1981,10 +2009,10 @@ static const Kit* arm_kit(int hero, int weapon)
     n = tex_prims(wk->prims.p, wk->prims.n, tp, DV_MAX_TPRIMS);
     if (n < 0) return NULL;
     for (i = 0; i < n; i++) prim_box(wk->prims.p, &tp[i], &bx[i]);
-    nr = weapon_islands(bx, n, isl, owner);
-    if (!page_parse(&src, wk->page.p, wk->page.n)) return NULL;
+    if (!page_parse(&src, wk->page.p, wk->page.n, 0)) return NULL;
+    nr = weapon_islands(bx, n, isl, owner, src.tpage);
     nt = tim_chain(hk->page.p, hk->page.n, t, 64, NULL);
-    if (nt < 1 || !page_parse(&s_armed_page, hk->page.p + t[nt - 1].start, t[nt - 1].end - t[nt - 1].start))
+    if (nt < 1 || !page_parse(&s_armed_page, hk->page.p + t[nt - 1].start, t[nt - 1].end - t[nt - 1].start, 1))
         return NULL;
     if (!place_weapon(&s_armed_page, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
         if (!pg_grow(&s_armed_page) ||
@@ -1998,10 +2026,14 @@ static const Kit* arm_kit(int hero, int weapon)
     /* texels, CLUTs, then the prims' u / v and CLUT */
     for (i = 0; i < nr; i++) {
         int x, y, w4 = (isl[i].u1 - isl[i].u0 + 1) / 4, h = isl[i].v1 - isl[i].v0 + 1;
-        if (isl[i].u1 / 4 >= src.iw || isl[i].v1 >= src.ih) return NULL;
+        /* the source's units are page-relative: its image starts at (ox, oy) of its page */
+        if (isl[i].u0 / 4 < src.ox || isl[i].v0 < src.oy || isl[i].u1 / 4 - src.ox >= src.iw ||
+            isl[i].v1 - src.oy >= src.ih)
+            return NULL;
         for (y = 0; y < h; y++)
             for (x = 0; x < w4; x++)
-                pg_set_unit(&s_armed_page, pu[i] / 4 + x, pv[i] + y, pg_unit(&src, isl[i].u0 / 4 + x, isl[i].v0 + y));
+                pg_set_unit(&s_armed_page, pu[i] / 4 + x, pv[i] + y,
+                            pg_unit(&src, isl[i].u0 / 4 + x - src.ox, isl[i].v0 + y - src.oy));
     }
     for (i = 0; i < nc; i++) {
         if (!pg_has_slot(&src, cfrom[i]) || !pg_has_slot(&s_armed_page, cto[i])) return NULL;
@@ -2021,6 +2053,7 @@ static const Kit* arm_kit(int hero, int weapon)
                 int k;
                 if (j == 0)
                     for (k = 0; k < nc; k++) if (cfrom[k] == hi) { hi = cto[k]; break; }
+                if (j == 1) hi = (hi & ~0x1Fu) | DV_HERO_TPAGE;   /* the tpage: now the hero page */
                 put32(q, hi << 16 | (uint32_t)((int)((w >> 8) & 0xFF) + dv) << 8 | (uint32_t)((int)(w & 0xFF) + du));
             }
     }
