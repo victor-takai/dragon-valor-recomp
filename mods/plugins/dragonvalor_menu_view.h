@@ -33,6 +33,7 @@ struct DvMenuDialog {
     char cancel[32] = "Cancel";
     bool danger = false;   /* a crimson action button (leaves the game) */
     int focus = 0;         /* 0 = the action, 1 = Cancel */
+    bool alone = false;    /* over the game, without the menu behind it */
 };
 
 /* A notice near the top of the screen, shown with the menu open or closed. */
@@ -69,16 +70,40 @@ struct DvMenuHints {
     char next[4] = "RB";
 };
 
+/* The save-state screen (F7, or Game > Save state / Load state), drawn in the
+ * menu's frame instead of its sections: a Save and a Load tab over the
+ * runtime's 12 slots, each with its thumbnail and date. The owner fills it
+ * from savestate.h; the view uploads the thumbnails as textures. */
+#define DV_STATE_SLOTS 12
+#define DV_THUMB_W 128
+#define DV_THUMB_H 96
+struct DvStatesView {
+    bool open = false;
+    int tab = 1;            /* 0 Save, 1 Load */
+    int selected = 0;       /* 0-based slot */
+    struct Slot {
+        bool used = false;
+        bool compatible = true;
+        char date[40] = "";
+    } slots[DV_STATE_SLOTS];
+    uint32_t thumb[DV_STATE_SLOTS][DV_THUMB_W * DV_THUMB_H];   /* 0xAARRGGBB */
+    bool have_thumb[DV_STATE_SLOTS] = {};
+    unsigned thumb_gen[DV_STATE_SLOTS] = {};   /* bumped when a thumbnail changes */
+};
+
 /* What the mouse did this frame, for the owner to route like a key. */
 struct DvMenuClick {
     int input = -1;   /* a RecompRuntimeUiInput, or -1 */
     int dialog = 0;   /* 1 = the action button, 2 = Cancel */
+    int slot = -1;    /* the save-state screen: a slot pointed at */
+    int tab = -1;     /* the save-state screen: a tab clicked */
+    int cols = 0;     /* the save-state screen: the grid's columns this frame */
 };
 
 /* Draws the open menu and its dialog, then the toast (if one is up). */
 DvMenuClick dv_menu_view_draw(RecompRuntimeUi* ui, bool open, const DvMenuFonts& fonts,
                               const DvMenuHeader& header, const DvMenuDialog& dialog,
-                              const DvMenuToast& toast, const DvMenuHints& hints, uint64_t now_ms,
-                              DvMenuRowInfoFn row_info, void* row_ctx);
+                              const DvMenuToast& toast, const DvMenuHints& hints, const DvStatesView& states,
+                              uint64_t now_ms, DvMenuRowInfoFn row_info, void* row_ctx);
 
 #endif

@@ -263,6 +263,19 @@ hero = "{hero_name}"
               any(f"play as {shown}" in l for l in lines), " | ".join(lines))
         print(f"state {slot}:", cli("state", "load", str(slot)).splitlines()[-1])
         time.sleep(4)
+        # test state 10 was made as Clovis (9 as Kodel): with another hero or a
+        # weapon chosen, the menu asks whether to restart the stage with them,
+        # a dialog over the paused game; keep the save (Escape), the Continue
+        # below reloads the stage anyway
+        own = "clovis" if slot == 10 else "kodel"
+        expect = not default and (hero_name != own or bool(weapon))
+        f0 = frame(); time.sleep(0.8)
+        paused = frame() == f0
+        check(f"the load {'asks first (dialog, game paused)' if expect else 'asks nothing'}", paused == expect,
+              f"paused {paused}")
+        if paused:
+            rpc(port, "host_key", name="Escape")
+            time.sleep(1.5)
         index_before = rd(HERO_INDEX, 1)[0]
         target = (rd16(AREA), rd16(STAGE))
         ts = f"{target[0]}/{target[1]}"

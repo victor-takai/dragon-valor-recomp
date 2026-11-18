@@ -853,6 +853,37 @@ builder plus extras with its generic drawer:
   R1 entered Warp, a short stick push moved one row, L1 x3 entered Cheats,
   Circle twice closed the menu; mouse clicks (`host_mouse`) entered Cheats
   and switched Infinite HP on and off.
+- *Save states (2026-11-18, the player: "the save state's style is ugly
+  too, can it match?").* F7 (the runtime's `SaveStateMenu` binding, matched
+  with `host_keymap_match_event`) and Game > Save state / Load state open a
+  save-state screen in the menu's frame instead of the runtime's own picker
+  (`psx_savestate_menu.c`, a 640 x 480 panel in an 8 x 8 font, which the
+  provider now never lets see F7): a Save and a Load tab (Tab, L1 / R1, or
+  a click) over the 12 slots in a 6 x 2 or 4 x 3 grid (whichever gives the
+  larger cards in the window; the view reports it so the arrows move on the
+  same grid), each card with the slot's thumbnail (`savestate_read_thumb`,
+  128 x 96, uploaded as a GL texture through the `imgl3w` entry points
+  ImGui's OpenGL3 backend loaded; bound texture and unpack state put back),
+  its date (`savestate_slot_mtime`) or Empty, and "Other build" when
+  `savestate_slot_compatible` refuses it. Enter saves into an empty slot at
+  once and asks before overwriting one; on the Load tab it asks before
+  loading; the slot is re-read (date, picture) once `savestate_pending()`
+  says the save landed. Opened by F7, Back closes the menu; from the Game
+  section, Back returns to it. The runtime's pad shortcut for its picker
+  (`[hotkeys]`, off by default) still opens the old one.
+- *A state made with another hero.* The heroswap plugin's resync after a
+  state load (see its section) used to put up an OSD line, "Save made as
+  Clovis: Kodel plays from the next stage", and the player read the
+  Clovis portrait and name in the next scene as the swap failing (test
+  state 10, made as Clovis, again on 2026-11-18). It now sets
+  `dv_heroswap_mismatch` with the two choices, and the menu opens a dialog
+  over the paused game (no menu behind it): "This save was made as Clovis ...
+  Restart this stage from its beginning with that choice?", Play as Kodel or
+  Keep the save. Play as restarts the stage like a Hero choice
+  (`dv_heroswap_restart_request`). The OSD line is only left for builds
+  without the menu (`dv_menu_present`). `tests/test_heroswap.py` checks that
+  loading test state 10 with another hero pauses under the dialog, and that
+  it does not with the stage's own (Escape keeps the save).
 - *Arrows.* ImGui's anti-aliased convex fill feathers the edge outward for
   one winding only; the mirrored (left) arrows and the diamonds had the
   other one and came out smaller and softer (the player saw one arrow
@@ -861,7 +892,7 @@ builder plus extras with its generic drawer:
 
 | Section | Rows | Applied through |
 |---|---|---|
-| Game | Resume, State slot (1‥12, with a "saved" / "empty" note), Save state, Load state, Insert disc 1 / 2, Return to launcher, Quit game | `savestate_request_save/load` (slot − 1), `disc_insert` (the runtime's tray policy), `request_exit`. Return to launcher asks for `PSX_MENU_EXIT_RELAUNCH` in builds without the netplay lobby client (ours): the framework's in-process return re-enters the launcher only inside its lobby-client block and otherwise ends the program (player report 2026-10-16; still so on upstream master 379565a6), while a relaunch restarts the executable with its own arguments, which opens the launcher as at boot. Builds with `PSX_NETPLAY` keep `PSX_MENU_EXIT_TO_FRONTEND`. |
+| Game | Resume, Save state, Load state (both open the save-state screen above; Load shows how many slots are saved), Insert disc 1 / 2, Return to launcher, Quit game | `savestate_request_save/load` (slot − 1), `disc_insert` (the runtime's tray policy), `request_exit`. Return to launcher asks for `PSX_MENU_EXIT_RELAUNCH` in builds without the netplay lobby client (ours): the framework's in-process return re-enters the launcher only inside its lobby-client block and otherwise ends the program (player report 2026-10-16; still so on upstream master 379565a6), while a relaunch restarts the executable with its own arguments, which opens the launcher as at boot. Builds with `PSX_NETPLAY` keep `PSX_MENU_EXIT_TO_FRONTEND`. |
 | Hero (experimental) | Play as, Weapon, Apply | the `hero` and `weapon` options of `dragonvalor.heroswap` (see its section), written by `mod_set` when the dialog is confirmed; off in the launcher, the first choice switches the feature on for the next start |
 | Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |

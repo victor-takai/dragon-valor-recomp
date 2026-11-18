@@ -33,6 +33,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <mutex>
 #include <string>
 
@@ -47,6 +48,7 @@
 #include "host_osd.h"
 #include "mod_plugins.h"
 #include "savestate.h"
+#include "host_keymap.h"
 #include "video_texture_filter.h"
 
 namespace {
@@ -136,12 +138,10 @@ const char* const kMagicChoices[] = {"Not learned", "Level 1", "Level 2", "Level
  * names for the same host settings the callbacks below handle. */
 const RecompRuntimeUiItem kItems[] = {
     DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_RESUME, "Game", "Resume", "Close the menu and play."),
-    DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_STATE_SLOT, "Game", "State slot",
-               "The slot Save state and Load state use.", 1, SAVESTATE_SLOTS, 1),
     DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_SAVE_STATE, "Game", "Save state",
-                  "Save this moment in the slot above."),
+                  "Keep this moment in one of 12 slots, with a picture of it. F7 opens the same screen."),
     DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_LOAD_STATE, "Game", "Load state",
-                  "Go back to the moment saved in the slot above."),
+                  "Go back to a moment kept in a slot. F7 opens the same screen."),
     DV_ROW_ACTION(DV_KEY_DISC1, "Game", "Insert disc 1", "Swap to disc 1: areas 0 to 6, the first chapters."),
     DV_ROW_ACTION(DV_KEY_DISC2, "Game", "Insert disc 2", "Swap to disc 2: areas 7 to 12, the last chapters."),
     DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER, "Game", "Return to launcher",
@@ -263,8 +263,14 @@ struct Menu {
     const RecompRuntimeUiItem* dialog_item = nullptr;
     bool confirmed = false;                /* cb_run_action called from the dialog */
     DvMenuToast toast;
-    /* the State slot row's note, refreshed when the slot changes or a save lands */
-    int slot_cached = -1, slot_saved = 0;
+    /* the save-state screen: its slots (dates, thumbnails) are read when it
+     * opens and after a save lands */
+    DvStatesView states;
+    bool states_from_f7 = false;           /* Back closes the menu instead of returning to it */
+    int states_pending = -1;               /* a slot being saved: re-read when the save is done */
+    int states_cols = 6;                   /* the grid the view drew: 6 x 2 or 4 x 3 */
+    int dialog_slot = -1;                  /* the slot a save-state dialog is about */
+    int saved_count = -1;                  /* the Load state row's note */
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
     /* the footer's hints follow the last device used (keys or a pad) */
@@ -284,7 +290,8 @@ struct Menu {
     DvMenuFonts fonts;
     bool gl_ready = false;                 /* the ImGui GL backend made its objects */
 };
-enum { DV_DIALOG_NONE, DV_DIALOG_ACTION, DV_DIALOG_HERO, DV_DIALOG_HERO_CLOSE };
+enum { DV_DIALOG_NONE, DV_DIALOG_ACTION, DV_DIALOG_HERO, DV_DIALOG_HERO_CLOSE, DV_DIALOG_STATE_SAVE,
+       DV_DIALOG_STATE_LOAD, DV_DIALOG_MISMATCH };
 /* Inputs of our own beside recomp-ui's RecompRuntimeUiInput: the shoulder
  * buttons (and Tab / Shift+Tab, Page Down / Up) step through the sections. */
 enum { DV_INPUT_PREV_SECTION = 100, DV_INPUT_NEXT_SECTION = 101 };
@@ -493,6 +500,9 @@ int nearest_action_stage(int area, int stage) {
 extern "C" volatile int dv_cheats_hold_hp;
 /* dragonvalor_heroswap.c: restart the running stage at the next plain-play frame. */
 extern "C" volatile int dv_heroswap_restart_request;
+/* dragonvalor_heroswap.c: a loaded state made with another hero / weapon */
+extern "C" volatile int dv_heroswap_mismatch, dv_menu_present;
+extern "C" char dv_heroswap_mismatch_saved[64], dv_heroswap_mismatch_wanted[64], dv_heroswap_mismatch_hero[16];
 #define DV_MODE        0x8008634Cu
 #define DV_SUB         0x8008634Du
 #define DV_HP          0x8008A5AEu
@@ -685,6 +695,7 @@ void open_dialog(Menu& m, int kind, const RecompRuntimeUiItem* item, const char*
     std::snprintf(d.cancel, sizeof d.cancel, "%s", cancel ? cancel : "Cancel");
     d.danger = danger;
     d.focus = focus;
+    d.alone = false;
     d.open = true;
     m.dialog_kind = kind;
     m.dialog_item = item;
@@ -863,12 +874,122 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
 
 void request_close(Menu& m);
 
-bool slot_saved(Menu& m) {
-    if (m.slot_cached != m.slot) {
-        m.slot_saved = savestate_slot_exists(m.slot - 1) ? 1 : 0;
-        m.slot_cached = m.slot;
+/* ---- the save-state screen ------------------------------------------------- */
+/* Reads a slot's date, compatibility and thumbnail (all of them: -1). */
+void states_refresh(Menu& m, int only = -1) {
+    m.saved_count = 0;
+    for (int i = 0; i < DV_STATE_SLOTS; ++i) {
+        DvStatesView::Slot& sl = m.states.slots[i];
+        if (only < 0 || i == only) {
+            sl.used = savestate_slot_exists(i) != 0;
+            sl.compatible = true;
+            sl.date[0] = 0;
+            if (sl.used) {
+                char reason[128];
+                int64_t t = 0;
+                sl.compatible = savestate_slot_compatible(i, reason, sizeof reason) != 0;
+                if (savestate_slot_mtime(i, &t)) {
+                    const time_t tt = (time_t)t;
+                    struct tm tmv;
+#ifdef _WIN32
+                    localtime_s(&tmv, &tt);
+#else
+                    localtime_r(&tt, &tmv);
+#endif
+                    std::strftime(sl.date, sizeof sl.date, "%b %d, %H:%M", &tmv);
+                }
+            }
+            m.states.have_thumb[i] = sl.used && savestate_read_thumb(i, m.states.thumb[i], DV_THUMB_W, DV_THUMB_H);
+            ++m.states.thumb_gen[i];
+        }
+        if (sl.used) ++m.saved_count;
     }
-    return m.slot_saved != 0;
+}
+
+void states_open(Menu& m, int tab, bool from_f7) {
+    if (!m.open) set_open_locked(m, true);
+    if (!m.open) return;
+    m.states.open = true;
+    m.states.tab = tab;
+    m.states.selected = std::clamp(m.slot - 1, 0, DV_STATE_SLOTS - 1);
+    m.states_from_f7 = from_f7;
+    states_refresh(m);
+    recomp_runtime_ui_set_status(m.ui, "");
+}
+
+void states_close(Menu& m) {
+    m.states.open = false;
+    if (m.states_from_f7) request_close(m);
+}
+
+void states_save(Menu& m, int slot) {
+    char text[64];
+    std::snprintf(text, sizeof text, "Slot %d", slot + 1);
+    if (savestate_request_save(slot)) {
+        m.states_pending = slot;
+        m.slot = slot + 1;
+        toast(m, "State saved", text);
+    } else {
+        std::snprintf(text, sizeof text, "Save state refused (slot %d)", slot + 1);
+        recomp_runtime_ui_set_status(m.ui, text);
+    }
+}
+
+void states_load(Menu& m, int slot) {
+    char text[64];
+    std::snprintf(text, sizeof text, "Slot %d", slot + 1);
+    if (savestate_request_load(slot)) {
+        m.slot = slot + 1;
+        toast(m, "State loaded", text);
+        m.states.open = false;
+        set_open_locked(m, false);
+    } else {
+        std::snprintf(text, sizeof text, "Load state refused (slot %d)", slot + 1);
+        recomp_runtime_ui_set_status(m.ui, text);
+    }
+}
+
+/* Enter on a slot: save or load it, asking first when that loses something. */
+void states_accept(Menu& m) {
+    const int i = m.states.selected;
+    const DvStatesView::Slot& sl = m.states.slots[i];
+    char title[96], body[256];
+    if (m.states.tab == 0) {
+        if (!sl.used) { states_save(m, i); return; }
+        std::snprintf(title, sizeof title, "Overwrite slot %d?", i + 1);
+        std::snprintf(body, sizeof body, "The moment saved there (%s) is replaced by this one.", sl.date);
+        open_dialog(m, DV_DIALOG_STATE_SAVE, nullptr, title, body, "Overwrite", nullptr, false, 0);
+    } else {
+        if (!sl.used) {
+            std::snprintf(body, sizeof body, "Slot %d is empty", i + 1);
+            recomp_runtime_ui_set_status(m.ui, body);
+            return;
+        }
+        if (!sl.compatible) {
+            recomp_runtime_ui_set_status(m.ui, "Saved by another build: it cannot be loaded");
+            return;
+        }
+        std::snprintf(title, sizeof title, "Load slot %d?", i + 1);
+        std::snprintf(body, sizeof body,
+                      "The game goes back to the moment saved %s. What happened since is lost unless you saved it.",
+                      sl.date);
+        open_dialog(m, DV_DIALOG_STATE_LOAD, nullptr, title, body, "Load", nullptr, false, 0);
+    }
+    m.dialog_slot = i;
+}
+
+/* Arrows move on the grid the view drew; a held direction stops at the edges. */
+void states_move(Menu& m, int input) {
+    int& sel = m.states.selected;
+    const int cols = m.states_cols > 0 ? m.states_cols : 6;
+    switch (input) {
+        case RECOMP_RUNTIME_UI_INPUT_LEFT: if (sel % cols) --sel; break;
+        case RECOMP_RUNTIME_UI_INPUT_RIGHT: if (sel % cols < cols - 1 && sel + 1 < DV_STATE_SLOTS) ++sel; break;
+        case RECOMP_RUNTIME_UI_INPUT_UP: if (sel >= cols) sel -= cols; break;
+        case RECOMP_RUNTIME_UI_INPUT_DOWN: if (sel + cols < DV_STATE_SLOTS) sel += cols; break;
+        default: break;
+    }
+    m.slot = sel + 1;
 }
 
 /* The dialog an action asks first, or false when it needs none (or cannot
@@ -876,21 +997,6 @@ bool slot_saved(Menu& m) {
  * cb_run_action again with m.confirmed set. */
 bool ask_first(Menu& m, const RecompRuntimeUiItem* item) {
     char title[96], body[400], ok[48];
-    if (is(item, RECOMP_RUNTIME_UI_KEY_SAVE_STATE)) {
-        if (!slot_saved(m)) return false;
-        std::snprintf(title, sizeof title, "Overwrite slot %d?", m.slot);
-        open_dialog(m, DV_DIALOG_ACTION, item, title, "The state saved there is replaced by this moment.",
-                    "Overwrite", nullptr, false, 0);
-        return true;
-    }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) {
-        if (!slot_saved(m)) return false;
-        std::snprintf(title, sizeof title, "Load slot %d?", m.slot);
-        open_dialog(m, DV_DIALOG_ACTION, item, title,
-                    "The game goes back to the moment saved there. What happened since is lost unless you saved it.",
-                    "Load", nullptr, false, 0);
-        return true;
-    }
     if (is(item, DV_KEY_DISC1) || is(item, DV_KEY_DISC2)) {
         const int n = is(item, DV_KEY_DISC1) ? 1 : 2;
         std::snprintf(title, sizeof title, "Insert disc %d?", n);
@@ -931,35 +1037,8 @@ int cb_run_action(void* ctx, const RecompRuntimeUiItem* item) {
         if (hero_pending(m)) open_hero_dialog(m, false);
         return 0;
     }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_SAVE_STATE)) {
-        const int ok = savestate_request_save(m.slot - 1);
-        std::snprintf(text, sizeof text, "Slot %d", m.slot);
-        if (ok) {
-            toast(m, "State saved", text);
-            m.slot_cached = m.slot;
-            m.slot_saved = 1;
-        } else {
-            std::snprintf(text, sizeof text, "Save state refused (slot %d)", m.slot);
-            recomp_runtime_ui_set_status(m.ui, text);
-        }
-        return 0;
-    }
-    if (is(item, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) {
-        if (!slot_saved(m)) {
-            std::snprintf(text, sizeof text, "Slot %d is empty", m.slot);
-            recomp_runtime_ui_set_status(m.ui, text); return 0;
-        }
-        const int ok = savestate_request_load(m.slot - 1);
-        if (ok) {
-            std::snprintf(text, sizeof text, "Slot %d", m.slot);
-            toast(m, "State loaded", text);
-            set_open_locked(m, false);
-        } else {
-            std::snprintf(text, sizeof text, "Load state refused (slot %d)", m.slot);
-            recomp_runtime_ui_set_status(m.ui, text);
-        }
-        return 0;
-    }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_SAVE_STATE)) { states_open(m, 0, false); return 0; }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) { states_open(m, 1, false); return 0; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER)) {
 #if defined(PSX_HAS_LOBBY_CLIENT)
         m.host->request_exit(PSX_MENU_EXIT_TO_FRONTEND);
@@ -1027,8 +1106,9 @@ int cb_is_enabled(void* ctx, const RecompRuntimeUiItem* item) {
 /* The view's per-row extras. Draw thread, under g_menu.mu. */
 void row_info(void* ctx, const RecompRuntimeUiItem* item, DvMenuRowInfo* out) {
     Menu& m = *static_cast<Menu*>(ctx);
-    if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) {
-        std::snprintf(out->note, sizeof out->note, "%s", slot_saved(m) ? "saved" : "empty");
+    if (is(item, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) {
+        if (m.saved_count < 0) states_refresh(m);
+        std::snprintf(out->note, sizeof out->note, m.saved_count == 1 ? "1 saved" : "%d saved", m.saved_count);
     } else if (is(item, DV_KEY_DISC1) || is(item, DV_KEY_DISC2)) {
         const int n = is(item, DV_KEY_DISC1) ? 1 : 2;
         if (m.host->disc_mounted() == n) std::snprintf(out->note, sizeof out->note, "in the drive");
@@ -1076,7 +1156,8 @@ void set_open_locked(Menu& m, bool open) {
         m.play_as_pend = m.play_as;
         m.weapon_pend = m.weapon;
         m.dialog.open = false;
-        m.slot_cached = -1;
+        m.states.open = false;
+        m.saved_count = -1;
         if (m.pause_in_menu && !m.host->set_paused(1))
             recomp_runtime_ui_set_status(m.ui, "Running: pause refused during netplay");
     } else if (!open && m.open) {
@@ -1084,6 +1165,7 @@ void set_open_locked(Menu& m, bool open) {
         if (m.imgui) ImGui::GetIO().ClearInputMouse();   /* a click that closed the menu never gets its release */
         m.open = false;
         m.dialog.open = false;
+        m.states.open = false;
         m.held = -1;                                     /* no repeat carried into the next open */
         (void)m.host->set_paused(0);
     }
@@ -1113,7 +1195,17 @@ void dialog_confirm(Menu& m) {
     } else if (kind == DV_DIALOG_HERO_CLOSE) {
         apply_hero(m);
         set_open_locked(m, false);
+    } else if (kind == DV_DIALOG_STATE_SAVE && m.dialog_slot >= 0) {
+        states_save(m, m.dialog_slot);
+    } else if (kind == DV_DIALOG_STATE_LOAD && m.dialog_slot >= 0) {
+        states_load(m, m.dialog_slot);
+    } else if (kind == DV_DIALOG_MISMATCH) {
+        /* the stage restarts with the chosen hero (dragonvalor_heroswap.c) */
+        dv_heroswap_restart_request = 1;
+        toast(m, m.dialog.ok, "The stage restarts from its beginning.");
+        set_open_locked(m, false);
     }
+    m.dialog_slot = -1;
 }
 
 /* button: the Cancel button (Discard when closing) rather than Esc, which
@@ -1128,6 +1220,8 @@ void dialog_cancel(Menu& m, bool button) {
         m.weapon_pend = m.weapon;
         set_open_locked(m, false);
     }
+    if (kind == DV_DIALOG_MISMATCH) set_open_locked(m, false);   /* keep the save's hero */
+    m.dialog_slot = -1;
 }
 
 /* Every key, pad button and mouse click goes through here. */
@@ -1146,6 +1240,16 @@ void dispatch(Menu& m, int input, bool repeat) {
                 break;
             case RECOMP_RUNTIME_UI_INPUT_BACK: dialog_cancel(m, false); break;
             default: break;
+        }
+        return;
+    }
+    if (m.states.open) {
+        switch (input) {
+            case RECOMP_RUNTIME_UI_INPUT_ACCEPT: if (!repeat) states_accept(m); break;
+            case RECOMP_RUNTIME_UI_INPUT_BACK: if (!repeat) states_close(m); break;
+            case DV_INPUT_PREV_SECTION:
+            case DV_INPUT_NEXT_SECTION: if (!repeat) m.states.tab ^= 1; break;
+            default: states_move(m, input); break;
         }
         return;
     }
@@ -1443,6 +1547,20 @@ int p_event(void* ctx, const void* sdl_event) {
         const bool shift = (ev->key.keysym.mod & KMOD_SHIFT) != 0;
 #endif
         if (down) m.hints.style = 0;   /* the footer shows keys again */
+#if defined(PSX_SDL3)
+        const int keycode = (int)ev->key.key, keymod = (int)ev->key.mod;
+#else
+        const int keycode = (int)ev->key.keysym.sym, keymod = (int)ev->key.keysym.mod;
+#endif
+        if (host_keymap_match_event(HOST_KEYMAP_SAVE_STATE_MENU, keycode, sc, keymod)) {
+            /* the save-state screen instead of the runtime's own picker */
+            if (down && !repeat && !m.dialog.open) {
+                if (!m.open) states_open(m, 1, true);
+                else if (m.states.open) states_close(m);
+                else states_open(m, 1, false);
+            }
+            return 1;
+        }
         if (sc == SDL_SCANCODE_ESCAPE) {
             if (down && !repeat) {
                 if (m.open) dispatch(m, RECOMP_RUNTIME_UI_INPUT_BACK, false);
@@ -1569,6 +1687,28 @@ void p_draw(void* ctx, int width, int height) {
     std::lock_guard<std::mutex> lk(m.mu);
     if (!m.ui || !m.imgui) return;
     repeat_held(m);                     /* a held D-pad direction or stick */
+    if (dv_heroswap_mismatch) {
+        /* a state made with another hero / weapon was loaded: offer the
+         * chosen one now, in a dialog over the paused game */
+        dv_heroswap_mismatch = 0;
+        if (!m.open) set_open_locked(m, true);
+        if (m.open && !m.dialog.open) {
+            char title[128], body[400], ok[64];
+            std::snprintf(title, sizeof title, "This save was made as %s", dv_heroswap_mismatch_saved);
+            std::snprintf(body, sizeof body,
+                          "Play as is set to %s. Restart this stage from its beginning with that choice? HP, "
+                          "items and Val stay; the stage's doors and keys reset. Or keep playing the save as it "
+                          "is: the choice then takes effect at the next stage.",
+                          dv_heroswap_mismatch_wanted);
+            std::snprintf(ok, sizeof ok, "Play as %s", dv_heroswap_mismatch_hero);
+            open_dialog(m, DV_DIALOG_MISMATCH, nullptr, title, body, ok, "Keep the save", false, 0);
+            m.dialog.alone = true;
+        }
+    }
+    if (m.states_pending >= 0 && !savestate_pending()) {   /* a save landed: its date and picture */
+        states_refresh(m, m.states_pending);
+        m.states_pending = -1;
+    }
     const uint64_t now = now_ms();
     const bool toast_up = m.toast.end_ms && now < m.toast.end_ms;
     if (!m.open && !toast_up) return;
@@ -1598,11 +1738,17 @@ void p_draw(void* ctx, int width, int height) {
         }
     }
     const DvMenuClick click =
-        dv_menu_view_draw(m.ui, m.open, m.fonts, hd, m.dialog, m.toast, m.hints, now, row_info, &m);
+        dv_menu_view_draw(m.ui, m.open, m.fonts, hd, m.dialog, m.toast, m.hints, m.states, now, row_info, &m);
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     if (!toast_up) m.toast.end_ms = 0;
     /* the mouse, after the frame: the same paths as the keys */
+    if (click.slot >= 0 && m.states.open && !m.dialog.open) {
+        m.states.selected = click.slot;
+        m.slot = click.slot + 1;
+    }
+    if (click.tab >= 0 && m.states.open && !m.dialog.open) m.states.tab = click.tab;
+    if (click.cols > 0) m.states_cols = click.cols;
     if (click.dialog == 1) dialog_confirm(m);
     else if (click.dialog == 2) dialog_cancel(m, true);
     else if (click.input >= 0) dispatch(m, click.input, false);
@@ -1616,6 +1762,7 @@ const PsxMenuProvider g_provider = {
 struct Registrar {
     Registrar() {
         (void)psx_menu_set_provider(&g_provider);
+        dv_menu_present = 1;   /* the heroswap plugin leaves its notices to us */
         const DvSettings d = dv_settings_load();
         if (d.volume >= 0) host_volume_set(d.volume);
         if (d.pause_in_menu >= 0) g_menu.pause_in_menu = d.pause_in_menu != 0;

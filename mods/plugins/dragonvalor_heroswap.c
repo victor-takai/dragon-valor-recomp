@@ -1296,6 +1296,8 @@ static int s_swap, s_swap_area, s_swap_stage, s_swap_hero;
 static int s_saved_hero = -1;              /* g_Hero.index the swap replaced (the game's) */
 static int s_written_hero = -1;            /* the one this plugin wrote, -1 = none */
 extern volatile int dv_heroswap_restart_request;   /* set by the in-game menu, see dv_hs_vblank */
+extern volatile int dv_heroswap_mismatch, dv_menu_present;   /* see resync_after_load */
+extern char dv_heroswap_mismatch_saved[64], dv_heroswap_mismatch_wanted[64], dv_heroswap_mismatch_hero[16];
 static Buf s_orig_portrait;                /* the stage hero's portrait (from its file 0) */
 static Buf s_orig_page;                    /* the stage hero's hero-page TIMs (from its file 0), end to end */
 static uint64_t s_hero_verts[14];          /* the stage hero's vertex entries (hash), for scene copies */
@@ -2645,6 +2647,14 @@ static int dv_hs_option_changed(const char* option_id, const char* value)
 #define DV_AREA_PHASE    0x800A2D14u   /* g_GameState.areaPhase */
 #define DV_STAGE_PHASE   0x800A2D18u   /* g_GameState.stagePhase */
 volatile int dv_heroswap_restart_request = 0;
+/* A save state loaded in an action stage was made with another hero or
+ * weapon than the chosen ones: set here, taken (cleared) by the in-game menu,
+ * which asks whether to restart the stage with the choice. The texts:
+ * "Clovis with Azos", "Kodel with Igunis", "Kodel". */
+volatile int dv_heroswap_mismatch = 0;
+char dv_heroswap_mismatch_saved[64], dv_heroswap_mismatch_wanted[64], dv_heroswap_mismatch_hero[16];
+/* Set by the in-game menu's registration: it shows the mismatch itself. */
+volatile int dv_menu_present = 0;
 
 /* --- save states ------------------------------------------------------------
  * A save state brings back the RAM of its moment, the stage's packs as they
@@ -2756,7 +2766,18 @@ static void resync_after_load(void)
                      w >= 0 ? kWeapons[w].name : "the hero's own weapon", ww >= 0 ? kWeapons[ww].name : "the own one");
     }
     if (msg[0]) {
-        host_osd_push(msg, 6000);
+        /* The in-game menu (dragonvalor_menu.cpp) offers to restart the stage
+         * with the chosen hero / weapon in a dialog (the player expected the
+         * choice at once after loading a state made as Clovis, 2026-11-18);
+         * without a menu, an OSD line says it. */
+        const int ww = s_weapon >= 0 && !weapon_is_own(want, s_weapon) ? s_weapon : -1;
+        snprintf(dv_heroswap_mismatch_saved, sizeof dv_heroswap_mismatch_saved, "%s%s%s", kHeroNames[h],
+                 w >= 0 ? " with " : "", w >= 0 ? kWeapons[w].name : "");
+        snprintf(dv_heroswap_mismatch_wanted, sizeof dv_heroswap_mismatch_wanted, "%s%s%s", kHeroNames[want],
+                 ww >= 0 ? " with " : "", ww >= 0 ? kWeapons[ww].name : "");
+        snprintf(dv_heroswap_mismatch_hero, sizeof dv_heroswap_mismatch_hero, "%s", kHeroNames[want]);
+        dv_heroswap_mismatch = 1;
+        if (!dv_menu_present) host_osd_push(msg, 6000);
         fprintf(stderr, "%s: %s\n", DV_HS_PLUGIN, msg);
     }
 }

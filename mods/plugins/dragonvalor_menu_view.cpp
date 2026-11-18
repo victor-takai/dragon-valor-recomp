@@ -27,6 +27,15 @@
 
 #include "imgui.h"
 #include "../../recomp-ui/src/common/recomp_runtime_ui_internal.h"
+/* The OpenGL entry points ImGui's OpenGL3 backend loaded (imgl3w, its
+ * global proc table): the save-state thumbnails become textures with them. */
+#include "imgui_impl_opengl3_loader.h"
+#ifndef GL_UNPACK_ALIGNMENT
+#define GL_UNPACK_ALIGNMENT 0x0CF5
+#endif
+#ifndef GL_TEXTURE_WRAP_T
+#define GL_TEXTURE_WRAP_T 0x2803
+#endif
 
 namespace {
 
@@ -244,8 +253,164 @@ void value_text(RecompRuntimeUi* ui, const RecompRuntimeUiItem* item, char* out,
     }
 }
 
+/* ---- the save-state screen ---------------------------------------------------- */
+
+/* One texture per slot, (re)made on the draw thread when the owner bumps the
+ * slot's generation. GL state touched here (the bound texture, the unpack
+ * row length and alignment) is put back. */
+GLuint g_thumb_tex[DV_STATE_SLOTS];
+unsigned g_thumb_gen[DV_STATE_SLOTS];
+
+ImTextureID thumb_texture(const DvStatesView& st, int slot) {
+    if (!st.have_thumb[slot]) return (ImTextureID)0;
+    if (!g_thumb_tex[slot] || g_thumb_gen[slot] != st.thumb_gen[slot]) {
+        static uint8_t rgba[DV_THUMB_W * DV_THUMB_H * 4];
+        for (int i = 0; i < DV_THUMB_W * DV_THUMB_H; ++i) {
+            const uint32_t p = st.thumb[slot][i];
+            rgba[4 * i + 0] = (uint8_t)(p >> 16);
+            rgba[4 * i + 1] = (uint8_t)(p >> 8);
+            rgba[4 * i + 2] = (uint8_t)p;
+            rgba[4 * i + 3] = 0xFF;
+        }
+        GLint last_tex = 0, last_row = 0, last_align = 4;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_tex);
+        glGetIntegerv(GL_UNPACK_ROW_LENGTH, &last_row);
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &last_align);
+        if (!g_thumb_tex[slot]) glGenTextures(1, &g_thumb_tex[slot]);
+        glBindTexture(GL_TEXTURE_2D, g_thumb_tex[slot]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, DV_THUMB_W, DV_THUMB_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, last_row);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, last_align);
+        glBindTexture(GL_TEXTURE_2D, (GLuint)last_tex);
+        g_thumb_gen[slot] = st.thumb_gen[slot];
+    }
+    return (ImTextureID)(intptr_t)g_thumb_tex[slot];
+}
+
+/* Tabs, a 6 x 2 grid of slot cards, the selected slot's line. */
+void draw_states(ImDrawList* dl, const DvMenuFonts& F, const DvStatesView& st, float x0, float x1, float y0,
+                 float y1, bool modal, DvMenuClick& click) {
+    ImGuiIO& io = ImGui::GetIO();
+    const float s = F.scale;
+    const Pal P = palette(1.0f);
+    const bool moved = io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f;
+
+    /* tabs */
+    const char* tabs[2] = {"Save", "Load"};
+    float tx = x0;
+    const float tab_h = F.bold->FontSize + 18.0f * s;
+    for (int t = 0; t < 2; ++t) {
+        const float tw = measure(F.bold, tabs[t]).x + 44.0f * s;
+        const ImVec2 a(tx, y0), b(tx + tw, y0 + tab_h);
+        ImGui::SetCursorScreenPos(a);
+        ImGui::PushID(1000 + t);
+        ImGui::InvisibleButton("##tab", b - a);
+        if (!modal && ImGui::IsItemClicked(ImGuiMouseButton_Left)) click.tab = t;
+        const bool hov = !modal && ImGui::IsItemHovered();
+        ImGui::PopID();
+        const bool on = st.tab == t;
+        dl->AddRectFilled(a, b, on ? P.row_sel : (hov ? P.row_hover : P.page), tab_h * 0.5f);
+        dl->AddRect(a, b, on ? P.gold_soft : P.edge, tab_h * 0.5f, 0, std::max(1.0f, 1.2f * s));
+        const ImVec2 ts = measure(F.bold, tabs[t]);
+        put(dl, F.bold, ImVec2(a.x + (tw - ts.x) * 0.5f, a.y + (tab_h - ts.y) * 0.5f), on ? P.gold : P.muted, tabs[t]);
+        tx = b.x + 12.0f * s;
+    }
+    {
+        const char* note = st.tab == 0 ? "Pick a slot to save this moment in." : "Pick a saved moment to go back to.";
+        const ImVec2 ns = measure(F.small, note);
+        put(dl, F.small, ImVec2(x1 - ns.x, y0 + (tab_h - ns.y) * 0.5f), P.faint, note);
+    }
+
+    /* the grid: 6 x 2 or 4 x 3, whichever gives the larger cards in the room
+     * there is (the owner moves the selection on the same grid: click.cols) */
+    const float gap = 16.0f * s, gy0 = y0 + tab_h + 22.0f * s, pad = 8.0f * s;
+    const float labels = F.bold->FontSize + F.small->FontSize + 22.0f * s;
+    const float room_h = y1 - gy0 - (F.small->FontSize + 30.0f * s);   /* the line under the grid */
+    int cols = 6;
+    float cw = 0.0f;
+    for (int c : {6, 4}) {
+        const int r = DV_STATE_SLOTS / c;
+        const float by_w = (x1 - x0 - gap * (c - 1)) / c;
+        const float by_h = ((room_h - gap * (r - 1)) / r - pad - labels) / 0.75f + 2.0f * pad;
+        const float w = std::floor(std::min(by_w, by_h));
+        if (w > cw) { cw = w; cols = c; }
+    }
+    click.cols = cols;
+    const int rows = DV_STATE_SLOTS / cols;
+    const float grid_w = cols * cw + gap * (cols - 1);
+    x0 = x0 + std::floor((x1 - x0 - grid_w) * 0.5f);              /* centred */
+    x1 = x0 + grid_w;
+    const float th = std::floor((cw - 2.0f * pad) * 0.75f);   /* the thumbnail, 4:3 */
+    const float ch = pad + th + labels;
+    for (int i = 0; i < DV_STATE_SLOTS; ++i) {
+        const int c = i % cols, r = i / cols;
+        const ImVec2 a(x0 + c * (cw + gap), gy0 + r * (ch + gap)), b(a.x + cw, a.y + ch);
+        if (b.y > y1) break;
+        ImGui::SetCursorScreenPos(a);
+        ImGui::PushID(2000 + i);
+        ImGui::InvisibleButton("##slot", b - a);
+        const bool hov = !modal && ImGui::IsItemHovered();
+        if (hov && moved) click.slot = i;
+        if (!modal && ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+            if (st.selected == i) click.input = RECOMP_RUNTIME_UI_INPUT_ACCEPT;
+            else click.slot = i;
+        }
+        ImGui::PopID();
+        const DvStatesView::Slot& sl = st.slots[i];
+        const bool sel = st.selected == i;
+        dl->AddRectFilled(a, b, sel ? P.row_sel : (hov ? P.row_hover : P.page), 10.0f * s);
+        dl->AddRect(a, b, sel ? P.gold : P.edge, 10.0f * s, 0, std::max(1.0f, (sel ? 2.0f : 1.0f) * s));
+        const ImVec2 ta(a.x + pad, a.y + pad), tb(b.x - pad, a.y + pad + th);
+        const ImTextureID tex = sl.used ? thumb_texture(st, i) : (ImTextureID)0;
+        if (tex) {
+            dl->AddImageRounded(tex, ta, tb, ImVec2(0, 0), ImVec2(1, 1),
+                                sl.compatible ? IM_COL32_WHITE : IM_COL32(255, 255, 255, 110), 6.0f * s);
+        } else {
+            dl->AddRectFilled(ta, tb, P.ink, 6.0f * s);
+            const char* e = sl.used ? "No picture" : "Empty";
+            const ImVec2 es = measure(F.small, e);
+            put(dl, F.small, ImVec2((ta.x + tb.x - es.x) * 0.5f, (ta.y + tb.y - es.y) * 0.5f), P.faint, e);
+        }
+        if (sel) dl->AddRect(ta, tb, P.gold_soft, 6.0f * s, 0, std::max(1.0f, 1.0f * s));
+        char label[24];
+        std::snprintf(label, sizeof label, "Slot %d", i + 1);
+        float ly = tb.y + 8.0f * s;
+        put(dl, F.bold, ImVec2(a.x + pad + 2.0f * s, ly), sel ? P.gold : P.text, label);
+        ly += F.bold->FontSize + 2.0f * s;
+        const char* sub = !sl.used ? (st.tab == 0 && sel ? "New save" : "Empty")
+                        : !sl.compatible ? "Other build" : sl.date;
+        put(dl, F.small, ImVec2(a.x + pad + 2.0f * s, ly),
+            !sl.used ? (st.tab == 0 && sel ? P.gold_soft : P.faint) : !sl.compatible ? P.crimson_text : P.muted, sub);
+    }
+
+    /* the selected slot, in words */
+    const DvStatesView::Slot& sl = st.slots[st.selected];
+    char line[160];
+    if (!sl.used)
+        std::snprintf(line, sizeof line, st.tab == 0 ? "Slot %d is empty: saving here keeps this moment."
+                                                     : "Slot %d is empty.", st.selected + 1);
+    else if (!sl.compatible)
+        std::snprintf(line, sizeof line, "Slot %d was saved by another build of the game and cannot be loaded.",
+                      st.selected + 1);
+    else
+        std::snprintf(line, sizeof line, st.tab == 0 ? "Slot %d, saved %s: saving here replaces it."
+                                                     : "Slot %d, saved %s.", st.selected + 1, sl.date);
+    const float ly = gy0 + rows * (ch + gap) + 4.0f * s;
+    if (ly + F.small->FontSize < y1) {
+        dl->AddLine(ImVec2(x0, ly), ImVec2(x1, ly), P.rule, std::max(1.0f, 1.0f * s));
+        put(dl, F.small, ImVec2(x0, ly + 12.0f * s), P.muted, line);
+    }
+}
+
 void draw_menu(RecompRuntimeUi* ui, const DvMenuFonts& F, const DvMenuHeader& hd, const DvMenuHints& hints,
-               bool modal, DvMenuRowInfoFn row_info, void* row_ctx, DvMenuClick& click) {
+               const DvStatesView& states, bool modal, DvMenuRowInfoFn row_info, void* row_ctx,
+               DvMenuClick& click) {
     ImGuiIO& io = ImGui::GetIO();
     const ImVec2 D = io.DisplaySize;
     const float s = F.scale;
@@ -312,18 +477,22 @@ void draw_menu(RecompRuntimeUi* ui, const DvMenuFonts& F, const DvMenuHeader& hd
         const float body_y1 = foot_y - 18.0f * s;
         {
             float fx = x0;
+            /* on the save-state screen: what Enter does on this tab, and the tabs */
+            const char* act = states.open ? (states.tab == 0 ? "Save" : "Load") : "Select";
+            const char* move = states.open ? "Slot" : "Change";
+            const char* swap = states.open ? "Save / Load" : "Section";
             if (hints.style == 0) {
-                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Enter", "Select", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Enter", act, P, s);
                 fx += key_cap(dl, F, ImVec2(fx, foot_y), "Esc", "Back", P, s);
-                fx += key_cap(dl, F, ImVec2(fx, foot_y), nullptr, "Change", P, s);
-                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Tab", "Section", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), nullptr, move, P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), "Tab", swap, P, s);
             } else {
                 const bool ps = hints.style == 1;
-                fx += pad_button(dl, F, ImVec2(fx, foot_y), ps ? 0 : 2, hints.accept, "Select", P, s);
+                fx += pad_button(dl, F, ImVec2(fx, foot_y), ps ? 0 : 2, hints.accept, act, P, s);
                 fx += pad_button(dl, F, ImVec2(fx, foot_y), ps ? 1 : 2, hints.back, "Back", P, s);
-                fx += dpad(dl, F, ImVec2(fx, foot_y), "Change", P, s);
+                fx += dpad(dl, F, ImVec2(fx, foot_y), move, P, s);
                 fx += key_cap(dl, F, ImVec2(fx, foot_y), hints.prev, "", P, s);
-                fx += key_cap(dl, F, ImVec2(fx, foot_y), hints.next, "Section", P, s);
+                fx += key_cap(dl, F, ImVec2(fx, foot_y), hints.next, swap, P, s);
                 fx += key_cap(dl, F, ImVec2(fx, foot_y), "Start", "Close", P, s);
             }
             if (ui->status_frames && ui->status[0]) {
@@ -334,6 +503,9 @@ void draw_menu(RecompRuntimeUi* ui, const DvMenuFonts& F, const DvMenuHeader& hd
             if (ui->status_frames) --ui->status_frames;
         }
 
+        if (states.open) {
+            draw_states(dl, F, states, x0, x1, y, body_y1, modal, click);
+        } else {
         /* ---- sections ---- */
         const float nav_w = 232.0f * s, gap = 20.0f * s, item_h = 46.0f * s, item_gap = 4.0f * s;
         for (size_t i = 0; i < ui->section_count; ++i) {
@@ -499,6 +671,7 @@ void draw_menu(RecompRuntimeUi* ui, const DvMenuFonts& F, const DvMenuHeader& hd
             put(dl, F.small, ImVec2(px0 + ip, hy + 12.0f * s), P.muted, help, px1 - px0 - ip * 2.0f);
             dl->PopClipRect();
         }
+        }   /* the sections and their page */
     }
     ImGui::End();
     ImGui::PopStyleColor(4);
@@ -585,12 +758,13 @@ void draw_toast(const DvMenuToast& t, const DvMenuFonts& F, uint64_t now) {
 
 DvMenuClick dv_menu_view_draw(RecompRuntimeUi* ui, bool open, const DvMenuFonts& fonts,
                               const DvMenuHeader& header, const DvMenuDialog& dialog,
-                              const DvMenuToast& toast, const DvMenuHints& hints, uint64_t now_ms,
-                              DvMenuRowInfoFn row_info, void* row_ctx) {
+                              const DvMenuToast& toast, const DvMenuHints& hints, const DvStatesView& states,
+                              uint64_t now_ms, DvMenuRowInfoFn row_info, void* row_ctx) {
     DvMenuClick click;
     if (!ui || !fonts.body || !fonts.bold || !fonts.title || !fonts.small) return click;
     if (open) {
-        draw_menu(ui, fonts, header, hints, dialog.open, row_info, row_ctx, click);
+        if (!(dialog.open && dialog.alone))
+            draw_menu(ui, fonts, header, hints, states, dialog.open, row_info, row_ctx, click);
         if (dialog.open) draw_dialog(dialog, fonts, click);
     }
     draw_toast(toast, fonts, now_ms);

@@ -116,6 +116,10 @@ the native 60 Hz version.
   loading or overwriting a state, changing discs, the warp, leaving the
   game and applying a Play as / Weapon choice (picked first, applied
   together), and a notice at the top right says what happened.
+  F7 and Game > Save / Load state open a save-state screen in the same
+  style (12 slots with pictures and dates, Save and Load tabs) instead of
+  the runtime's 8 x 8-font picker; loading a state made with another hero
+  than Play as asks whether to restart the stage with the chosen one.
   `tests/test_menu.py` 9/9 (now from test state 10, no longer slot 0),
   `test_heroswap.py arlen --menu kodel,stage` 19/19, `default
   --menu-weapon igunis` 9/9.
