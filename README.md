@@ -36,7 +36,7 @@ ending and the Linux / macOS builds are untested
 ## Features
 
 - Native 60 fps, 1080p by default, PGXP for steadier 3D
-- In-game menu: pause, save states, video and audio settings
+- In-game menu: pause, save states (with confirmations), video and audio settings
 - Cheats: infinite HP / MP, more drops, Val, stats, spells and items
 - Widescreen (experimental), Skip Intro, rewind and turbo
 - Play as (experimental): any of the nine heroes in every stage, holding

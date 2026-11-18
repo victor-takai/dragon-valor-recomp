@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check the in-game menu's "Area (next Continue)", "Stage (next Continue)"
-and "Go now" rows (the menu's Experimental section) on a debug build.
+and "Go now" rows (the menu's Warp section) on a debug build. Go now asks
+in a dialog first; Enter on its focused Warp button confirms.
 
   python tests/test_area_row.py [--reloads] [--build build-debug] [--port N]
 
@@ -55,7 +56,8 @@ from dvdbg import rpc, port_from_args  # noqa: E402
 DV = str(ROOT / "tools" / "dvdbg.py")
 AREA, STAGE, HP, HPMAX, MODE, VAL = 0x800A2F18, 0x800A2F1A, 0x8008A5AE, 0x8008A5B0, 0x8008634C, 0x800A2DD0
 RECORD = 0x8007D9C6   # stage-start record +0xF6: the stage the next Continue loads
-AREA_ROW = 0   # Experimental, the menu's last section (Up from the first one): Area, Stage, Go now
+AREA_ROW = 0   # Warp, the menu's sixth section: Area, Stage, Go now
+WARP_SECTION = 5
 STATE_PLAIN = "format_version = 2\n"
 STATE_INFINITE_HP = """format_version = 2
 
@@ -124,7 +126,7 @@ def main(argv):
 
     def open_experimental():
         key("Escape"); time.sleep(0.4)
-        key("Up"); key("Return")   # the section list wraps: Up from the first is the last
+        key("Down", WARP_SECTION); key("Return")
 
     def in_experimental(keys, row=AREA_ROW):
         """Open the menu, go to an Experimental row, run keys, close."""
@@ -152,6 +154,7 @@ def main(argv):
         for k in stage_keys:
             key(k)
         key("Down"); key("Return")
+        key("Return")              # the dialog's Warp button (focused)
         time.sleep(0.5)
 
     def guest_pad():

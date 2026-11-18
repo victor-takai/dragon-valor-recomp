@@ -15,9 +15,21 @@
  * thread that owns the GL context (the main thread unless the render thread
  * is on). The model is used from both, under one mutex; the ImGui context is
  * touched by draw only (no platform backend: the model navigates itself).
+ *
+ * Look and flow (2026-11-18, the player found the generic menu plain and
+ * asked for real confirmations): the rows are this file's own list, the
+ * pause menu's Game section first; the menu is drawn by
+ * dragonvalor_menu_view.cpp instead of recomp-ui's presentation; actions
+ * that are hard to undo (load or overwrite a state, change discs, the warp,
+ * leaving the game) and the Hero choices ask in a dialog first, and what
+ * they did shows as a notice (toast) near the top of the screen. Play as and
+ * Weapon are picked first and applied together, from the dialog.
  */
 #if defined(RECOMP_LAUNCHER)
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -29,6 +41,8 @@
 #include "imgui_impl_opengl3.h"
 
 #include "recomp_runtime_ui.h"
+#include "../../recomp-ui/src/common/recomp_runtime_ui_internal.h"
+#include "dragonvalor_menu_view.h"
 #include "psx_menu_host.h"
 #include "host_osd.h"
 #include "mod_plugins.h"
@@ -54,6 +68,7 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_DISC2       "dv.disc.2"
 #define DV_KEY_GO_NOW      "dv.warp.go"
 #define DV_KEY_PLAY_AS     "dv.heroswap.hero"
+#define DV_KEY_HERO_APPLY  "dv.heroswap.apply"
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
 const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
                                       "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
@@ -108,30 +123,56 @@ const char* const kMagicChoices[] = {"Not learned", "Level 1", "Level 2", "Level
 #define DV_ROW_ITEM(key, label, desc) \
     DV_ROW_INT(key, "Items", label, desc, 0, 99, 1)
 
-const RecompRuntimeUiItem kExtraItems[] = {
-    {DV_KEY_TEXFILTER, "Graphics", "Texture filtering",
-     "Nearest is the PS1 look; xBR smooths diagonals at high resolution.",
-     RECOMP_RUNTIME_UI_CHOICE, 0, 2, 1, kTextureFilterChoices, 3, kTextureFilterValues},
-    {DV_KEY_SCANLINES, "Graphics", "Scanlines", "Draw CRT-style scanlines over the picture.",
-     RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_DYNRES, "Graphics", "Dynamic resolution",
-     "Lower the internal resolution when a frame runs late.",
-     RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_CHEAT_HP, "Cheats", "Infinite HP", "HP never drops.",
-     RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_CHEAT_MP, "Cheats", "Infinite MP", "MP never drops.",
-     RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_GEM_EVERY, "Cheats", "Gem every N sword kills",
-     "0 = game rule; N = one every N kills.",
-     RECOMP_RUNTIME_UI_INT, 0, 15, 1, nullptr, 0, nullptr},
-    {DV_KEY_SCROLL_EVERY, "Cheats", "Scroll every N magic kills",
-     "0 = game rule; N = one every N kills.",
-     RECOMP_RUNTIME_UI_INT, 0, 5, 1, nullptr, 0, nullptr},
+#define DV_ROW_ACTION(key, section, label, desc) \
+    {key, section, label, desc, RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr}
+#define DV_ROW_BOOL(key, section, label, desc) \
+    {key, section, label, desc, RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr}
+
+/* Every row, in the order shown: a section is listed where its first row is.
+ * The pause menu's own business comes first (the player, 2026-11-18: System
+ * sat between Audio and Cheats), then what the game offers, then settings.
+ * Descriptions are one or two lines: the view shows only the selected row's,
+ * under the rows. The standard keys (RECOMP_RUNTIME_UI_KEY_*) are recomp-ui's
+ * names for the same host settings the callbacks below handle. */
+const RecompRuntimeUiItem kItems[] = {
+    DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_RESUME, "Game", "Resume", "Close the menu and play."),
+    DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_STATE_SLOT, "Game", "State slot",
+               "The slot Save state and Load state use.", 1, SAVESTATE_SLOTS, 1),
+    DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_SAVE_STATE, "Game", "Save state",
+                  "Save this moment in the slot above."),
+    DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_LOAD_STATE, "Game", "Load state",
+                  "Go back to the moment saved in the slot above."),
+    DV_ROW_ACTION(DV_KEY_DISC1, "Game", "Insert disc 1", "Swap to disc 1: areas 0 to 6, the first chapters."),
+    DV_ROW_ACTION(DV_KEY_DISC2, "Game", "Insert disc 2", "Swap to disc 2: areas 7 to 12, the last chapters."),
+    DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER, "Game", "Return to launcher",
+                  "Close the game and open the launcher. Progress since your last save is lost."),
+    DV_ROW_ACTION(RECOMP_RUNTIME_UI_KEY_QUIT, "Game", "Quit game",
+                  "Close the game. Progress since your last save is lost."),
+
+    {DV_KEY_PLAY_AS, "Hero", "Play as",
+     "The hero of every action stage: model, moves, voice, portrait and name, story scenes included. "
+     "Pick one with Left / Right, then press Enter to apply it.",
+     RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
+    {DV_KEY_WEAPON, "Hero", "Weapon",
+     "The sword the hero holds (its look: damage and moves stay the hero's). Kadum, Igunis and the last "
+     "four are read from disc 2 once it has been started. Press Enter to apply.",
+     RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
+    DV_ROW_ACTION(DV_KEY_HERO_APPLY, "Hero", "Apply",
+                  "Use the hero and weapon above. In an action stage the stage restarts from its beginning: "
+                  "HP, items and Val stay, its doors and keys reset."),
+
+    DV_ROW_BOOL(DV_KEY_CHEAT_HP, "Cheats", "Infinite HP", "HP never drops."),
+    DV_ROW_BOOL(DV_KEY_CHEAT_MP, "Cheats", "Infinite MP", "MP never drops."),
+    DV_ROW_INT(DV_KEY_GEM_EVERY, "Cheats", "Gem every N sword kills",
+               "0 keeps the game's rule; N drops a gem every N kills with the sword.", 0, 15, 1),
+    DV_ROW_INT(DV_KEY_SCROLL_EVERY, "Cheats", "Scroll every N magic kills",
+               "0 keeps the game's rule; N drops a scroll every N kills with magic.", 0, 5, 1),
     DV_ROW_INT(DV_RAM_VAL, "Cheats", "Val", "Your gold.", 0, 9999, 100),
     DV_ROW_INT("dv.ram.hpmax", "Cheats", "Max HP", "Maximum HP.", 1, 999, 10),
     DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP.", 1, 999, 10),
     DV_ROW_INT("dv.ram.str", "Cheats", "STR", "Attack power.", 0, 999, 5),
     DV_ROW_INT("dv.ram.def", "Cheats", "DEF", "Defense.", 0, 999, 5),
+
     DV_ROW_MAGIC("dv.ram.magic0", "Heal", "Recovers HP and damages undead."),
     DV_ROW_MAGIC("dv.ram.magic1", "Defense", "Raises defense and weapon range."),
     DV_ROW_MAGIC("dv.ram.magic2", "Fire", "Fireball; also ignites devices."),
@@ -140,6 +181,7 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_MAGIC("dv.ram.magic5", "Mine", "Three controlled mines."),
     DV_ROW_MAGIC("dv.ram.magic6", "Stealth", "Invisibility; enemies stop attacking."),
     DV_ROW_MAGIC("dv.ram.magic7", "Vortex", "Traps enemies in a controlled vortex."),
+
     DV_ROW_ITEM("dv.ram.item0", "Pendant", "Max HP +1 each, applied when found."),
     DV_ROW_ITEM("dv.ram.item1", "Lithograph", "Max MP +1 each, applied when found."),
     DV_ROW_ITEM("dv.ram.item2", "Ring", "Attack power up, applied when found."),
@@ -154,32 +196,42 @@ const RecompRuntimeUiItem kExtraItems[] = {
     DV_ROW_ITEM("dv.ram.item11", "Mask", "Handmade item, traded at shops."),
     DV_ROW_ITEM("dv.ram.item12", "Tiara", "Jeweled item, traded at shops."),
     DV_ROW_ITEM("dv.ram.item13", "Harp", "Royal instrument, traded at shops."),
-    DV_ROW_ITEM("dv.ram.item14", "Gold Key", "Opens locked doors. Raising it also takes this stage's gold keys, which is what the doors check."),
-    DV_ROW_ITEM("dv.ram.item15", "Silver Key", "Opens locked doors. Raising it also takes this stage's silver keys, which is what the doors check."),
-    DV_ROW_ITEM("dv.ram.item16", "Copper Key", "Opens locked doors. Raising it also takes this stage's copper keys, which is what the doors check."),
-    {DV_KEY_SKIP_INTRO, "Game", "Skip intro movie",
-     "Press Start for you when the intro movie starts. Takes effect at the next start.",
-     RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, nullptr, 0, nullptr},
-    {DV_KEY_DISC1, "Game", "Insert disc 1", "Swap to Dragon Valor disc 1.",
-     RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
-    {DV_KEY_DISC2, "Game", "Insert disc 2", "Swap to Dragon Valor disc 2.",
-     RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
-    /* Last section: the stage warp works, but it has known limits (garbage
-     * text in story scenes, skipped stages' items and keys), so it sits apart
-     * from the cheats (player's choice, 2026-10-16). */
-    DV_ROW_INT("dv.ram.area", "Experimental", "Area (next Continue)",
-               "Area the next GAME OVER > Continue loads; the hero follows it (0-1 Clovis, 3 Kodel). Areas of this disc only; if the stage below is not an action stage there, it moves to the nearest one that is. Then use Go now below.", 0, 12, 1),
-    DV_ROW_INT("dv.ram.stage", "Experimental", "Stage (next Continue)",
-               "Stage the next Continue loads in the area above; only action stages are offered. A stage that opens with a story scene shows that scene's text as garbage after the jump, but the scene plays and can move the story on.", 0, 47, 1),
-    {DV_KEY_GO_NOW, "Experimental", "Go now (Game Over)",
-     "Ends the stage with a Game Over and answers Continue for you: the area and stage above load in about 10 s. Make a save state first: skipped stages can leave items and keys behind. The pad is ignored meanwhile (a dialogue on screen holds the Game Over back until you finish it) and Infinite HP pauses; the 50 Val the Continue costs is given back.",
-     RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
-    {DV_KEY_PLAY_AS, "Experimental", "Play as",
-     "Every action stage loads with this hero (dragonvalor.heroswap): model, moves, sounds, portrait and name, story scenes and dialogues included. When you close the menu, the stage you are in restarts from its beginning with the new hero (no Game Over; HP, items and Val stay; its doors and keys reset, as with Continue). The first choice turns the feature on, which then needs a restart of the game.",
-     RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
-    {DV_KEY_WEAPON, "Experimental", "Weapon",
-     "The weapon the hero holds: its own, or one of the weapon models the heroes hold across both discs (dragonvalor.heroswap; the model and its texture, damage and moves stay the hero's). With Play as on Each stage's own, every stage's hero holds it. Kadum, Igunis and the last four come from disc 2: offered once disc 2 has been started with Play as on. Like Play as, the stage you are in restarts from its beginning when you close the menu.",
-     RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
+    DV_ROW_ITEM("dv.ram.item14", "Gold Key", "Opens locked doors. Raising it also picks up this stage's gold keys, which is what the doors check."),
+    DV_ROW_ITEM("dv.ram.item15", "Silver Key", "Opens locked doors. Raising it also picks up this stage's silver keys, which is what the doors check."),
+    DV_ROW_ITEM("dv.ram.item16", "Copper Key", "Opens locked doors. Raising it also picks up this stage's copper keys, which is what the doors check."),
+
+    /* The stage warp works, but it has known limits (garbage text in story
+     * scenes, skipped stages' items and keys), so it sits apart from the
+     * cheats (player's choice, 2026-10-16). */
+    DV_ROW_INT("dv.ram.area", "Warp", "Area",
+               "The area the next Continue loads, on this disc. The stage below moves to the nearest action "
+               "stage there.", 0, 12, 1),
+    DV_ROW_INT("dv.ram.stage", "Warp", "Stage",
+               "The stage the next Continue loads; only action stages are offered. A story scene right after "
+               "the jump can show garbled text, but it plays.", 0, 47, 1),
+    DV_ROW_ACTION(DV_KEY_GO_NOW, "Warp", "Go now",
+                  "End the stage with a Game Over and Continue into the area and stage above, in about 10 "
+                  "seconds. Make a save state first: skipped stages can leave items and keys behind."),
+
+    DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_FULLSCREEN, "Video", "Fullscreen", "Fill the screen, or play in a window."),
+    DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_LINEAR_FILTER, "Video", "Smooth picture",
+                "Smooth the final picture when it is scaled up to the window."),
+    {DV_KEY_TEXFILTER, "Video", "Texture filtering",
+     "Nearest is the PS1 look; Bilinear and xBR smooth the textures (xBR keeps edges sharp).",
+     RECOMP_RUNTIME_UI_CHOICE, 0, 2, 1, kTextureFilterChoices, 3, kTextureFilterValues},
+    DV_ROW_BOOL(DV_KEY_SCANLINES, "Video", "Scanlines", "Draw CRT-style scanlines over the picture."),
+    DV_ROW_BOOL(DV_KEY_DYNRES, "Video", "Dynamic resolution",
+                "Lower the internal resolution when a frame runs late."),
+
+    DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_VOLUME, "Options", "Volume", "The game's volume.", 0, 100, 5),
+    DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU, "Options", "Pause in menu",
+                "Hold the game while this menu is open."),
+    DV_ROW_BOOL(DV_KEY_SKIP_INTRO, "Options", "Skip intro movie",
+                "Press Start for you when the intro movie starts. From the next start of the game."),
+    DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_MENU_DIM, "Options", "Game dimming",
+               "How dark the game gets behind this menu.", 0, 100, 10),
+    DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_MENU_OPACITY, "Options", "Menu opacity",
+               "How solid this menu's background is.", 0, 100, 10),
 };
 
 #define DV_CHEATS_PKG   "dragonvalor.cheats"
@@ -202,14 +254,28 @@ struct Menu {
     /* mirrors of the mod selection (the catalogue is the host's) */
     int cheat_hp = 0, cheat_mp = 0, skip_intro = 0;
     int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
-    int play_as = 0;                       /* index in kPlayAsValues */
-    int weapon = 0;                        /* index in kWeaponValues */
+    int play_as = 0;                       /* index in kPlayAsValues: the applied choice */
+    int weapon = 0;                        /* index in kWeaponValues: the applied choice */
+    int play_as_pend = 0, weapon_pend = 0; /* what the Hero rows show; applied from the dialog */
+    /* the dialog over the menu, and what its action button does */
+    DvMenuDialog dialog;
+    int dialog_kind = 0;                   /* DV_DIALOG_* */
+    const RecompRuntimeUiItem* dialog_item = nullptr;
+    bool confirmed = false;                /* cb_run_action called from the dialog */
+    DvMenuToast toast;
+    /* the State slot row's note, refreshed when the slot changes or a save lands */
+    int slot_cached = -1, slot_saved = 0;
     /* gamepad combo */
     bool pad_start = false, pad_back = false, combo_fired = false;
     /* mouse: window coordinates are scaled to the framebuffer ImGui draws in */
     SDL_Window* window = nullptr;
     int fb_w = 0, fb_h = 0;
+    /* fonts, rebuilt when the display height moves the scale */
+    std::string assets_dir;
+    DvMenuFonts fonts;
+    bool gl_ready = false;                 /* the ImGui GL backend made its objects */
 };
+enum { DV_DIALOG_NONE, DV_DIALOG_ACTION, DV_DIALOG_HERO, DV_DIALOG_HERO_CLOSE };
 
 Menu g_menu;
 
@@ -552,8 +618,8 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, DV_KEY_GEM_EVERY)) { *out = m.gem_every; return 1; }
     if (is(item, DV_KEY_SCROLL_EVERY)) { *out = m.scroll_every; return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { *out = m.skip_intro; return 1; }
-    if (is(item, DV_KEY_PLAY_AS)) { *out = m.play_as; return 1; }
-    if (is(item, DV_KEY_WEAPON)) { *out = m.weapon; return 1; }
+    if (is(item, DV_KEY_PLAY_AS)) { *out = m.play_as_pend; return 1; }
+    if (is(item, DV_KEY_WEAPON)) { *out = m.weapon_pend; return 1; }
     if (const RamRow* r = ram_row(item)) {
         const int v = hero_loaded() ? ram_read(*r) : 0;
         *out = v > item->maximum ? item->maximum : v < item->minimum ? item->minimum : v;
@@ -575,6 +641,120 @@ int apply_video(Menu& m, const PsxHostVideoSettings& v) {
 void set_mod(Menu& m, const char* pkg, const char* feat, const char* opt, const char* value) {
     const int live = m.host->mod_set(pkg, feat, opt, value);
     recomp_runtime_ui_set_status(m.ui, live ? "Applied" : "Saved; takes effect at the next start");
+}
+
+void set_open_locked(Menu& m, bool open);
+
+/* ---- notices and dialogs ---------------------------------------------------- */
+uint64_t now_ms() { return (uint64_t)SDL_GetTicks(); }
+
+/* A notice near the top of the screen; it outlives the menu. */
+void toast(Menu& m, const char* title, const char* body, uint64_t ms = 3200) {
+    std::snprintf(m.toast.title, sizeof m.toast.title, "%s", title ? title : "");
+    std::snprintf(m.toast.body, sizeof m.toast.body, "%s", body ? body : "");
+    m.toast.start_ms = now_ms();
+    m.toast.end_ms = m.toast.start_ms + ms;
+}
+
+/* focus: 0 = the action button, 1 = Cancel (the default for leaving the game). */
+void open_dialog(Menu& m, int kind, const RecompRuntimeUiItem* item, const char* title, const char* body,
+                 const char* ok, const char* cancel, bool danger, int focus) {
+    DvMenuDialog& d = m.dialog;
+    std::snprintf(d.title, sizeof d.title, "%s", title);
+    std::snprintf(d.body, sizeof d.body, "%s", body);
+    std::snprintf(d.ok, sizeof d.ok, "%s", ok);
+    std::snprintf(d.cancel, sizeof d.cancel, "%s", cancel ? cancel : "Cancel");
+    d.danger = danger;
+    d.focus = focus;
+    d.open = true;
+    m.dialog_kind = kind;
+    m.dialog_item = item;
+    recomp_runtime_ui_set_status(m.ui, "");
+}
+
+bool in_action_stage() { return hero_loaded() && psx_mod_read_byte(DV_MODE) == 8; }
+
+/* ---- Hero: Play as and Weapon, picked in the rows, applied together -------- */
+bool hero_pending(const Menu& m) { return m.play_as_pend != m.play_as || m.weapon_pend != m.weapon; }
+
+/* dragonvalor.heroswap is in the running plan (on by default since
+ * 2026-11-18; a player can still switch it off in the launcher). */
+bool heroswap_live() {
+    char v[32];
+    return psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "hero", v, sizeof v) != 0;
+}
+
+/* "Arlen", "Arlen with Kadum", "each stage's own hero with Kadum"... for
+ * the dialog's title and the notice. */
+void hero_choice_text(int hero, int weapon, char* out, size_t n) {
+    const char* who = hero ? kPlayAsChoices[hero] : "each stage's own hero";
+    if (weapon) std::snprintf(out, n, "%s with %s", who, kWeaponChoices[weapon]);
+    else std::snprintf(out, n, "%s", who);
+}
+
+/* closing: the player is leaving the menu with a choice not applied (Cancel
+ * then reads Discard). */
+void open_hero_dialog(Menu& m, bool closing) {
+    char choice[96], title[128], body[400];
+    hero_choice_text(m.play_as_pend, m.weapon_pend, choice, sizeof choice);
+    if (m.play_as_pend != m.play_as)
+        std::snprintf(title, sizeof title, m.play_as_pend ? "Play as %s?" : "Back to %s?", choice);
+    else if (m.weapon_pend)
+        std::snprintf(title, sizeof title, "Hold %s?", kWeaponChoices[m.weapon_pend]);
+    else
+        std::snprintf(title, sizeof title, "Back to the hero's own weapon?");
+    const bool live = heroswap_live(), stage = live && in_action_stage();
+    if (!live)
+        std::snprintf(body, sizeof body,
+                      "Play as is switched off in the launcher. This switches it on; the choice takes effect "
+                      "the next time you start the game.");
+    else if (stage)
+        std::snprintf(body, sizeof body,
+                      "This stage restarts from its beginning with the new choice. HP, items and Val stay; the "
+                      "stage's doors and keys reset, as with a Continue.");
+    else
+        std::snprintf(body, sizeof body, "The choice takes effect when the next stage loads.");
+    open_dialog(m, closing ? DV_DIALOG_HERO_CLOSE : DV_DIALOG_HERO, nullptr, title, body,
+                stage ? "Restart the stage" : "Apply", closing ? "Discard" : "Not yet", false, 0);
+}
+
+/* Writes the picked hero and weapon to dragonvalor.heroswap. Live, the stage
+ * being played restarts with them once the menu closes (dv_hs_vblank in
+ * dragonvalor_heroswap.c waits for plain play); the menu then closes. */
+void apply_hero(Menu& m) {
+    const bool hero_changed = m.play_as_pend != m.play_as, weapon_changed = m.weapon_pend != m.weapon;
+    bool live = true;
+    if (hero_changed) live = m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[m.play_as_pend]) && live;
+    if (weapon_changed) live = m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "weapon", kWeaponValues[m.weapon_pend]) && live;
+    m.play_as = m.play_as_pend;
+    m.weapon = m.weapon_pend;
+    char title[128];
+    if (m.play_as && m.weapon)
+        std::snprintf(title, sizeof title, "%s, holding %s", kPlayAsChoices[m.play_as], kWeaponChoices[m.weapon]);
+    else if (m.play_as)
+        std::snprintf(title, sizeof title, "Playing as %s", kPlayAsChoices[m.play_as]);
+    else if (m.weapon)
+        std::snprintf(title, sizeof title, "Every hero holds %s", kWeaponChoices[m.weapon]);
+    else
+        std::snprintf(title, sizeof title, "Each stage's own hero and weapon");
+    if (!live) {
+        /* not in the running plan: switch the feature on for the next start */
+        (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, nullptr, "true");
+        toast(m, "Play as switched on", "Start the game again to apply it.");
+        return;
+    }
+    if (in_action_stage()) {
+        dv_heroswap_restart_request = 1;
+        toast(m, title, "The stage restarts from its beginning.");
+        set_open_locked(m, false);
+    } else {
+        toast(m, title, "From the next stage on.");
+    }
+}
+
+const RecompRuntimeUiItem* selected_item(Menu& m) {
+    if (!m.ui || !m.ui->in_section) return nullptr;
+    return recomp_runtime_ui_page_entry(m.ui, m.ui->row_index, nullptr, 0);
 }
 
 int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
@@ -604,25 +784,13 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_SCROLL_EVERY)) { m.scroll_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", text); return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON)) {
+        /* only picked here: Enter (or Apply, or closing the menu) asks in a
+         * dialog and apply_hero() does it */
         const bool w = is(item, DV_KEY_WEAPON);
         if (value < 0 || value > (w ? DV_WEAPON_CHOICES - 1 : 9)) return 0;
-        (w ? m.weapon : m.play_as) = value;
-        if (!m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, w ? "weapon" : "hero", (w ? kWeaponValues : kPlayAsValues)[value])) {
-            /* not in the running plan yet: switch the feature on for the next start */
-            if (value) (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, nullptr, "true");
-            recomp_runtime_ui_set_status(m.ui, value ? "Saved; takes effect at the next start" : "Saved");
-            return 1;
-        }
-        /* live: the stage being played restarts with this hero once the menu
-         * closes (dv_hs_vblank in dragonvalor_heroswap.c waits for plain play) */
-        if (hero_loaded() && psx_mod_read_byte(0x8008634Cu) == 8) {
-            dv_heroswap_restart_request = 1;
-            recomp_runtime_ui_set_status(m.ui, w ? "This stage restarts with this weapon when you close the menu"
-                                                 : "This stage restarts with this hero when you close the menu");
-        } else {
-            recomp_runtime_ui_set_status(m.ui, "From the next stage");
-        }
-        return 1;
+        (w ? m.weapon_pend : m.play_as_pend) = value;
+        recomp_runtime_ui_set_status(m.ui, hero_pending(m) ? "Press Enter to apply" : "");
+        return 0;   /* 1 would let recomp-ui show "Saved" */
     }
     if (const RamRow* r = ram_row(item)) {
         if (!hero_loaded()) { recomp_runtime_ui_set_status(m.ui, "No hero loaded yet"); return 0; }
@@ -673,26 +841,104 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     return 0;
 }
 
-void set_open_locked(Menu& m, bool open);
+void request_close(Menu& m);
+
+bool slot_saved(Menu& m) {
+    if (m.slot_cached != m.slot) {
+        m.slot_saved = savestate_slot_exists(m.slot - 1) ? 1 : 0;
+        m.slot_cached = m.slot;
+    }
+    return m.slot_saved != 0;
+}
+
+/* The dialog an action asks first, or false when it needs none (or cannot
+ * run: the action itself then says why). The dialog's action button calls
+ * cb_run_action again with m.confirmed set. */
+bool ask_first(Menu& m, const RecompRuntimeUiItem* item) {
+    char title[96], body[400], ok[48];
+    if (is(item, RECOMP_RUNTIME_UI_KEY_SAVE_STATE)) {
+        if (!slot_saved(m)) return false;
+        std::snprintf(title, sizeof title, "Overwrite slot %d?", m.slot);
+        open_dialog(m, DV_DIALOG_ACTION, item, title, "The state saved there is replaced by this moment.",
+                    "Overwrite", nullptr, false, 0);
+        return true;
+    }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) {
+        if (!slot_saved(m)) return false;
+        std::snprintf(title, sizeof title, "Load slot %d?", m.slot);
+        open_dialog(m, DV_DIALOG_ACTION, item, title,
+                    "The game goes back to the moment saved there. What happened since is lost unless you saved it.",
+                    "Load", nullptr, false, 0);
+        return true;
+    }
+    if (is(item, DV_KEY_DISC1) || is(item, DV_KEY_DISC2)) {
+        const int n = is(item, DV_KEY_DISC1) ? 1 : 2;
+        std::snprintf(title, sizeof title, "Insert disc %d?", n);
+        std::snprintf(body, sizeof body, "The drive switches to disc %d now, as if you had swapped discs on the console.", n);
+        std::snprintf(ok, sizeof ok, "Insert disc %d", n);
+        open_dialog(m, DV_DIALOG_ACTION, item, title, body, ok, nullptr, false, 0);
+        return true;
+    }
+    if (is(item, DV_KEY_GO_NOW)) {
+        if (m.host->netplay_active() || !warp_possible()) return false;
+        std::snprintf(title, sizeof title, "Warp to area %d, stage %d?", psx_mod_read_half(DV_AREA),
+                      psx_mod_read_half(DV_STAGE_RECORD));
+        open_dialog(m, DV_DIALOG_ACTION, item, title,
+                    "The stage ends with a Game Over and the Continue loads it, in about 10 seconds. Make a save "
+                    "state first: skipped stages can leave items and keys behind.",
+                    "Warp", nullptr, false, 0);
+        return true;
+    }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER)) {
+        open_dialog(m, DV_DIALOG_ACTION, item, "Return to the launcher?",
+                    "The game closes. Progress since your last save is lost.", "Leave the game", nullptr, true, 1);
+        return true;
+    }
+    if (is(item, RECOMP_RUNTIME_UI_KEY_QUIT)) {
+        open_dialog(m, DV_DIALOG_ACTION, item, "Quit Dragon Valor?",
+                    "The game closes. Progress since your last save is lost.", "Quit", nullptr, true, 1);
+        return true;
+    }
+    return false;
+}
 
 int cb_run_action(void* ctx, const RecompRuntimeUiItem* item) {
     Menu& m = *static_cast<Menu*>(ctx);
-    char text[64];
-    if (is(item, RECOMP_RUNTIME_UI_KEY_RESUME)) { set_open_locked(m, false); return 1; }
+    char text[96];
+    if (!m.confirmed && ask_first(m, item)) return 0;
+    if (is(item, RECOMP_RUNTIME_UI_KEY_RESUME)) { request_close(m); return 0; }
+    if (is(item, DV_KEY_HERO_APPLY)) {
+        if (hero_pending(m)) open_hero_dialog(m, false);
+        return 0;
+    }
     if (is(item, RECOMP_RUNTIME_UI_KEY_SAVE_STATE)) {
         const int ok = savestate_request_save(m.slot - 1);
-        std::snprintf(text, sizeof text, ok ? "Saving state to slot %d" : "Save state refused (slot %d)", m.slot);
-        recomp_runtime_ui_set_status(m.ui, text); return 0;
+        std::snprintf(text, sizeof text, "Slot %d", m.slot);
+        if (ok) {
+            toast(m, "State saved", text);
+            m.slot_cached = m.slot;
+            m.slot_saved = 1;
+        } else {
+            std::snprintf(text, sizeof text, "Save state refused (slot %d)", m.slot);
+            recomp_runtime_ui_set_status(m.ui, text);
+        }
+        return 0;
     }
     if (is(item, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) {
-        if (!savestate_slot_exists(m.slot - 1)) {
+        if (!slot_saved(m)) {
             std::snprintf(text, sizeof text, "Slot %d is empty", m.slot);
             recomp_runtime_ui_set_status(m.ui, text); return 0;
         }
         const int ok = savestate_request_load(m.slot - 1);
-        if (ok) set_open_locked(m, false);
-        else { std::snprintf(text, sizeof text, "Load state refused (slot %d)", m.slot); recomp_runtime_ui_set_status(m.ui, text); }
-        return ok ? 1 : 0;
+        if (ok) {
+            std::snprintf(text, sizeof text, "Slot %d", m.slot);
+            toast(m, "State loaded", text);
+            set_open_locked(m, false);
+        } else {
+            std::snprintf(text, sizeof text, "Load state refused (slot %d)", m.slot);
+            recomp_runtime_ui_set_status(m.ui, text);
+        }
+        return 0;
     }
     if (is(item, RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER)) {
 #if defined(PSX_HAS_LOBBY_CLIENT)
@@ -719,20 +965,28 @@ int cb_run_action(void* ctx, const RecompRuntimeUiItem* item) {
             }
             g_warp.registered = true;
         }
+        std::snprintf(text, sizeof text, "Area %d, stage %d in about 10 seconds", psx_mod_read_half(DV_AREA),
+                      psx_mod_read_half(DV_STAGE_RECORD));
         dv_cheats_hold_hp = 1;
         g_warp.val = (uint16_t)psx_mod_read_half(0x800A2DD0u);
         g_warp.pressed_ms = g_warp.started_ms = g_warp.since_ms = SDL_GetTicks();
         g_warp.phase = 1;
         psx_mod_write_half(DV_HP, 0);
+        toast(m, "Warping", text);
         set_open_locked(m, false);
-        return 1;
+        return 0;
     }
     if (is(item, DV_KEY_DISC1) || is(item, DV_KEY_DISC2)) {
         const int n = is(item, DV_KEY_DISC1) ? 1 : 2;
         const int rc = m.host->disc_insert(n);
-        std::snprintf(text, sizeof text, rc == 0 ? "Changing to disc %d" : rc == -1 ? "No disc %d in the roster" : "Refused during netplay", n);
-        recomp_runtime_ui_set_status(m.ui, text);
-        if (rc == 0) set_open_locked(m, false);
+        if (rc == 0) {
+            std::snprintf(text, sizeof text, "Disc %d is in the drive", n);
+            toast(m, "Changing discs", text);
+            set_open_locked(m, false);
+        } else {
+            std::snprintf(text, sizeof text, rc == -1 ? "No disc %d in the roster" : "Refused during netplay", n);
+            recomp_runtime_ui_set_status(m.ui, text);
+        }
         return 0;
     }
     return 0;
@@ -746,7 +1000,27 @@ int cb_is_enabled(void* ctx, const RecompRuntimeUiItem* item) {
     }
     if (ram_row(item)) return hero_loaded() ? 1 : 0;
     if (is(item, DV_KEY_GO_NOW)) return warp_possible() && !m.host->netplay_active() ? 1 : 0;
+    if (is(item, DV_KEY_HERO_APPLY)) return hero_pending(m) ? 1 : 0;
     return 1;
+}
+
+/* The view's per-row extras. Draw thread, under g_menu.mu. */
+void row_info(void* ctx, const RecompRuntimeUiItem* item, DvMenuRowInfo* out) {
+    Menu& m = *static_cast<Menu*>(ctx);
+    if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) {
+        std::snprintf(out->note, sizeof out->note, "%s", slot_saved(m) ? "saved" : "empty");
+    } else if (is(item, DV_KEY_DISC1) || is(item, DV_KEY_DISC2)) {
+        const int n = is(item, DV_KEY_DISC1) ? 1 : 2;
+        if (m.host->disc_mounted() == n) std::snprintf(out->note, sizeof out->note, "in the drive");
+        else if (m.host->disc_count() < n) std::snprintf(out->note, sizeof out->note, "not set up");
+    } else if (is(item, RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER) || is(item, RECOMP_RUNTIME_UI_KEY_QUIT)) {
+        out->danger = true;
+    } else if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON)) {
+        out->pending = is(item, DV_KEY_PLAY_AS) ? m.play_as_pend != m.play_as : m.weapon_pend != m.weapon;
+        if (out->pending) std::snprintf(out->note, sizeof out->note, "not applied");
+    } else if (is(item, DV_KEY_HERO_APPLY) && hero_pending(m)) {
+        std::snprintf(out->note, sizeof out->note, in_action_stage() ? "restarts the stage" : "from the next stage");
+    }
 }
 
 void cb_save(void*) { /* the host persists settings.toml and mods/state.toml itself */ }
@@ -778,39 +1052,115 @@ void set_open_locked(Menu& m, bool open) {
             g_warp.registered = false;
         }
         m.open = true;
+        /* the Hero rows start from what is applied; no dialog left over */
+        m.play_as_pend = m.play_as;
+        m.weapon_pend = m.weapon;
+        m.dialog.open = false;
+        m.slot_cached = -1;
         if (m.pause_in_menu && !m.host->set_paused(1))
             recomp_runtime_ui_set_status(m.ui, "Running: pause refused during netplay");
     } else if (!open && m.open) {
         recomp_runtime_ui_close(m.ui);
         if (m.imgui) ImGui::GetIO().ClearInputMouse();   /* a click that closed the menu never gets its release */
         m.open = false;
+        m.dialog.open = false;
         (void)m.host->set_paused(0);
     }
 }
 
+/* The player leaves the menu (Esc at the top, Resume, Start, the combo): a
+ * Hero choice not applied yet asks first. */
+void request_close(Menu& m) {
+    if (m.dialog.open) return;
+    if (hero_pending(m)) { open_hero_dialog(m, true); return; }
+    set_open_locked(m, false);
+}
+
+/* ---- the dialog ------------------------------------------------------------ */
+void dialog_confirm(Menu& m) {
+    const int kind = m.dialog_kind;
+    const RecompRuntimeUiItem* item = m.dialog_item;
+    m.dialog.open = false;
+    m.dialog_kind = DV_DIALOG_NONE;
+    m.dialog_item = nullptr;
+    if (kind == DV_DIALOG_ACTION && item) {
+        m.confirmed = true;
+        (void)cb_run_action(&m, item);
+        m.confirmed = false;
+    } else if (kind == DV_DIALOG_HERO) {
+        apply_hero(m);
+    } else if (kind == DV_DIALOG_HERO_CLOSE) {
+        apply_hero(m);
+        set_open_locked(m, false);
+    }
+}
+
+/* button: the Cancel button (Discard when closing) rather than Esc, which
+ * only takes the dialog away. */
+void dialog_cancel(Menu& m, bool button) {
+    const int kind = m.dialog_kind;
+    m.dialog.open = false;
+    m.dialog_kind = DV_DIALOG_NONE;
+    m.dialog_item = nullptr;
+    if (kind == DV_DIALOG_HERO_CLOSE && button) {
+        m.play_as_pend = m.play_as;
+        m.weapon_pend = m.weapon;
+        set_open_locked(m, false);
+    }
+}
+
+/* Every key, pad button and mouse click goes through here. */
+void dispatch(Menu& m, int input, bool repeat) {
+    if (!m.ui || input < 0) return;
+    if (m.dialog.open) {
+        if (repeat) return;
+        switch (input) {
+            case RECOMP_RUNTIME_UI_INPUT_LEFT: m.dialog.focus = 1; break;      /* Cancel is on the left */
+            case RECOMP_RUNTIME_UI_INPUT_RIGHT: m.dialog.focus = 0; break;
+            case RECOMP_RUNTIME_UI_INPUT_UP:
+            case RECOMP_RUNTIME_UI_INPUT_DOWN: m.dialog.focus ^= 1; break;
+            case RECOMP_RUNTIME_UI_INPUT_ACCEPT:
+                if (m.dialog.focus == 0) dialog_confirm(m);
+                else dialog_cancel(m, true);
+                break;
+            case RECOMP_RUNTIME_UI_INPUT_BACK: dialog_cancel(m, false); break;
+            default: break;
+        }
+        return;
+    }
+    if (input == RECOMP_RUNTIME_UI_INPUT_ACCEPT && m.ui->in_section) {
+        const RecompRuntimeUiItem* it = selected_item(m);
+        if (it && (is(it, DV_KEY_PLAY_AS) || is(it, DV_KEY_WEAPON))) {
+            if (repeat) return;
+            if (hero_pending(m)) open_hero_dialog(m, false);
+            else recomp_runtime_ui_set_status(m.ui, "Change it with Left / Right");
+            return;
+        }
+    }
+    if (input == RECOMP_RUNTIME_UI_INPUT_BACK && !m.ui->in_section) {
+        if (!repeat) request_close(m);
+        return;
+    }
+    (void)recomp_runtime_ui_handle_input(m.ui, (RecompRuntimeUiInput)input, 1, repeat ? 1 : 0);
+    sync_open_locked(m);
+}
+
 bool create_ui(Menu& m) {
-    RecompRuntimeUiStandardConfig cfg{};
-    cfg.menu.title = "Dragon Valor";
-    cfg.menu.subtitle = "PlayStation";
-    cfg.menu.theme = "psx";
-    cfg.menu.accept_label = "Enter / Cross";
-    cfg.menu.back_label = "Esc / Circle";
-    cfg.menu.callbacks.context = &m;
-    cfg.menu.callbacks.get_value = cb_get_value;
-    cfg.menu.callbacks.set_value = cb_set_value;
-    cfg.menu.callbacks.run_action = cb_run_action;
-    cfg.menu.callbacks.is_enabled = cb_is_enabled;
-    cfg.menu.callbacks.save = cb_save;
-    cfg.features = RECOMP_RUNTIME_UI_STANDARD_FULLSCREEN | RECOMP_RUNTIME_UI_STANDARD_LINEAR_FILTER |
-                   RECOMP_RUNTIME_UI_STANDARD_VOLUME | RECOMP_RUNTIME_UI_STANDARD_RESUME |
-                   RECOMP_RUNTIME_UI_STANDARD_STATE_SLOT | RECOMP_RUNTIME_UI_STANDARD_SAVE_STATE |
-                   RECOMP_RUNTIME_UI_STANDARD_LOAD_STATE | RECOMP_RUNTIME_UI_STANDARD_PAUSE_IN_MENU |
-                   RECOMP_RUNTIME_UI_STANDARD_MENU_BACKDROP |
-                   RECOMP_RUNTIME_UI_STANDARD_RETURN_TO_LAUNCHER | RECOMP_RUNTIME_UI_STANDARD_QUIT;
-    cfg.state_slot_count = SAVESTATE_SLOTS;
-    cfg.extra_items = kExtraItems;
-    cfg.extra_item_count = sizeof kExtraItems / sizeof kExtraItems[0];
-    m.ui = recomp_runtime_ui_create_standard(&cfg);
+    RecompRuntimeUiConfig cfg{};
+    cfg.title = "Dragon Valor";
+    cfg.subtitle = "PlayStation";
+    cfg.theme = "psx";
+    cfg.accept_label = "Enter / Cross";
+    cfg.back_label = "Esc / Circle";
+    cfg.items = kItems;
+    cfg.item_count = sizeof kItems / sizeof kItems[0];
+    cfg.callbacks.context = &m;
+    cfg.callbacks.get_value = cb_get_value;
+    cfg.callbacks.set_value = cb_set_value;
+    cfg.callbacks.run_action = cb_run_action;
+    cfg.callbacks.is_enabled = cb_is_enabled;
+    cfg.callbacks.save = cb_save;
+    m.ui = recomp_runtime_ui_create(&cfg);
     if (!m.ui) return false;
     recomp_runtime_ui_set_backdrop(m.ui, m.dim / 100.0f, m.opacity / 100.0f);
     return true;
@@ -842,6 +1192,8 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
         if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "weapon", hero, sizeof hero))
             for (int i = 1; i < DV_WEAPON_CHOICES; i++)
                 if (std::strcmp(hero, kWeaponValues[i]) == 0) m.weapon = i;
+        m.play_as_pend = m.play_as;
+        m.weapon_pend = m.weapon;
     }
     if (!m.imgui) {
         IMGUI_CHECKVERSION();
@@ -849,13 +1201,9 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
         ImGuiIO& io = ImGui::GetIO();
         io.IniFilename = nullptr;
         io.LogFilename = nullptr;
-        if (host->assets_dir) {
-            const std::string font = std::string(host->assets_dir) + "/fonts/LatoLatin-Regular.ttf";
-            if (FILE* f = std::fopen(font.c_str(), "rb")) {
-                std::fclose(f);
-                io.Fonts->AddFontFromFileTTF(font.c_str(), 22.0f);
-            }
-        }
+        m.assets_dir = host->assets_dir ? host->assets_dir : "";
+        m.fonts = DvMenuFonts{};       /* built at the first draw, at the display's scale */
+        m.gl_ready = false;
         if (!ImGui_ImplOpenGL3_Init("#version 330")) {
             ImGui::DestroyContext();
             return 0;
@@ -865,15 +1213,47 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
     return 1;
 }
 
+/* The menu's four fonts at `scale` (display height / 1080): Lato from the
+ * launcher's assets, ImGui's own font if they are missing. ImGui 1.91 bakes
+ * glyphs at one size, so a window resized far enough rebuilds them. Draw
+ * thread, outside a frame. */
+void build_fonts(Menu& m, float scale) {
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->Clear();
+    auto add = [&](const char* file, float px) -> ImFont* {
+        const std::string path = m.assets_dir + "/fonts/" + file;
+        if (!m.assets_dir.empty())
+            if (FILE* f = std::fopen(path.c_str(), "rb")) {
+                std::fclose(f);
+                if (ImFont* font = io.Fonts->AddFontFromFileTTF(path.c_str(), px)) return font;
+            }
+        ImFontConfig cfg;
+        cfg.SizePixels = px;
+        return io.Fonts->AddFontDefault(&cfg);
+    };
+    m.fonts.body = add("LatoLatin-Regular.ttf", std::round(21.0f * scale));
+    m.fonts.bold = add("LatoLatin-Bold.ttf", std::round(21.0f * scale));
+    m.fonts.title = add("LatoLatin-Bold.ttf", std::round(30.0f * scale));
+    m.fonts.small = add("LatoLatin-Regular.ttf", std::round(17.0f * scale));
+    m.fonts.scale = scale;
+    if (m.gl_ready) {                   /* else the backend's first NewFrame makes the texture */
+        ImGui_ImplOpenGL3_DestroyFontsTexture();
+        ImGui_ImplOpenGL3_CreateFontsTexture();
+    }
+}
+
 void p_detach(void* ctx) {
     Menu& m = *static_cast<Menu*>(ctx);
     std::lock_guard<std::mutex> lk(m.mu);
     dv_settings_sync(m);               /* numpad +/- volume changes since attach */
     if (m.open) { recomp_runtime_ui_close(m.ui); m.open = false; }
+    m.dialog.open = false;
     if (m.imgui) {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui::DestroyContext();
         m.imgui = false;
+        m.fonts = DvMenuFonts{};
+        m.gl_ready = false;
     }
     if (m.ui) { recomp_runtime_ui_destroy(m.ui); m.ui = nullptr; }
     m.host = nullptr;
@@ -951,19 +1331,14 @@ int p_event(void* ctx, const void* sdl_event) {
 #endif
         if (sc == SDL_SCANCODE_ESCAPE) {
             if (down && !repeat) {
-                if (m.open) {
-                    (void)recomp_runtime_ui_handle_input(m.ui, RECOMP_RUNTIME_UI_INPUT_BACK, 1, 0);
-                    sync_open_locked(m);
-                } else {
-                    set_open_locked(m, true);
-                }
+                if (m.open) dispatch(m, RECOMP_RUNTIME_UI_INPUT_BACK, false);
+                else set_open_locked(m, true);
             }
             return 1;
         }
         if (!m.open) return 0;
         const int input = key_to_input(sc);
-        if (input >= 0) (void)recomp_runtime_ui_handle_input(m.ui, (RecompRuntimeUiInput)input, down, repeat);
-        sync_open_locked(m);
+        if (input >= 0 && down) dispatch(m, input, repeat);
         return 1;   /* the game never sees keys while the menu is up */
     }
 #if defined(PSX_SDL3)
@@ -1008,8 +1383,7 @@ int p_event(void* ctx, const void* sdl_event) {
             if (which == SDL_BUTTON_LEFT) io.AddMouseButtonEvent(0, down);
             else if (which == SDL_BUTTON_RIGHT && down) {
                 /* right button = Back, like Escape / Circle */
-                (void)recomp_runtime_ui_handle_input(m.ui, RECOMP_RUNTIME_UI_INPUT_BACK, 1, 0);
-                sync_open_locked(m);
+                dispatch(m, RECOMP_RUNTIME_UI_INPUT_BACK, false);
             } else if (which == SDL_BUTTON_MIDDLE) io.AddMouseButtonEvent(2, down);
         }
         if (wheel) io.AddMouseWheelEvent(wx, wy);
@@ -1034,15 +1408,15 @@ int p_event(void* ctx, const void* sdl_event) {
         if (is_back) m.pad_back = down;
         if (m.pad_start && m.pad_back && !m.combo_fired) {
             m.combo_fired = true;
-            set_open_locked(m, !m.open);
+            if (m.open) request_close(m);
+            else set_open_locked(m, true);
             return 1;
         }
         if (!m.pad_start && !m.pad_back) m.combo_fired = false;
         if (!m.open) return 0;
-        if (is_start && down) { set_open_locked(m, false); return 1; }
+        if (is_start && down) { request_close(m); return 1; }
         const int input = pad_to_input(button);
-        if (input >= 0) (void)recomp_runtime_ui_handle_input(m.ui, (RecompRuntimeUiInput)input, down, false);
-        sync_open_locked(m);
+        if (input >= 0 && down) dispatch(m, input, false);
         return 1;
     }
 #if defined(PSX_SDL3)
@@ -1060,17 +1434,43 @@ void p_draw(void* ctx, int width, int height) {
     Menu& m = *static_cast<Menu*>(ctx);
     std::lock_guard<std::mutex> lk(m.mu);
     if (!m.ui || !m.imgui) return;
-    if (!m.open && !recomp_runtime_ui_toast_visible(m.ui)) return;
+    const uint64_t now = now_ms();
+    const bool toast_up = m.toast.end_ms && now < m.toast.end_ms;
+    if (!m.open && !toast_up) return;
     if (width <= 0 || height <= 0) return;
+    /* fonts follow the display height, in 5 % steps */
+    const float scale = std::round(std::clamp((float)height / 1080.0f, 0.6f, 2.4f) * 20.0f) / 20.0f;
+    if (!m.fonts.body || std::fabs(scale - m.fonts.scale) > 0.001f) build_fonts(m, scale);
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2((float)width, (float)height);
     io.DeltaTime = 1.0f / 60.0f;
     m.fb_w = width; m.fb_h = height;
     ImGui_ImplOpenGL3_NewFrame();
+    m.gl_ready = true;
     ImGui::NewFrame();
-    recomp_runtime_ui_render_imgui(m.ui);
+    DvMenuHeader hd;
+    if (m.open && hero_loaded()) {
+        const int idx = psx_mod_read_byte(0x80086318u);        /* g_Hero.index */
+        hd.hero = idx >= 0 && idx < 9;
+        if (hd.hero) {
+            std::snprintf(hd.name, sizeof hd.name, "%s", kPlayAsChoices[idx + 1]);
+            hd.area = (int16_t)psx_mod_read_half(0x800A2F18u);
+            hd.stage = (int16_t)psx_mod_read_half(0x800A2F1Au);
+            hd.hp = psx_mod_read_half(0x8008A5AEu);
+            hd.hpmax = psx_mod_read_half(0x8008A5B0u);
+            hd.mp = psx_mod_read_half(0x8008A5B2u);
+            hd.mpmax = psx_mod_read_half(0x8008A5B4u);
+        }
+    }
+    const DvMenuClick click =
+        dv_menu_view_draw(m.ui, m.open, m.fonts, hd, m.dialog, m.toast, now, row_info, &m);
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (!toast_up) m.toast.end_ms = 0;
+    /* the mouse, after the frame: the same paths as the keys */
+    if (click.dialog == 1) dialog_confirm(m);
+    else if (click.dialog == 2) dialog_cancel(m, true);
+    else if (click.input >= 0) dispatch(m, click.input, false);
 }
 
 const PsxMenuProvider g_provider = {

@@ -570,7 +570,7 @@ the model-selection block:
   text being indices into a glyph sheet that the normal way into a stage
   loads and a Continue (which normally reloads the same stage, sheet
   still in VRAM) does not (open: BACKLOG L). The in-game menu's
-  Experimental section has **Area (next Continue)** and **Stage (next
+  Warp section (Experimental until 2026-11-18) has **Area** and **Stage (next
   Continue)** rows for this, and **Go now** makes the trip; by hand: write them, let HP
   reach 0 (or the HP editor), YES on CONTINUE. Beware: the area sits in the save
   block (`+0x1F8`), so a Memory Card save made afterwards keeps it.
@@ -780,80 +780,112 @@ values are strings under `[feature.values]`), then `tools/dvdbg.py launch
 on|off` does exactly that; `tests/test_drop_cheat.py on|off` kills the first
 enemy of slot 0 and looks for the gem).
 
-#### In-game menu (`mods/plugins/dragonvalor_menu.cpp`)
+#### In-game menu (`mods/plugins/dragonvalor_menu.cpp`, `dragonvalor_menu_view.cpp`)
 
 Escape, or Select+Start on the pad, opens a menu over the game; the guest
-and audio pause while it is up (the "Pause in menu" row turns that off).
+and audio pause while it is up (Options > Pause in menu turns that off).
 Keyboard: arrows, Enter / Space, Backspace, Escape. Pad: D-pad, Cross,
 Circle, Start closes. **Mouse (2026-10-15):** the provider feeds SDL mouse
 events to ImGui while the menu is open (coordinates scaled from window to
-framebuffer), so hovering selects, a click activates a row or a section, the
--/+ buttons step, the wheel scrolls and the right button goes back; closed,
-the mouse is not touched. Checked with the debug server's `host_mouse x= y=`
-(`scratchpad mouse_probe.py`): a click on System entered the page, two
-clicks on the State slot `+` stepped 1 → 3, clicks on Audio and Display
-switched pages. Row descriptions were shortened the same day on the
-player's request, and the Magic and Items rows carry the game's own texts
-(read off the Status screen with every spell at level 3 and every item at
-1, `scratchpad status_all.py` / `status_items2.py`). Sections and rows:
+framebuffer): moving the pointer over a row or a section selects it, a click
+activates (on a value's arrows it steps that way), the wheel scrolls and the
+right button goes back; closed, the mouse is not touched. The Magic and
+Items rows carry the game's own texts (read off the Status screen with every
+spell at level 3 and every item at 1).
+
+**Redesign (2026-11-18, the player: "System could sit better in the list, a
+real confirmation somewhere, like an alert when picking the hero and sword;
+overall it is a bit ugly").** The menu is no longer recomp-ui's standard
+builder plus extras with its generic drawer:
+
+- *Order.* `kItems` lists every row in the order shown (recomp-ui makes a
+  section where its first row is): the pause menu's own business first
+  (Game), then what the game offers (Hero, Cheats, Magic, Items, Warp),
+  then settings (Video, Options). The standard rows keep recomp-ui's keys
+  (`RECOMP_RUNTIME_UI_KEY_*`), so the callbacks are unchanged.
+- *Look.* `dragonvalor_menu_view.cpp` draws the model (through
+  `recomp_runtime_ui_internal.h`, as recomp-ui's own drawer does): a dark
+  panel with a gold accent, the game's name and the hero playing (name, HP,
+  MP, area and stage, from RAM) on top, the sections on the left, one line
+  per row on the right (a switch for on/off rows, arrows around a value, a
+  chevron on an action, crimson for the two rows that leave the game, a
+  muted note such as "saved" / "empty" for the state slot or "in the drive"
+  for a disc), the selected row's description in a help box under the rows
+  (descriptions used to sit under every row and made the old Experimental
+  page a wall of text), key caps in the footer, the status on the right.
+  Lato Regular and Bold from the launcher's assets at four sizes scaled by
+  the window height (ImGui 1.91 bakes glyphs at one size, so the atlas is
+  rebuilt when the scale moves by a 5 % step).
+- *Dialogs.* Load state, Save state over a saved slot, Insert disc, Go now,
+  Return to launcher and Quit ask first in a dialog over the menu (Cancel on
+  the left, the action on the right; Left / Right move between them, Enter
+  presses, Escape takes the dialog away; leaving the game focuses Cancel).
+  The dialog's action calls `cb_run_action` again with `m.confirmed` set.
+- *Hero.* Play as and Weapon are picked with Left / Right ("not applied"
+  beside them) and applied together from a dialog: Enter on either row or
+  on Apply asks "Play as Arlen with Kadum?" with what happens ("This stage
+  restarts from its beginning ..." in an action stage, "... when the next
+  stage loads" elsewhere, or that Play as is off in the launcher). Closing
+  the menu with a choice not applied asks too, with Discard as the other
+  button. In an action stage the menu closes and the stage restarts at once
+  (`dv_heroswap_restart_request`, carried out by the heroswap plugin's
+  VBlank callback, no Game Over).
+- *Notices.* What an action did shows for about 3 s at the top right (the
+  game's HUD is on the left), with the menu open or closed: "State saved /
+  Slot 3", "State loaded", "Arlen, holding Kadum / The stage restarts from
+  its beginning", "Warping / Area 4, stage 1 in about 10 seconds",
+  "Changing discs".
 
 | Section | Rows | Applied through |
 |---|---|---|
-| Display | Fullscreen, Game dimming, Menu opacity | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`); the backdrop rows are the menu's own |
-| Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
-| Audio | Volume | `host_volume_set` |
-| System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit`. Return to launcher asks for `PSX_MENU_EXIT_RELAUNCH` in builds without the netplay lobby client (ours): the framework's in-process return re-enters the launcher only inside its lobby-client block and otherwise ends the program (player report 2026-10-16; still so on upstream master 379565a6), while a relaunch restarts the executable with its own arguments, which opens the launcher as at boot. Builds with `PSX_NETPLAY` keep `PSX_MENU_EXIT_TO_FRONTEND`. |
+| Game | Resume, State slot (1‥12, with a "saved" / "empty" note), Save state, Load state, Insert disc 1 / 2, Return to launcher, Quit game | `savestate_request_save/load` (slot − 1), `disc_insert` (the runtime's tray policy), `request_exit`. Return to launcher asks for `PSX_MENU_EXIT_RELAUNCH` in builds without the netplay lobby client (ours): the framework's in-process return re-enters the launcher only inside its lobby-client block and otherwise ends the program (player report 2026-10-16; still so on upstream master 379565a6), while a relaunch restarts the executable with its own arguments, which opens the launcher as at boot. Builds with `PSX_NETPLAY` keep `PSX_MENU_EXIT_TO_FRONTEND`. |
+| Hero (experimental) | Play as, Weapon, Apply | the `hero` and `weapon` options of `dragonvalor.heroswap` (see its section), written by `mod_set` when the dialog is confirmed; off in the launcher, the first choice switches the feature on for the next start |
 | Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |
 | Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
-| Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
-| Experimental (the last section; Area, Stage and Go now moved here from Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. **Play as** (2026-11-17, after Go now): the hero of every action stage, the `hero` option of `dragonvalor.heroswap` (see its section); a new choice restarts the stage being played as soon as the menu closes (no Game Over, `dv_heroswap_restart_request`, carried out by that plugin's VBlank callback); the first choice switches the feature on for the next start 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time | Area and Stage are RAM rows like the editors; Play as is a mod option row (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform |
+| Warp (experimental; Area, Stage and Go now moved out of Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys; the section was called Experimental until 2026-11-18) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time | Area and Stage are RAM rows like the editors (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform, asked in a dialog first |
+| Video | Fullscreen, Smooth picture (the linear filter of the final image), Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`) |
+| Options | Volume, Pause in menu, Skip intro movie, Game dimming, Menu opacity | `host_volume_set`; Skip intro is a `mod_set` feature switch (next start); the rest are the menu's own (`dragonvalor_settings.toml`, below) |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu
 (`psx_menu_host.h`: pause, live video, mod changes, disc tray, exit) and
 calls a `PsxMenuProvider` the title registers with `psx_menu_set_provider`
-before the game window opens; recomp-ui ships the menu model and its Dear
-ImGui presentation (`recomp_runtime_ui.h`: `recomp_runtime_ui_create_standard`
-with the standard rows plus our extras, `recomp_runtime_ui_handle_input`
-with semantic inputs, `recomp_runtime_ui_render_imgui`). The provider is the
+before the game window opens; recomp-ui ships the menu model
+(`recomp_runtime_ui.h`: `recomp_runtime_ui_create` with our rows,
+`recomp_runtime_ui_handle_input` with semantic inputs). The provider is the
 glue: it creates the model and an ImGui context with the OpenGL3 backend
-(`#version 330`, the runtime's context; font `assets/fonts/LatoLatin-Regular.ttf`),
-sees every SDL event first (`event`), maps Escape / arrows / Enter /
-Backspace and the pad's D-pad / Cross / Circle / Start to the model, and
-draws from the runtime's overlay draw callback (GL thread) under one mutex
-with the event path (main thread). No SDL platform backend for ImGui is
-used: the model navigates itself, so ImGui is only ever touched by `draw`.
-Two things cost time: the model closes itself on BACK at the top level, so
-the provider re-syncs its open flag (and the host pause) after every input;
-and the model keeps its rail position between opens, so the provider creates
-a fresh one on every open (the menu always starts on Display).
+(`#version 330`, the runtime's context), sees every SDL event first
+(`event`), maps Escape / arrows / Enter / Backspace and the pad's D-pad /
+Cross / Circle / Start to semantic inputs and sends them, and the view's
+mouse clicks, through one `dispatch` (the dialog, the Hero rows' Enter and
+the close request are handled there before the model), and draws from the
+runtime's overlay draw callback (GL thread) under one mutex with the event
+path (main thread). No SDL platform backend for ImGui is used: the model
+navigates itself, so ImGui is only ever touched by `draw`. The model closes
+itself on BACK only through `dispatch` now (the top-level BACK is the close
+request), and the provider still creates a fresh model on every open, so
+the menu always starts on Game.
 
-The look is recomp-ui's shared design system (the `psx` theme tokens:
-accent colours, row height, radius), drawn by its `runtime_ui_imgui.cpp`;
-the provider draws nothing itself. Two things that drawer lacked at pin
-41c88ff are patched locally (`patches/recomp-ui/0001-…`, applied by
-`CMakeLists.txt` at configure time, see `patches/README.md`): the page did
-not scroll to follow keyboard/pad navigation, so rows past the eighth of the
-Items page were unreachable by eye, and the selected row only had the subtle
-header fill; the patch scrolls the selected row into view and frames it with
-an accent outline plus a left bar. A second patch (`0002-…`, 2026-10-15)
-wraps a row's description inside the row and lets the row grow, after the
-player saw the longer cheat descriptions run past the drawer's edge. Both
-are meant to go upstream as one PR.
+recomp-ui's drawer (`runtime_ui_imgui.cpp`, the `psx` theme) is no longer
+used by the game. The two local patches to it (`patches/recomp-ui/0001-…`
+scrolls the selected row into view and frames it, `0002-…` wraps a long
+description inside its row; see `patches/README.md`) stay for the launcher
+build and the planned upstream PR.
 
-The file compiles to nothing when the recomp-ui launcher is off
+The files compile to nothing when the recomp-ui launcher is off
 (`RECOMP_LAUNCHER`). Rows that need a restart (internal resolution,
 renderer) are left out on purpose; the launcher owns them. The game's own
-Start pause still exists. Scripted test: `tests/test_menu.py` (keys through
-the debug server's `host_key`, screenshots through `present_shot`, since
-native screenshots never contain the overlay).
+Start pause still exists. Scripted tests: `tests/test_menu.py` (keys through
+the debug server's `host_key`, from test state 10; screenshots through
+`present_shot`, which carries the overlay), `tests/test_heroswap.py ...
+--menu` / `--menu-weapon` (the Hero dialog), `tests/test_area_row.py` (Warp).
 
 **What each menu row persists to (2026-10-15).** Three stores, none of
 them this file's choice except the last:
 
 | Rows | Where | How |
 |---|---|---|
-| Fullscreen, Linear filter, Texture filtering, Scanlines, Dynamic resolution | `settings.toml` (the launcher's) | `PsxMenuHost.video_apply` posts the change; the main thread applies it and calls `save_user_settings` (checked live: two steps on Texture filtering rewrote the key) |
+| Fullscreen, Smooth picture, Texture filtering, Scanlines, Dynamic resolution | `settings.toml` (the launcher's) | `PsxMenuHost.video_apply` posts the change; the main thread applies it and calls `save_user_settings` (checked live: two steps on Texture filtering rewrote the key) |
 | Cheats, gem/scroll every N, Skip intro | `mods/state.toml` | `PsxMenuHost.mod_set` records it in the catalogue and saves |
 | Magic levels, Items, Val, stats | nowhere | one-shot RAM writes; the game's own save carries them |
 | State slot | nowhere | a session choice |
@@ -1190,8 +1222,9 @@ worked examples this one follows.
 Every action stage loads with the hero the player picks. Package 2.0.0,
 feature `play-as` (channel experimental, on by default since 2026-11-18 at its neutral choices, see below), option `hero`
 (`stage` = each stage's own, or `clovis` … `anita`); the in-game menu's
-Experimental section has the same choice as **Play as** (the first choice
-also switches the feature on, for the next start). The choice applies when a
+Hero section has the same choice as **Play as**, confirmed in a dialog (the
+first choice also switches the feature on, for the next start, when it is
+off). The choice applies when a
 stage loads, and a choice made in the in-game menu restarts the stage being
 played as soon as the menu closes (2026-11-17): the plugin's VBlank callback
 waits for plain play (mode 8 / sub-mode 7, the game's pause off, no event
@@ -1666,7 +1699,7 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   exercises the cheat plugins on a running debug build from slot 0 (see *This
   project's package* for the `state.toml` setup); `python
   tests/test_skip_intro.py [--off]` checks the intro skip on a fresh boot;
-  `python tests/test_menu.py` drives the in-game menu from slot 0 (it launches
+  `python tests/test_menu.py` drives the in-game menu from test state 10 (it launches
   the build itself with its own `mods/state.toml`, Infinite HP off, the
   player's file backed up and restored, because the menu persists every
   toggle there; `--attach` uses the game already running; the last step

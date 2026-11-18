@@ -78,7 +78,7 @@ stops responding, a stage that runs slow. Note the chapter and the moment.
 - **Try it again from a fresh boot**, with every mod off if one was on. Say
   whether it repeats.
 - **Take a save state just before the spot** if you can: `F7` opens the
-  slot picker (Left / Right, then `S`), or the in-game menu, System > Save
+  slot picker (Left / Right, then `S`), or the in-game menu, Game > Save
   state, slot 1 to 12. State files are
   `saves/openbios/state_*_slotNN.pst`; attach the one you took. A Memory
   Card save (`saves/card1.mcd`) that lands near the problem is just as good.

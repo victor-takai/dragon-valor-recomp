@@ -107,9 +107,10 @@ target_sources(psx-runtime PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_skip_intro.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_widescreen.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_heroswap.c"
-    # In-game menu provider (psx_menu_host.h + recomp-ui's runtime UI); it
-    # compiles to nothing when the recomp-ui launcher is off.
-    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_menu.cpp")
+    # In-game menu provider (psx_menu_host.h + recomp-ui's runtime UI) and its
+    # look; both compile to nothing when the recomp-ui launcher is off.
+    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_menu.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mods/plugins/dragonvalor_menu_view.cpp")
 
 # Stage runtime configs next to the exe for direct build/ launches. Only copy
 # files that exist — never fail when game_options.toml is absent.

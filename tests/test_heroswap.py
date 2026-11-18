@@ -5,14 +5,15 @@
                                      [--build build-debug] [--port N] [--play SECONDS] [--weapon HERO2]
 
 --state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
---menu-weapon W then picks weapon model W (or `hero`) on the menu's Weapon
-row (the row after Play as): the stage must restart with it.
+--menu-weapon W then picks weapon model W (or `hero`) on the menu's Hero >
+Weapon row and confirms it in the dialog: the stage must restart with it.
 --weapon W sets the feature's `weapon` option: HERO holds weapon model W
 (azos soul kadum igunis felippe dark red purple turquoise; the reference
 then comes from `heroswap.py build ... --weapon A S` with W's source stage,
 e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen with Kadum).
---menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Experimental > Play as
-row: the stage must restart with HERO2 once the menu closes, with no GAME
+--menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Hero > Play as
+row and confirms it in the dialog (Enter, then Enter on "Restart the
+stage"): the stage must restart with HERO2 as the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
 
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
@@ -337,11 +338,12 @@ hero = "{hero_name}"
               f"mode {rd(MODE, 1)[0]}, {f1 - f0} frames")
 
         if menu_hero:
-            # The in-game menu's Experimental > Play as row (4th: Area, Stage,
-            # Go now, Play as; values 0 = each stage's own, 1.. the heroes):
-            # each new choice restarts the stage once the menu closes, with no
-            # GAME OVER (mode 9 never seen) and Val / HP kept. "stage" brings
-            # back the game's own hero index, never one the plugin wrote.
+            # The in-game menu's Hero section (2nd) > Play as (its first row;
+            # values 0 = each stage's own, 1.. the heroes): Enter asks, Enter
+            # on the dialog's focused "Restart the stage" applies and closes
+            # the menu; the stage restarts with no GAME OVER (mode 9 never
+            # seen) and Val / HP kept. "stage" brings back the game's own hero
+            # index, never one the plugin wrote.
             def key(name, n=1):
                 for _ in range(n):
                     rpc(port, "host_key", name=name)
@@ -353,10 +355,9 @@ hero = "{hero_name}"
                 target_value = 0 if pick == "stage" else HEROES.index(pick) + 1
                 steps = target_value - row_value
                 key("Escape"); time.sleep(0.4)
-                key("Up"); key("Return")
-                key("Down", 3)
+                key("Down"); key("Return")
                 key("Right" if steps > 0 else "Left", abs(steps))
-                key("Escape", 2); time.sleep(0.5)
+                key("Return"); key("Return"); time.sleep(0.5)
                 row_value = target_value
                 modes, t0, seen17 = set(), time.time(), False
                 while time.time() - t0 < 40:
@@ -386,8 +387,8 @@ hero = "{hero_name}"
                 hero_name = last
 
         if menu_weapon:
-            # The 5th Experimental row, Weapon (0 = the hero's own, 1.. the
-            # weapon models): a new choice restarts the stage like Play as.
+            # Hero > Weapon, the second row (0 = the hero's own, 1.. the
+            # weapon models): confirmed in the dialog like Play as.
             def wkey(name, n=1):
                 for _ in range(n):
                     rpc(port, "host_key", name=name)
@@ -397,10 +398,10 @@ hero = "{hero_name}"
             time.sleep(2)
             restarts0 = log_text().count("restarts as")
             wkey("Escape"); time.sleep(0.4)
-            wkey("Up"); wkey("Return")
-            wkey("Down", 4)
+            wkey("Down"); wkey("Return")
+            wkey("Down")
             wkey("Right" if steps > 0 else "Left", abs(steps))
-            wkey("Escape", 2); time.sleep(0.5)
+            wkey("Return"); wkey("Return"); time.sleep(0.5)
             t0 = time.time()
             while time.time() - t0 < 40:
                 if rd(MODE, 1)[0] == 8 and log_text().count("restarts as") > restarts0:

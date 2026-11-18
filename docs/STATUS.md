@@ -107,6 +107,18 @@ the native 60 Hz version.
   `DEVELOPMENT.md`, *Character and weapon*: the hero follows the area, so
   the Cheats page gained an **Area (next Continue)** row that reloads
   another area's stage (Kodel's save + area 0 = Clovis in the prologue).
+- **In-game menu redesigned** (2026-11-18, branch `hero-swap`, the player's
+  request): the title draws its own menu (`dragonvalor_menu_view.cpp`: dark
+  panel with a gold accent, the hero, HP / MP and stage on top, one line
+  per row, the selected row's help underneath, key caps) instead of
+  recomp-ui's generic one; sections Game (Resume, states, discs, leaving),
+  Hero, Cheats, Magic, Items, Warp, Video, Options; a dialog asks before
+  loading or overwriting a state, changing discs, the warp, leaving the
+  game and applying a Play as / Weapon choice (picked first, applied
+  together), and a notice at the top right says what happened.
+  `tests/test_menu.py` 9/9 (now from test state 10, no longer slot 0),
+  `test_heroswap.py arlen --menu kodel,stage` 19/19, `default
+  --menu-weapon igunis` 9/9.
 - **Play as** (2026-11-17, branch `hero-swap`, experimental): pick the hero
   of every action stage in the launcher or the in-game menu
   (`dragonvalor.heroswap` 2.0.0; on by default since 2026-11-18 at the
