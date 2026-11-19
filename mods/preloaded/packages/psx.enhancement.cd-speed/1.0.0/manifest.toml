@@ -1,0 +1,64 @@
+# Title override of the framework's psx.enhancement.cd-speed (same id and version, so it
+# shadows the builtin in mods/bundled), for the launcher's Mods page only:
+# a name and a description a player understands (the first sentence is the
+# list row's summary) and this title's groups, Game / Graphics
+# (2026-11-18, the player found the page cryptic). Everything else is the
+# builtin manifest verbatim (psxrecomp/mods/builtin/packages).
+format_version = 5
+id = "psx.enhancement.cd-speed"
+version = "1.0.0"
+name = "CD Speed"
+author = "psxrecomp"
+description = "Emulated CD drive speed. Shortens loads without speeding the game up, so it does not disturb movement or timing-based routes."
+resolver = "declarative"
+save_compatibility = "shared"
+
+# Loading speed is a property of the emulated hardware, not of any particular
+# disc, so this ships with the framework and applies to every game.
+[[target]]
+game_id = "*"
+
+[[feature]]
+id = "cd-speed"
+name = "Faster loading"
+description = "Shorter loading from the CD. The drive delivers data sooner while the game itself keeps its normal speed. A high value can make a load hang (the game gets the data sooner than it expects): raise it gradually and lower it if a load stalls. Movies and CD music keep their real timing."
+group = "Game"
+default_enabled = false
+
+[[option]]
+feature = "cd-speed"
+id = "multiplier"
+label = "CD speed multiplier"
+description = "1 is authentic 1x. Try 2-32; higher is faster but likelier to trip a timing bug. Any positive value is accepted so you can find this game's limit. Ignored while Instant is ticked."
+group = "Speed"
+type = "integer"
+min = 1
+max = 1024
+step = 1
+default = 4
+disabled_by = "instant"
+
+[[option]]
+feature = "cd-speed"
+id = "instant"
+label = "Instant (bounded scheduler)"
+description = "Deliver sectors as fast as the bounded instant scheduler allows instead of using a multiplier. Fastest and riskiest."
+group = "Speed"
+type = "boolean"
+default = "false"
+
+[[option]]
+feature = "cd-speed"
+id = "instant_budget"
+label = "Instant sectors per frame"
+description = "How many sectors the instant scheduler may deliver per frame. Lower is gentler on games that dislike bursts. Only used while Instant is ticked."
+group = "Speed"
+type = "integer"
+min = 1
+max = 256
+step = 1
+default = 32
+
+[[plugin]]
+feature = "cd-speed"
+id = "psx.cd-speed"

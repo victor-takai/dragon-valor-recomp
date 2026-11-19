@@ -1,0 +1,724 @@
+diff --git a/runtime/CMakeLists.txt b/runtime/CMakeLists.txt
+index 76f588f64..f42c5a959 100644
+--- a/runtime/CMakeLists.txt
++++ b/runtime/CMakeLists.txt
+@@ -921,7 +921,7 @@ if(BUILD_TESTING)
+     endforeach()
+ 
+     foreach(_pgxp_isolated_test
+-            gte_register_access_test gte_hle_contract_test pgxp_test pgxp_session_test)
++            gte_register_access_test gte_hle_contract_test pgxp_test pgxp_session_test pgxp_session_hooks_test)
+         target_sources(${_pgxp_isolated_test} PRIVATE tests/pgxp_test_mod_memory.cpp)
+     endforeach()
+ 
+@@ -1069,6 +1069,9 @@ if(BUILD_TESTING)
+     add_executable(ws_repeat_rect_test tests/test_ws_repeat_rect.c)
+     target_include_directories(ws_repeat_rect_test PRIVATE include)
+     add_test(NAME ws_repeat_rect_test COMMAND ws_repeat_rect_test)
++    add_executable(ws_feedback_rect_test tests/test_ws_feedback_rect.c)
++    target_include_directories(ws_feedback_rect_test PRIVATE include)
++    add_test(NAME ws_feedback_rect_test COMMAND ws_feedback_rect_test)
+     add_executable(ws_screen_mask_test tests/test_ws_screen_mask.c)
+     target_include_directories(ws_screen_mask_test PRIVATE include)
+     if(UNIX)
+diff --git a/runtime/include/gpu.h b/runtime/include/gpu.h
+index 4ce9c9290..c3bef0b2b 100644
+--- a/runtime/include/gpu.h
++++ b/runtime/include/gpu.h
+@@ -533,6 +533,11 @@ void gpu_ws_tag_black_reveal_rect(uint32_t prim);
+  * reveal margins only. The caller verifies the composite's source period.
+  * Original UVs, texel density, and canonical VRAM writes are unchanged. */
+ void gpu_ws_tag_repeat_rect(uint32_t prim, int32_t period);
++/* Title-identified 15-bit sprite (0x64-0x67) that copies a framebuffer 1:1,
++ * e.g. a motion trail. Where it touches the draw area's edge, native-wide
++ * continues it into the bands from the source buffer's wide surface.
++ * Packet-guarded for the current frame; canonical VRAM is untouched. */
++void gpu_ws_tag_feedback_rect(uint32_t prim);
+ /* Title-identified flat screen mask: extend vertical sides or horizontal
+  * letterbox panels to adaptive edges, preserving the interior opening.
+  * Packet guarded, cleared on reset/load, inert outside native-wide gameplay. */
+diff --git a/runtime/include/gpu_render.h b/runtime/include/gpu_render.h
+index 0b192f172..b609ad9a2 100644
+--- a/runtime/include/gpu_render.h
++++ b/runtime/include/gpu_render.h
+@@ -144,6 +144,11 @@ void gr_wide_disable_target(void);
+ void gr_wide_clear(int base_x, int y, int h, uint16_t color);
+ /* sides: bit 0 = left synthetic margin, bit 1 = right. */
+ void gr_wide_clear_margins(int base_x, int y, int h, uint16_t color, int sides);
++/* Draws a 15-bit framebuffer copy into the current wide surface only, sampling
++ * the wide surface of src_base (VRAM coordinates; x may lie in a band). semi
++ * is the PS1 mode 0..3 or -1 for opaque. */
++void gr_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
++                           int w, int h, int r, int g, int b, int raw, int semi);
+ int  gr_wide_dump_full(uint32_t *out, int cap_pixels, int *ow, int *oh, int base_x);
+ int  gr_render_wide_display(uint32_t *out, int pitch, int base_x,
+                             int disp_y, int disp_h);
+@@ -238,6 +243,10 @@ typedef struct GpuRenderBackend {
+     /* A GP0(A0) payload is (1) or is no longer (0) streaming into gpu.c's
+      * array, whatever the HD state. NULL = the backend does not care. */
+     void (*vram_upload_open)(int open);
++    /* Appended: gr_wide_feedback_rect. NULL = the bands keep no feedback. */
++    void (*wide_feedback_rect)(int src_base, int src_x, int src_y, int dst_x,
++                               int dst_y, int w, int h, int r, int g, int b,
++                               int raw, int semi);
+ } GpuRenderBackend;
+ 
+ enum { GR_HD_NOTE_INVALIDATE = 0, GR_HD_NOTE_TRACK_UPLOAD = 1,
+diff --git a/runtime/include/gpu_sw_renderer.h b/runtime/include/gpu_sw_renderer.h
+index 6525c2abb..8564c320e 100644
+--- a/runtime/include/gpu_sw_renderer.h
++++ b/runtime/include/gpu_sw_renderer.h
+@@ -124,6 +124,8 @@ void sw_wide_set_target(int base_x);
+ void sw_wide_disable_target(void);
+ void sw_wide_clear(int base_x, int y, int h, uint16_t color);
+ void sw_wide_clear_margins(int base_x, int y, int h, uint16_t color, int sides);
++void sw_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
++                           int w, int h, int r, int g, int b, int raw, int semi);
+ /* MMX6 native-wide reveal-column tile: rasterize a 16x16 textured tile into the
+  * wide surface ONLY (canonical VRAM + hi-res mirror untouched). See definition. */
+ void sw_wide_emit_tile(int band_y, int x, int y, int u, int v,
+diff --git a/runtime/include/mod_plugins.h b/runtime/include/mod_plugins.h
+index 405101824..fc7bb5851 100644
+--- a/runtime/include/mod_plugins.h
++++ b/runtime/include/mod_plugins.h
+@@ -294,6 +294,10 @@ void psx_mod_tag_radial_screen_mask_quad(uint32_t primitive, float scale);
+ /* Exclude a known world packet from screen-space backdrop stretching, even
+  * if it sorts before the first shaded polygon. Zero clears a recycled tag. */
+ void psx_mod_tag_world_primitive(uint32_t primitive, int is_world);
++/* A 15-bit sprite (P_TAG address) that copies a framebuffer 1:1, such as a
++ * motion trail: native-wide continues it into the bands. Tag it each frame
++ * after the title built it; inert at native 4:3. */
++void psx_mod_tag_feedback_rect(uint32_t primitive);
+ /* Enable aspect-derived column selection for a title that opted into the
+  * auto_backdrop detector. No effect on titles that did not opt in. */
+ void psx_mod_set_adaptive_backdrop_preload(int enabled);
+diff --git a/runtime/include/ws_feedback_rect.h b/runtime/include/ws_feedback_rect.h
+new file mode 100644
+index 000000000..b0746b34b
+--- /dev/null
++++ b/runtime/include/ws_feedback_rect.h
+@@ -0,0 +1,38 @@
++#ifndef PSX_WS_FEEDBACK_RECT_H
++#define PSX_WS_FEEDBACK_RECT_H
++
++#include <stdint.h>
++
++/* A title-tagged sprite that copies a framebuffer 1:1 (motion blur, trails)
++ * only covers the canonical columns. Each span below continues it into one
++ * native-wide band, sampling the source buffer's own band the same way. */
++typedef struct {
++    int32_t dst_x;
++    int32_t src_x;
++    int32_t w;
++} WsFeedbackSpan;
++
++/* x/w: the sprite in VRAM X; src_x0: the source VRAM X drawn at x;
++ * left/width: the canonical draw area; margin: the band width. Writes the
++ * left band first; returns 0..2. */
++static inline int ws_feedback_rect_spans(int32_t x, int32_t w, int32_t src_x0,
++                                         int32_t left, int32_t width,
++                                         int32_t margin, WsFeedbackSpan out[2]) {
++    if (w <= 0 || width <= 0 || margin <= 0) return 0;
++    int count = 0;
++    if (x <= left && x + w > left) {
++        out[count].dst_x = left - margin;
++        out[count].src_x = src_x0 + (left - margin - x);
++        out[count].w = margin;
++        count++;
++    }
++    if (x < left + width && x + w >= left + width) {
++        out[count].dst_x = left + width;
++        out[count].src_x = src_x0 + (left + width - x);
++        out[count].w = margin;
++        count++;
++    }
++    return count;
++}
++
++#endif
+diff --git a/runtime/src/debug_server.c b/runtime/src/debug_server.c
+index ba5d263bb..b1b99c125 100644
+--- a/runtime/src/debug_server.c
++++ b/runtime/src/debug_server.c
+@@ -10906,6 +10906,8 @@ static void handle_wide_full(int id, const char *json)
+     extern void gl_renderer_sync_cpu(void);
+     gl_renderer_sync_cpu();   /* no-op on SW; ensures pending GL frame is flushed */
+     int base_x = json_get_int(json, "base_x", 0);
++    /* "alpha":1 writes bit 15 (GL: the surface alpha) as white/black. */
++    int show_alpha = json_get_int(json, "alpha", 0);
+     char path[512];
+     if (!json_get_str(json, "path", path, sizeof(path)))
+         strncpy(path, "psx_wide_full.png", sizeof(path) - 1);
+@@ -10924,6 +10926,10 @@ static void handle_wide_full(int id, const char *json)
+         for (int x = 0; x < W; x++) {
+             uint32_t px = buf[(size_t)y * W + x];
+             uint8_t *p = rgb + ((size_t)y * W + x) * 3;
++            if (show_alpha) {
++                p[0] = p[1] = p[2] = (uint8_t)(px >> 24);
++                continue;
++            }
+             p[0] = (uint8_t)((px >> 16) & 0xFF);
+             p[1] = (uint8_t)((px >> 8) & 0xFF);
+             p[2] = (uint8_t)(px & 0xFF);
+diff --git a/runtime/src/gpu.c b/runtime/src/gpu.c
+index 17890e937..45d9a4e33 100644
+--- a/runtime/src/gpu.c
++++ b/runtime/src/gpu.c
+@@ -44,6 +44,7 @@
+ #include "ws_prepass_guard.h"
+ #include "ws_hud_anchor.h"
+ #include "ws_repeat_rect.h"
++#include "ws_feedback_rect.h"
+ #include "ws_screen_mask.h"
+ #include "ws_radial_screen_mask.h"
+ #include <stdint.h>
+@@ -243,6 +244,7 @@ static WsHudAnchorTag ws_reveal_clear_tags[WS_HUD_ANCHOR_TABLE_SIZE];
+ static WsHudAnchorTag ws_screen_mask_tags[WS_HUD_ANCHOR_TABLE_SIZE];
+ static WsRadialScreenMaskTag ws_radial_screen_mask_tags[WS_RADIAL_MASK_TAG_COUNT];
+ static WsRepeatRectTag ws_repeat_rect_tags[WS_REPEAT_RECT_TAG_TABLE_SIZE];
++static WsRepeatRectTag ws_feedback_rect_tags[WS_REPEAT_RECT_TAG_TABLE_SIZE];
+ static uint32_t ws_last_tag_stamp = (uint32_t)-1000; /* frame of newest tag */
+ static uint32_t ws_last_3d_stamp  = (uint32_t)-1000; /* frame of newest shaded prim (diagnostic) */
+ extern uint64_t s_frame_count;               /* defined in debug_server.c */
+@@ -2593,6 +2595,18 @@ void gpu_ws_tag_repeat_rect(uint32_t prim, int32_t period) {
+                               period, &guard, (uint32_t)s_frame_count);
+ }
+ 
++void gpu_ws_tag_feedback_rect(uint32_t prim) {
++    if (!ws_native_wide_configured() || (prim & 3u) || prim > UINT32_MAX - 4u)
++        return;
++    uint32_t words[12], count = 0;
++    if (!ws_hud_command_words(prim + 4u, words, &count)) return;
++    if ((words[0] >> 24) < 0x64u || (words[0] >> 24) > 0x67u) return;
++    WsPrepassPacketGuard guard = ws_prepass_packet_guard(words, count);
++    /* The table only marks the packet; period 1 is the "present" value. */
++    ws_repeat_rect_tag_insert(ws_feedback_rect_tags, GPU_RAM_KEY((prim + 4u)),
++                              1, &guard, (uint32_t)s_frame_count);
++}
++
+ void gpu_ws_tag_screen_mask_quad(uint32_t prim) {
+     if (!ws_native_wide_configured() || (prim & 3u) || prim > UINT32_MAX - 4u)
+         return;
+@@ -3820,6 +3834,7 @@ static void gpu_reset_state(int clear_vram) {
+     ws_hud_anchor_clear(ws_screen_mask_tags, WS_HUD_ANCHOR_TABLE_SIZE);
+     ws_radial_mask_clear(ws_radial_screen_mask_tags);
+     ws_repeat_rect_tag_clear(ws_repeat_rect_tags);
++    ws_repeat_rect_tag_clear(ws_feedback_rect_tags);
+     polyline_color = 0;
+     polyline_prev_x = polyline_prev_y = 0;
+     polyline_prev_c = 0;
+@@ -5732,6 +5747,46 @@ static void ws_repeat_textured_rect_reveal(int x, int y, int w, int h,
+     }
+ }
+ 
++/* The framebuffer whose canonical columns hold VRAM x, or -1. */
++static int ws_fb_base_holding(int32_t vram_x, int width) {
++    for (int i = 0; i < ws_fb_n; i++)
++        if (vram_x >= (int32_t)ws_fb_base[i] && vram_x < (int32_t)ws_fb_base[i] + width)
++            return (int)ws_fb_base[i];
++    return -1;
++}
++
++/* A tagged 15-bit sprite copying another framebuffer continues into the
++ * bands from that buffer's wide surface (it has no band columns in VRAM). */
++static void ws_feedback_rect_reveal(int x, int y, int w, int h, int u, int v,
++                                    uint32_t color24, int semi_trans,
++                                    int raw_texture) {
++    int margin = draw_area_wide_x_margin();
++    int width = (int)ws_disp_w();
++    if (margin <= 0 || gp0_cmd_source_addr == UINT32_MAX ||
++        draw_area_right < draw_area_left ||
++        draw_area_right - draw_area_left + 1u != (uint32_t)width)
++        return;
++    uint32_t address = gp0_cmd_source_addr & 0x1FFFFFFFu;
++    if (address >= psx_ram_live_bytes() || (address & 3u)) return;
++    if (!ws_repeat_rect_tag_lookup(ws_feedback_rect_tags, address, gp0_cmd_buf,
++                                   (uint32_t)gp0_words_needed, (uint32_t)s_frame_count))
++        return;
++    uint16_t tp = current_texpage();
++    if (((tp >> 7) & 3) != 2) return;
++    int32_t src_x0 = (int32_t)(tp & 0xF) * 64 + u;
++    int src_base = ws_fb_base_holding(src_x0, width);
++    if (src_base < 0) return;
++    int32_t src_y = (int32_t)((tp >> 4) & 1) * 256 + v;
++    WsFeedbackSpan spans[2];
++    int count = ws_feedback_rect_spans(x, w, src_x0, (int32_t)draw_area_left,
++                                       width, margin, spans);
++    for (int i = 0; i < count; ++i)
++        gr_wide_feedback_rect(src_base, spans[i].src_x, src_y, spans[i].dst_x, y,
++                              spans[i].w, h, (int)(color24 & 0xFF),
++                              (int)((color24 >> 8) & 0xFF), (int)((color24 >> 16) & 0xFF),
++                              raw_texture, semi_trans ? (int)semi_transparency : -1);
++}
++
+ /* Execute textured rectangle (GP0 0x64-0x67) */
+ static void gp0_exec_textured_rect(void) {
+     uint32_t color24 = gp0_cmd_buf[0] & 0xFFFFFFu;
+@@ -5819,6 +5874,7 @@ static void gp0_exec_textured_rect(void) {
+     else
+         gr_draw_textured_rect(x0, y0, w, h, u0, v0, clut_x, clut_y, current_texpage());
+     ws_repeat_textured_rect_reveal(x0, y0, w, h, u0, v0, clut_x, clut_y);
++    ws_feedback_rect_reveal(x0, y0, w, h, u0, v0, color24, semi_trans, raw_texture);
+ }
+ 
+ /* Execute 1x1 dot (GP0 0x68-0x6B) */
+@@ -7974,6 +8030,7 @@ int gpu_snapshot_read(const uint8_t *p, uint32_t len) {
+     ws_hud_anchor_clear(ws_screen_mask_tags, WS_HUD_ANCHOR_TABLE_SIZE);
+     ws_radial_mask_clear(ws_radial_screen_mask_tags);
+     ws_repeat_rect_tag_clear(ws_repeat_rect_tags);
++    ws_repeat_rect_tag_clear(ws_feedback_rect_tags);
+     /* Sync renderer clip/scissor to restored GP0(E3/E4); vars alone leave GL
+      * on a stale draw area after savestate load. */
+     gr_set_draw_area((int)draw_area_left, (int)draw_area_top,
+@@ -8002,6 +8059,7 @@ typedef struct {
+     WsHudAnchorTag ws_screen_mask_tags[WS_HUD_ANCHOR_TABLE_SIZE];
+     WsRadialScreenMaskTag ws_radial_screen_mask_tags[WS_RADIAL_MASK_TAG_COUNT];
+     WsRepeatRectTag ws_repeat_rect_tags[WS_REPEAT_RECT_TAG_TABLE_SIZE];
++    WsRepeatRectTag ws_feedback_rect_tags[WS_REPEAT_RECT_TAG_TABLE_SIZE];
+     WsPrimitiveRole ws_primitive_roles[WS_ROLE_BUCKETS];
+     WsUiPrepassItem ws_ui_prepass[WS_UI_PREPASS_MAX];
+     WsUiPrepassNode ws_ui_prepass_nodes[WS_UI_PREPASS_NODE_MAX];
+@@ -8045,6 +8103,7 @@ static void gpu_pass_provenance_transfer(int restore) {
+     PASS_ARRAY(ws_screen_mask_tags);
+     PASS_ARRAY(ws_radial_screen_mask_tags);
+     PASS_ARRAY(ws_repeat_rect_tags);
++    PASS_ARRAY(ws_feedback_rect_tags);
+     PASS_ARRAY(ws_primitive_roles);
+     PASS_VALUE(ws_ui_prepass_count);
+     PASS_VALUE(ws_ui_prepass_node_count);
+diff --git a/runtime/src/gpu_gl_renderer.c b/runtime/src/gpu_gl_renderer.c
+index 96c927ae9..331ad8629 100644
+--- a/runtime/src/gpu_gl_renderer.c
++++ b/runtime/src/gpu_gl_renderer.c
+@@ -466,7 +466,7 @@ enum {
+     RTH_WIDE_DISABLE, RTH_WIDE_CLEAR, RTH_WIDE_CLEAR_MARGINS, RTH_PROJ_TRI,
+     RTH_WIDE_RECOVERY, RTH_INTERP_SUSPENDED, RTH_PRESENT_VRAM,
+     RTH_PRESENT_WIDE, RTH_STATE, RTH_PEEK, RTH_RING_CAPTURE, RTH_DYN_STEP,
+-    RTH_FRAME, RTH_FG_SRC, RTH_DEPTH, RTH_HD_NOTE, RTH_DITHER
++    RTH_FRAME, RTH_FG_SRC, RTH_DEPTH, RTH_HD_NOTE, RTH_DITHER, RTH_WIDE_FEEDBACK
+ };
+ /* GP0(A0) whose payload gpu.c is still streaming into its array (the
+  * facade's vram_upload_open, emulation thread), tracked whatever the HD
+@@ -7164,6 +7164,111 @@ static void glb_wide_clear_margins(int base_x, int y, int h, uint16_t color, int
+     s_cw_wide_ms += cw_ms() - t0;
+ }
+ 
++/* Framebuffer feedback into the bands (gr_wide_feedback_rect): a 15-bit
++ * sprite copying another framebuffer, sampled from that buffer's wide surface
++ * because its band columns exist nowhere in VRAM. Band texels count as bit 15
++ * set, as in sw_wide_feedback_rect: the band's own bit 15 is not
++ * authoritative, and the centre sits at bit 15 once the trail blends. */
++static const char *FB_VS =
++    "#version 330\n"
++    "uniform vec4 u_rect;   /* wide-local native px: x0, y0, x1, y1 */\n"
++    "uniform vec2 u_size;   /* wide surface in native px */\n"
++    "void main(){\n"
++    "  vec2 c = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));\n"
++    "  vec2 p = mix(u_rect.xy, u_rect.zw, c);\n"
++    "  gl_Position = vec4(p / u_size * 2.0 - 1.0, 0.0, 1.0); }\n";
++static const char *FB_FS =
++    "#version 330\n"
++    "out vec4 frag;\n"
++    "uniform sampler2D u_src;\n"
++    "uniform float u_dst_scale; /* target px per native px */\n"
++    "uniform vec2 u_src_delta;  /* source minus target, native px */\n"
++    "uniform vec3 u_mod;        /* 8-bit modulation colour */\n"
++    "uniform int u_raw;\n"
++    "uniform int u_accurate;    /* the surfaces' colour basis, as TEX_FS */\n"
++    "void main(){\n"
++    "  vec2 n = gl_FragCoord.xy / u_dst_scale + u_src_delta;\n"
++    "  float ss = float(textureSize(u_src, 0).y) / 512.0;\n"
++    "  vec4 c = texelFetch(u_src, ivec2(n * ss), 0);\n"
++    "  if (c.a < 0.5 && c.rgb == vec3(0.0)) discard;   /* texel 0x0000 */\n"
++    "  /* The centre samples packed 5-bit VRAM (PACK_FS); truncating the same\n"
++    "   * way keeps the bands from drifting brighter across feedback frames. */\n"
++    "  vec3 k = floor(floor(c.rgb * 255.0 + 0.5) / 8.0);\n"
++    "  vec3 rgb = u_accurate != 0 ? k * (8.0 / 255.0) : k / 31.0;\n"
++    "  if (u_raw == 0) rgb = clamp(rgb * u_mod / 255.0 * 2.0, 0.0, 1.0);\n"
++    "  frag = vec4(rgb, 1.0);\n"
++    "}\n";
++static GLuint s_fb_prog = 0;
++static GLint  s_fb_uRect, s_fb_uSize, s_fb_uSrc, s_fb_uDstScale, s_fb_uSrcDelta,
++              s_fb_uMod, s_fb_uRaw, s_fb_uAccurate;
++
++static int fb_prog_ready(void) {
++    if (s_fb_prog) return 1;
++    s_fb_prog = build_program(FB_VS, FB_FS);
++    if (!s_fb_prog) return 0;
++    s_fb_uRect      = p_glGetUniformLocation(s_fb_prog, "u_rect");
++    s_fb_uSize      = p_glGetUniformLocation(s_fb_prog, "u_size");
++    s_fb_uSrc       = p_glGetUniformLocation(s_fb_prog, "u_src");
++    s_fb_uDstScale  = p_glGetUniformLocation(s_fb_prog, "u_dst_scale");
++    s_fb_uSrcDelta  = p_glGetUniformLocation(s_fb_prog, "u_src_delta");
++    s_fb_uMod       = p_glGetUniformLocation(s_fb_prog, "u_mod");
++    s_fb_uRaw       = p_glGetUniformLocation(s_fb_prog, "u_raw");
++    s_fb_uAccurate  = p_glGetUniformLocation(s_fb_prog, "u_accurate");
++    return 1;
++}
++
++/* Program, source texture and uniforms for one band copy (wide-local px). */
++static void fb_bind(GLuint src_tex, int dl, int dy, int w, int h, int sl, int sy,
++                    int r, int g, int b, int raw) {
++    p_glUseProgram(s_fb_prog);
++    p_glBindVertexArray(s_empty_vao);
++    p_glActiveTexture(PSXGL_TEXTURE0);
++    glBindTexture(GL_TEXTURE_2D, src_tex);
++    p_glUniform1i(s_fb_uSrc, 0);
++    p_glUniform4f(s_fb_uRect, (float)dl, (float)dy, (float)(dl + w), (float)(dy + h));
++    p_glUniform2f(s_fb_uSize, (float)g_wide_w, (float)VRAM_H);
++    p_glUniform1f(s_fb_uDstScale, (float)s_out_scale);
++    p_glUniform2f(s_fb_uSrcDelta, (float)(sl - dl), (float)(sy - dy));
++    p_glUniform3f(s_fb_uMod, (float)r, (float)g, (float)b);
++    p_glUniform1i(s_fb_uRaw, raw);
++    p_glUniform1i(s_fb_uAccurate, s_accurate_blend);
++}
++
++/* An existing wide surface for base_x; never allocates (nothing to copy yet). */
++static int wide_index_existing(int base_x) {
++    for (int i = 0; i < WIDE_MAX_SURF; i++)
++        if (s_wide_fbo[i] && s_wide_base[i] == base_x) return i;
++    return -1;
++}
++
++static void glb_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
++                                   int w, int h, int r, int g, int b, int raw, int semi) {
++    if (!s_raster_ok || !g_wide_cur || w <= 0 || h <= 0 || g_wide_w <= 0) return;
++    flush_flat_batch();
++    flush_tex_batch();
++    hiw_flush_queue();   /* queued mirrors land in both surfaces first */
++    const int si = wide_index_existing(src_base);
++    if (si < 0 || s_wide_fbo[si] == g_wide_cur || !fb_prog_ready()) return;
++    const int dl = dst_x + wide_dx();
++    const int sl = src_x - src_base + g_wide_off + view_shift;
++    p_glBindFramebuffer(PSXGL_FRAMEBUFFER, g_wide_cur);
++    glViewport(0, 0, g_wide_w * s_out_scale, VRAM_H * s_out_scale);
++    wide_band_scissor_x(view_pad_left, g_wide_w - view_pad_left - view_pad_right);
++    glDisable(GL_STENCIL_TEST);
++    fb_bind(s_wide_tex[si], dl, dst_y, w, h, sl, src_y, r, g, b, raw);
++    if (semi >= 0) apply_psx_blend(semi);
++    else glDisable(GL_BLEND);
++    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
++    glBindTexture(GL_TEXTURE_2D, 0);   /* the source surface is a render target too */
++    glDisable(GL_BLEND);
++    p_glBlendEquationSeparate(PSXGL_FUNC_ADD, PSXGL_FUNC_ADD);
++    glDisable(GL_SCISSOR_TEST);
++    p_glBindVertexArray(0);
++    p_glUseProgram(0);
++    p_glBindFramebuffer(PSXGL_FRAMEBUFFER, 0);
++    wst_add(wide_index(g_wide_cur), dl, dst_y, dl + w, dst_y + h);
++}
++
+ /* Present source: read the wide FBO for the displayed buffer (base_x) into the
+  * CPU present buffer as ARGB8888, byte-identical to sw_render_wide_display's
+  * output so the shared CPU present path consumes it the same way. Output is
+@@ -7257,7 +7362,8 @@ static int glb_wide_dump_full(uint32_t *out, int cap_pixels, int *ow, int *oh,
+     /* Same orientation reasoning as glb_render_wide_display: glReadPixels row 0 =
+      * PS1 top scanline, so copy straight (top-down). */
+     int count = 0;
+-    for (int i = 0; i < W * H; i++) { out[i] = tmp[i] | 0xFF000000u; count++; }
++    /* Alpha is the surface's bit 15 (mask/STP); wide_full can show it. */
++    for (int i = 0; i < W * H; i++) { out[i] = tmp[i]; count++; }
+     free(tmp);
+     if (ow) *ow = W;
+     if (oh) *oh = H;
+@@ -11016,6 +11122,7 @@ static const GpuRenderBackend GL_BACKEND = {
+     .render_wide_display = glb_render_wide_display,
+     .wide_dump_full = glb_wide_dump_full,
+     .set_depth_triangle = glb_set_depth_triangle,
++    .wide_feedback_rect = glb_wide_feedback_rect,
+ };
+ 
+ /* ==== Render thread: recording, replay, hand-off ===========================
+@@ -13803,6 +13910,16 @@ static void rtb_wide_clear_margins(int base_x, int y, int h, uint16_t color, int
+     }
+     glb_wide_clear_margins(base_x, y, h, color, sides);
+ }
++
++static void rtb_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
++                                   int w, int h, int r, int g, int b, int raw, int semi) {
++    if (rth_record_mode()) {
++        RTH_REC(RTH_WIDE_FEEDBACK, 0, src_base, src_x, src_y, dst_x, dst_y, w, h,
++                r, g, b, raw, semi);
++        return;
++    }
++    glb_wide_feedback_rect(src_base, src_x, src_y, dst_x, dst_y, w, h, r, g, b, raw, semi);
++}
+ static int rtb_render_wide_display(uint32_t *out, int pitch, int base_x, int disp_y, int disp_h) {
+     GL_RT_SYNC("render_wide_display");
+     return glb_render_wide_display(out, pitch, base_x, disp_y, disp_h);
+@@ -13844,6 +13961,7 @@ static const GpuRenderBackend GL_RT_BACKEND = {
+     .set_depth_triangle = rtb_set_depth_triangle,
+     .hd_texture_note = rtb_hd_texture_note,
+     .vram_upload_open = rtb_vram_upload_open,
++    .wide_feedback_rect = rtb_wide_feedback_rect,
+ };
+ 
+ /* ---- replay (render thread) ---------------------------------------------- */
+@@ -13918,6 +14036,10 @@ static void gl_rth_exec(void *user, const RtCmd *c, const void *payload) {
+     case RTH_WIDE_DISABLE: glb_wide_disable_target(); break;
+     case RTH_WIDE_CLEAR: glb_wide_clear(v[0], v[1], v[2], (uint16_t)v[3]); break;
+     case RTH_WIDE_CLEAR_MARGINS: glb_wide_clear_margins(v[0], v[1], v[2], (uint16_t)v[3], v[4]); break;
++    case RTH_WIDE_FEEDBACK:
++        glb_wide_feedback_rect(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9],
++                               v[10], v[11]);
++        break;
+     case RTH_PROJ_TRI: {
+         PSXProjectedVertex vx[3];
+         memcpy(vx, payload, sizeof vx);
+diff --git a/runtime/src/gpu_render.c b/runtime/src/gpu_render.c
+index c73d7c040..e1fbe0f34 100644
+--- a/runtime/src/gpu_render.c
++++ b/runtime/src/gpu_render.c
+@@ -57,6 +57,7 @@ static const GpuRenderBackend SW_BACKEND = {
+     .wide_clear_margins            = sw_wide_clear_margins,
+     .render_wide_display           = sw_render_wide_display,
+     .wide_dump_full                = sw_wide_dump_full,
++    .wide_feedback_rect            = sw_wide_feedback_rect,
+ };
+ 
+ /* Supplied by gpu_gl_renderer.c; returns NULL until the GL backend is ready. */
+@@ -293,6 +294,12 @@ void gr_wide_clear_margins(int base_x, int y, int h, uint16_t color, int sides)
+     if (g_b->wide_clear_margins)
+         g_b->wide_clear_margins(base_x, y, h, color, sides);
+ }
++void gr_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
++                           int w, int h, int r, int g, int b, int raw, int semi) {
++    if (g_b->wide_feedback_rect)
++        g_b->wide_feedback_rect(src_base, src_x, src_y, dst_x, dst_y, w, h, r, g, b,
++                                raw, semi);
++}
+ int gr_render_wide_display(uint32_t *out, int pitch, int base_x,
+                            int disp_y, int disp_h) {
+     if (g_b->render_wide_display)
+diff --git a/runtime/src/gpu_sw_renderer.c b/runtime/src/gpu_sw_renderer.c
+index e472a06e5..d3127b5c2 100644
+--- a/runtime/src/gpu_sw_renderer.c
++++ b/runtime/src/gpu_sw_renderer.c
+@@ -321,7 +321,9 @@ static inline void put_textured(const RTarget *t, int x, int y, uint16_t texel,
+         color = blend_pixels(t->buf[idx], color, g_semi_trans_mode);
+     }
+ 
+-    /* Mask bit set */
++    /* The texel's bit 15 reaches the framebuffer, forced on by mask set
++     * (canonical VRAM shows it; framebuffer-feedback copies depend on it). */
++    color |= (uint16_t)(texel & 0x8000);
+     if (g_mask_set_bit) color |= 0x8000;
+ 
+     t->buf[idx] = color;
+@@ -1868,6 +1870,47 @@ void sw_wide_clear_margins(int base_x, int y, int h, uint16_t color, int sides)
+     }
+ }
+ 
++/* An existing wide surface for base_x (never allocates: a source that was not
++ * drawn yet has nothing to copy). */
++static uint16_t *wide_surf_existing(int base_x) {
++    if (g_wide_w <= 0) return NULL;
++    for (int i = 0; i < WIDE_MAX_SURF; i++)
++        if (g_wide_surf[i] && g_wide_base[i] == base_x) return g_wide_surf[i];
++    return NULL;
++}
++
++/* Band texels count as bit 15 set: the band columns' own bit 15 is not
++ * authoritative (margin fills write 0), and a framebuffer trail keeps the
++ * centre at bit 15 once it blends, so the bands blend exactly like it. */
++void sw_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
++                           int w, int h, int r, int g, int b, int raw, int semi) {
++    const uint16_t *src = wide_surf_existing(src_base);
++    if (!src || !g_wide_cur || src == g_wide_cur || w <= 0 || h <= 0) return;
++    RTarget t = rt_wide();
++    const int s = t.s;
++    const int sx0 = (src_x - src_base + g_wide_off + view_shift) * s;
++    const int dx0 = (dst_x + wide_dx()) * s;
++    const int saved_enabled = g_semi_trans_enabled, saved_mode = g_semi_trans_mode;
++    g_semi_trans_enabled = semi >= 0;
++    g_semi_trans_mode = semi >= 0 ? semi : saved_mode;
++    for (int row = 0; row < h * s; row++) {
++        const int sy = src_y * s + row;
++        if (sy < 0 || sy >= t.h) continue;
++        for (int col = 0; col < w * s; col++) {
++            const int sx = sx0 + col;
++            if (sx < 0 || sx >= t.w) continue;
++            const uint16_t texel = src[(size_t)sy * t.w + sx];
++            if (texel == 0x0000) continue;
++            /* Bit 15 is forced: see sw_wide_feedback_rect's comment. put_textured
++             * takes the factor sw_set_color_modulation stores. */
++            put_textured(&t, dx0 + col, dst_y * s + row, (uint16_t)(texel | 0x8000),
++                         r >> 3, g >> 3, b >> 3, raw);
++        }
++    }
++    g_semi_trans_enabled = saved_enabled;
++    g_semi_trans_mode = saved_mode;
++}
++
+ /* Present source: convert the wide surface for the displayed buffer (base_x) to
+  * ARGB. Output is (g_wide_w*scale) wide × (disp_h*scale) tall. Returns 0 if no
+  * surface exists for base_x (caller falls back to the canonical present). */
+diff --git a/runtime/src/mod_runtime.cpp b/runtime/src/mod_runtime.cpp
+index fecff4429..711caa0ed 100644
+--- a/runtime/src/mod_runtime.cpp
++++ b/runtime/src/mod_runtime.cpp
+@@ -3234,6 +3234,9 @@ extern "C" void psx_mod_tag_radial_screen_mask_quad(uint32_t primitive, float sc
+ extern "C" void psx_mod_tag_world_primitive(uint32_t primitive, int is_world) {
+     gpu_ws_tag_world_primitive(primitive, is_world);
+ }
++extern "C" void psx_mod_tag_feedback_rect(uint32_t primitive) {
++    gpu_ws_tag_feedback_rect(primitive);
++}
+ 
+ extern "C" void psx_mod_set_adaptive_backdrop_preload(int enabled) {
+     gpu_ws_set_adaptive_backdrop_preload(enabled);
+diff --git a/runtime/tests/gpu_exec_stubs.inc b/runtime/tests/gpu_exec_stubs.inc
+index 4b1e98d74..249ff1edb 100644
+--- a/runtime/tests/gpu_exec_stubs.inc
++++ b/runtime/tests/gpu_exec_stubs.inc
+@@ -415,6 +415,11 @@ void gr_wide_clear(int base_x, int y, int h, uint16_t color) {
+ void gr_wide_clear_margins(int base_x, int y, int h, uint16_t color, int sides) {
+     (void)base_x; (void)y; (void)h; (void)color; (void)sides;
+ }
++void gr_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
++                           int w, int h, int r, int g, int b, int raw, int semi) {
++    (void)src_base; (void)src_x; (void)src_y; (void)dst_x; (void)dst_y;
++    (void)w; (void)h; (void)r; (void)g; (void)b; (void)raw; (void)semi;
++}
+ int gr_wide_dump_full(uint32_t *out, int cap_pixels, int *ow, int *oh, int base_x) {
+     (void)out; (void)cap_pixels; (void)ow; (void)oh; (void)base_x;
+     return 0;
+diff --git a/runtime/tests/test_gpu_gp0_history_guard.py b/runtime/tests/test_gpu_gp0_history_guard.py
+index 87b2e24be..db644c3e9 100644
+--- a/runtime/tests/test_gpu_gp0_history_guard.py
++++ b/runtime/tests/test_gpu_gp0_history_guard.py
+@@ -399,6 +399,10 @@
+ { (void)active; (void)shift; (void)pad_left; (void)pad_right; }
+ void gr_wide_clear_margins(int base, int y, int h, uint16_t color, int mode)
+ { (void)base; (void)y; (void)h; (void)color; (void)mode; }
++void gr_wide_feedback_rect(int sb, int sx, int sy, int dx, int dy, int w, int h,
++                           int r, int g, int b, int raw, int semi)
++{ (void)sb; (void)sx; (void)sy; (void)dx; (void)dy; (void)w; (void)h;
++  (void)r; (void)g; (void)b; (void)raw; (void)semi; }
+ void gr_set_draw_area(int l, int t, int r, int b) { (void)l; (void)t; (void)r; (void)b; }
+ void gr_set_draw_offset(int x, int y) { (void)x; (void)y; }
+ void gr_set_mask_bits(int set, int check) { (void)set; (void)check; }
+diff --git a/runtime/tests/test_mod_resident.cpp b/runtime/tests/test_mod_resident.cpp
+index f0706ba76..0cc057b1e 100644
+--- a/runtime/tests/test_mod_resident.cpp
++++ b/runtime/tests/test_mod_resident.cpp
+@@ -69,6 +69,8 @@ extern "C" { uint64_t s_frame_count = 0; }
+ static uint64_t cycles;
+ extern "C" uint64_t psx_get_cycle_count(void) { return cycles; }
+ extern "C" void gpu_ws_tag_radial_screen_mask_quad(uint32_t, float) {}
++extern "C" void gpu_ws_tag_feedback_rect(uint32_t) {}
++extern "C" int psx_netplay_active(void) { return 0; }
+ /* mod_runtime.cpp's lobby netplay commit reads the negotiated match caps.
+  * No lobby match is negotiated in this test. */
+ static PsxLobbyMatchCaps no_match_caps;
+diff --git a/runtime/tests/test_mod_runtime.cpp b/runtime/tests/test_mod_runtime.cpp
+index 3d0d179a7..6046e597d 100644
+--- a/runtime/tests/test_mod_runtime.cpp
++++ b/runtime/tests/test_mod_runtime.cpp
+@@ -158,6 +158,7 @@ extern "C" int gpu_ws_configured_x_reveal(void) { return 0; }
+ extern "C" void gpu_ws_tag_hud_prim(uint32_t, int) {}
+ extern "C" void gpu_ws_tag_screen_mask_quad(uint32_t) {}
+ extern "C" void gpu_ws_tag_radial_screen_mask_quad(uint32_t, float) {}
++extern "C" void gpu_ws_tag_feedback_rect(uint32_t) {}
+ 
+ static CPUState* interrupted_entry_cpu;
+ static void test_vblank_plugin(void) {
+diff --git a/runtime/tests/test_netplay_view_mods.cpp b/runtime/tests/test_netplay_view_mods.cpp
+index da38e8172..3c3b6b1b0 100644
+--- a/runtime/tests/test_netplay_view_mods.cpp
++++ b/runtime/tests/test_netplay_view_mods.cpp
+@@ -162,6 +162,7 @@ extern "C" int gpu_ws_configured_x_reveal(void) { return 0; }
+ extern "C" void gpu_ws_tag_hud_prim(uint32_t, int) {}
+ extern "C" void gpu_ws_tag_screen_mask_quad(uint32_t) {}
+ extern "C" void gpu_ws_tag_radial_screen_mask_quad(uint32_t, float) {}
++extern "C" void gpu_ws_tag_feedback_rect(uint32_t) {}
+ 
+ static void check(bool value, const char* message) {
+     if (!value) {
+diff --git a/runtime/tests/test_pgxp_session.cpp b/runtime/tests/test_pgxp_session.cpp
+index 6753677f2..33321813f 100644
+--- a/runtime/tests/test_pgxp_session.cpp
++++ b/runtime/tests/test_pgxp_session.cpp
+@@ -143,6 +143,7 @@ extern "C" int gpu_ws_configured_x_reveal(void) { return 0; }
+ extern "C" void gpu_ws_tag_hud_prim(uint32_t, int) {}
+ extern "C" void gpu_ws_tag_screen_mask_quad(uint32_t) {}
+ extern "C" void gpu_ws_tag_radial_screen_mask_quad(uint32_t, float) {}
++extern "C" void gpu_ws_tag_feedback_rect(uint32_t) {}
+ /* mod_runtime.cpp's lobby netplay commit reads the negotiated match caps.
+  * This test drives netplay through mod_runtime_clear_for_netplay, so no
+  * lobby match is ever negotiated. */
+diff --git a/runtime/tests/test_ws_feedback_rect.c b/runtime/tests/test_ws_feedback_rect.c
+new file mode 100644
+index 000000000..652cd9938
+--- /dev/null
++++ b/runtime/tests/test_ws_feedback_rect.c
+@@ -0,0 +1,69 @@
++#include "ws_feedback_rect.h"
++
++#ifdef NDEBUG
++#undef NDEBUG
++#endif
++#include <assert.h>
++#include <stdint.h>
++#include <stdio.h>
++
++/* Kula's lethargy sprites: draw buffer at VRAM x 320, 320 wide, 16:9 margin. */
++enum { LEFT = 320, WIDTH = 320, MARGIN = 54 };
++
++static int span_equals(const WsFeedbackSpan *span, int32_t dst_x, int32_t src_x,
++                       int32_t w) {
++    return span->dst_x == dst_x && span->src_x == src_x && span->w == w;
++}
++
++static void test_left_edge_sprite_gets_left_band(void) {
++    WsFeedbackSpan spans[2];
++    int count = ws_feedback_rect_spans(320, 256, 0, LEFT, WIDTH, MARGIN, spans);
++    assert(count == 1 && span_equals(&spans[0], 266, -54, 54));
++}
++
++static void test_right_edge_sprite_gets_right_band(void) {
++    WsFeedbackSpan spans[2];
++    int count = ws_feedback_rect_spans(576, 64, 256, LEFT, WIDTH, MARGIN, spans);
++    assert(count == 1 && span_equals(&spans[0], 640, 320, 54));
++}
++
++static void test_full_width_sprite_gets_both_bands(void) {
++    WsFeedbackSpan spans[2];
++    int count = ws_feedback_rect_spans(320, 320, 0, LEFT, WIDTH, MARGIN, spans);
++    assert(count == 2 && span_equals(&spans[1], 640, 320, 54));
++}
++
++static void test_inner_sprite_gets_no_band(void) {
++    WsFeedbackSpan spans[2];
++    assert(ws_feedback_rect_spans(400, 64, 80, LEFT, WIDTH, MARGIN, spans) == 0);
++}
++
++static void test_offscreen_sprite_gets_no_band(void) {
++    WsFeedbackSpan spans[2];
++    assert(ws_feedback_rect_spans(LEFT - 64, 32, 0, LEFT, WIDTH, MARGIN, spans) == 0);
++    assert(ws_feedback_rect_spans(LEFT - 32, 32, 0, LEFT, WIDTH, MARGIN, spans) == 0);
++    assert(ws_feedback_rect_spans(LEFT + WIDTH, 32, 0, LEFT, WIDTH, MARGIN, spans) == 0);
++    assert(ws_feedback_rect_spans(LEFT + WIDTH + 16, 32, 0, LEFT, WIDTH, MARGIN, spans) == 0);
++}
++
++static void test_zero_margin_gets_no_band(void) {
++    WsFeedbackSpan spans[2];
++    assert(ws_feedback_rect_spans(320, 320, 0, LEFT, WIDTH, 0, spans) == 0);
++}
++
++static void test_empty_sprite_rejected(void) {
++    WsFeedbackSpan spans[2];
++    assert(ws_feedback_rect_spans(320, 0, 0, LEFT, WIDTH, MARGIN, spans) == 0);
++}
++
++int main(void) {
++    test_left_edge_sprite_gets_left_band();
++    test_right_edge_sprite_gets_right_band();
++    test_full_width_sprite_gets_both_bands();
++    test_inner_sprite_gets_no_band();
++    test_offscreen_sprite_gets_no_band();
++    test_zero_margin_gets_no_band();
++    test_empty_sprite_rejected();
++    puts("ws_feedback_rect: all tests passed");
++    return 0;
++}

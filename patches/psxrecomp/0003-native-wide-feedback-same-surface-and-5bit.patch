@@ -1,0 +1,115 @@
+diff --git a/runtime/src/gpu_gl_renderer.c b/runtime/src/gpu_gl_renderer.c
+--- a/runtime/src/gpu_gl_renderer.c
++++ b/runtime/src/gpu_gl_renderer.c
+@@ -2166,6 +2166,14 @@
+     "  if (u_semipass == 1 && stp == 1) discard;\n"
+     "  if (u_semipass == 2 && stp == 0) discard;\n"
+     "  if (v_raw == 0) rgb = clamp(rgb * (v_cp != 0 ? v_col_p : v_col.rgb) * 2.0, 0.0, 1.0);\n"
++    "  /* 15-bit texels (frame-buffer copies: trails, fades, screen transitions)\n"
++    "   * modulated without dithering: the PS1 truncates to 5 bits, (k * m) >> 7.\n"
++    "   * Stored as is, an rgb 127 pass rounded back up for every k < 16, so\n"
++    "   * the 127/128 fades of a feedback loop stopped at a dark grey. */\n"
++    "  if (v_raw == 0 && v_depth == 2 && v_dith == 0 && v_hd_mode == 0) {\n"
++    "    vec3 k5 = floor(rgb * (u_accurate != 0 ? 255.0 / 8.0 : 31.0));\n"
++    "    rgb = u_accurate != 0 ? k5 * (8.0 / 255.0) : k5 / 31.0;\n"
++    "  }\n"
+     "  rgb = psx_dither(rgb, v_npos, v_dith);\n"
+     "  float dst_factor = 0.0;\n"
+     "  if (u_semimode == 4 && v_semi != 0 && stp != 0) {\n"
+@@ -7191,8 +7199,11 @@
+     "  /* The centre samples packed 5-bit VRAM (PACK_FS); truncating the same\n"
+     "   * way keeps the bands from drifting brighter across feedback frames. */\n"
+     "  vec3 k = floor(floor(c.rgb * 255.0 + 0.5) / 8.0);\n"
++    "  /* Modulation as the PS1 does it on the 5-bit texel, (k * m) >> 7 with a\n"
++    "   * clamp: in 8 bits an rgb 127 pass rounded back up for every k < 16,\n"
++    "   * so fading trails never darkened in the bands. */\n"
++    "  if (u_raw == 0) k = min(floor(k * u_mod / 128.0), vec3(31.0));\n"
+     "  vec3 rgb = u_accurate != 0 ? k * (8.0 / 255.0) : k / 31.0;\n"
+-    "  if (u_raw == 0) rgb = clamp(rgb * u_mod / 255.0 * 2.0, 0.0, 1.0);\n"
+     "  frag = vec4(rgb, 1.0);\n"
+     "}\n";
+ static GLuint s_fb_prog = 0;
+@@ -7238,6 +7249,32 @@
+     return -1;
+ }
+ 
++/* Vertically double-buffered titles keep both framebuffers at one base_x
++ * (Dragon Valor: 0,0 and 0,256), so the source buffer's wide surface is the
++ * target surface itself, one y band away. A draw must not sample the texture
++ * it renders to, so the source band is first copied into this scratch
++ * texture, same size and coordinates as the wide surface. */
++static GLuint s_fb_scratch_tex = 0, s_fb_scratch_fbo = 0;
++static int    s_fb_scratch_w = 0, s_fb_scratch_h = 0;
++
++static int fb_scratch_ready(int w, int h) {
++    if (s_fb_scratch_fbo && s_fb_scratch_w == w && s_fb_scratch_h == h) return 1;
++    if (s_fb_scratch_fbo) { p_glDeleteFramebuffers(1, &s_fb_scratch_fbo); s_fb_scratch_fbo = 0; }
++    if (s_fb_scratch_tex) { glDeleteTextures(1, &s_fb_scratch_tex); s_fb_scratch_tex = 0; }
++    s_fb_scratch_w = s_fb_scratch_h = 0;
++    s_fb_scratch_tex = make_tex(GL_RGBA8, w, h, GL_RGBA, GL_UNSIGNED_BYTE);
++    if (!s_fb_scratch_tex) return 0;
++    if (!make_fbo(&s_fb_scratch_fbo, s_fb_scratch_tex, 0)) {
++        glDeleteTextures(1, &s_fb_scratch_tex);
++        s_fb_scratch_tex = 0;
++        s_fb_scratch_fbo = 0;
++        return 0;
++    }
++    s_fb_scratch_w = w;
++    s_fb_scratch_h = h;
++    return 1;
++}
++
+ static void glb_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
+                                    int w, int h, int r, int g, int b, int raw, int semi) {
+     if (!s_raster_ok || !g_wide_cur || w <= 0 || h <= 0 || g_wide_w <= 0) return;
+@@ -7245,14 +7282,32 @@
+     flush_tex_batch();
+     hiw_flush_queue();   /* queued mirrors land in both surfaces first */
+     const int si = wide_index_existing(src_base);
+-    if (si < 0 || s_wide_fbo[si] == g_wide_cur || !fb_prog_ready()) return;
++    if (si < 0 || !fb_prog_ready()) return;
+     const int dl = dst_x + wide_dx();
+     const int sl = src_x - src_base + g_wide_off + view_shift;
++    GLuint src_tex = s_wide_tex[si];
++    if (s_wide_fbo[si] == g_wide_cur) {
++        const int S = s_out_scale > 0 ? s_out_scale : 1;
++        int x0 = sl, y0 = src_y, x1 = sl + w, y1 = src_y + h;
++        if (x0 < 0) x0 = 0;
++        if (y0 < 0) y0 = 0;
++        if (x1 > g_wide_w) x1 = g_wide_w;
++        if (y1 > VRAM_H) y1 = VRAM_H;
++        if (x1 <= x0 || y1 <= y0 || !fb_scratch_ready(g_wide_w * S, VRAM_H * S)) return;
++        p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, g_wide_cur);
++        p_glBindFramebuffer(PSXGL_DRAW_FRAMEBUFFER, s_fb_scratch_fbo);
++        glDisable(GL_SCISSOR_TEST);
++        p_glBlitFramebuffer(x0 * S, y0 * S, x1 * S, y1 * S, x0 * S, y0 * S, x1 * S, y1 * S,
++                            GL_COLOR_BUFFER_BIT, GL_NEAREST);
++        p_glBindFramebuffer(PSXGL_READ_FRAMEBUFFER, 0);
++        p_glBindFramebuffer(PSXGL_DRAW_FRAMEBUFFER, 0);
++        src_tex = s_fb_scratch_tex;
++    }
+     p_glBindFramebuffer(PSXGL_FRAMEBUFFER, g_wide_cur);
+     glViewport(0, 0, g_wide_w * s_out_scale, VRAM_H * s_out_scale);
+     wide_band_scissor_x(view_pad_left, g_wide_w - view_pad_left - view_pad_right);
+     glDisable(GL_STENCIL_TEST);
+-    fb_bind(s_wide_tex[si], dl, dst_y, w, h, sl, src_y, r, g, b, raw);
++    fb_bind(src_tex, dl, dst_y, w, h, sl, src_y, r, g, b, raw);
+     if (semi >= 0) apply_psx_blend(semi);
+     else glDisable(GL_BLEND);
+     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+diff --git a/runtime/src/gpu_sw_renderer.c b/runtime/src/gpu_sw_renderer.c
+--- a/runtime/src/gpu_sw_renderer.c
++++ b/runtime/src/gpu_sw_renderer.c
+@@ -1888,7 +1888,11 @@
+ void sw_wide_feedback_rect(int src_base, int src_x, int src_y, int dst_x, int dst_y,
+                            int w, int h, int r, int g, int b, int raw, int semi) {
+     const uint16_t *src = wide_surf_existing(src_base);
+-    if (!src || !g_wide_cur || src == g_wide_cur || w <= 0 || h <= 0) return;
++    if (!src || !g_wide_cur || w <= 0 || h <= 0) return;
++    /* Vertically double-buffered titles keep both framebuffers at one base_x
++     * (Dragon Valor: 0,0 and 0,256): the source is this surface, one y band
++     * away. Copy only when the rows do not overlap. */
++    if (src == g_wide_cur && src_y < dst_y + h && dst_y < src_y + h) return;
+     RTarget t = rt_wide();
+     const int s = t.s;
+     const int sx0 = (src_x - src_base + g_wide_off + view_shift) * s;

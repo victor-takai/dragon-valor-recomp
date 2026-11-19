@@ -50,6 +50,21 @@ for _doc in DISC.md CONTROLS.md THIRD_PARTY_NOTICES.md RELEASE_NOTES.md LICENSE 
 done
 
 cd "${ROOT}"
+# Plugin caches (<build-dir>/mods/cache/<plugin>/) hold game data:
+# dragonvalor.heroswap keeps every hero's model, textures and sounds there,
+# read from the player's own disc. The framework stages <build-dir>/mods
+# whole, so the cache is parked outside the build tree for the run (same
+# drive, dist/ is gitignored) and put back on exit, even after an error.
+# (The packager's BIOS guard refuses any *.bin in the stage, which is how
+# the first try of 2026-11-18 stopped instead of shipping it.)
+case "${BUILD_DIR}" in /*|?:*) BUILD_ABS="${BUILD_DIR}" ;; *) BUILD_ABS="${ROOT}/${BUILD_DIR}" ;; esac
+CACHE_PARK=""
+if [[ -d "${BUILD_ABS}/mods/cache" ]]; then
+  CACHE_PARK="${ROOT}/dist/.mods-cache-parked-$$"
+  mkdir -p "${CACHE_PARK}"
+  mv "${BUILD_ABS}/mods/cache" "${CACHE_PARK}/cache"
+  trap 'mv "${CACHE_PARK}/cache" "${BUILD_ABS}/mods/cache" && rmdir "${CACHE_PARK}"' EXIT
+fi
 # Stage only, then zip here: the framework stages <build-dir>/mods whole
 # (dropping just installed/ and state.toml), so a build someone has played
 # would ship its texture-packs/: thousands of dumped game textures (3227
@@ -70,6 +85,10 @@ bash "${PACKAGER}" \
 
 STAGE="${ROOT}/dist/stage-game-${ARTIFACT_TAG}"
 rm -rf "${STAGE}/mods/texture-packs"
+# Plugin caches (mods/cache/<plugin>/): dragonvalor.heroswap keeps every
+# hero's model, textures and sounds there, read from the player's own disc
+# (DATA.CDR). Game data must never ship; each player's start rebuilds it.
+rm -rf "${STAGE}/mods/cache"
 VERSION="$(tr -d '[:space:]' <"${ROOT}/VERSION")"   # the packager wrote the binary's stamp
 ZIP="${ROOT}/dist/DragonValorRecompiled-${VERSION}-${ARTIFACT_TAG}.zip"
 rm -f "${ZIP}"

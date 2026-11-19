@@ -57,7 +57,12 @@ strict = true
 #   0x80021CE4  ModelWeldReset, called by the frame draw right after the model
 #               drawers and before DrawOTag; dragonvalor.widescreen collapses
 #               the off-frame lens quads (prim record 16) there.
-mod_function_entry_funcs = ["0x8006C250", "0x80021CE4"]
+#   0x80035AB8  StageBuffersAlloc, lays the stage buffers and the SPU slots out
+#               from the stage index's sizes; dragonvalor.heroswap raises
+#               row 0 and sound slot 1 there for a bigger hero.
+#   0x80035E48  PackInstall (a0 = the file just read); dragonvalor.heroswap
+#               writes the rebuilt stage file over it there.
+mod_function_entry_funcs = ["0x8006C250", "0x80021CE4", "0x80035AB8", "0x80035E48"]
 
 [runtime]
 window_title = "Dragon Valor Recompiled"
@@ -83,6 +88,18 @@ anisotropic_filtering = 4
 # Both match the framework defaults; written out so the choice is visible.
 antialiasing = true
 texture_filtering = "nearest"
+# Render thread (psxrecomp docs/RENDER_THREAD.md): the OpenGL calls run on a
+# thread of their own instead of the emulation thread, so a frame costs
+# max(emulation, GL) instead of their sum. The player's report (2026-11-18):
+# hitches where many enemies are on screen; at 1440p on an i7-10700K /
+# RTX 4070 Ti the town street of 1/7 with the red orbs ran at 0.6-0.8x for
+# about a second with the thread off, and unthrottled it reached 0.93-1.31x
+# off, 1.70-2.05x on (6 interleaved runs; Vulkan 0.47-1.34x). Internal
+# resolution changed nothing there (1080p hitched the same). test_menu,
+# test_widescreen and test_heroswap pass with it on; the in-game menu's own
+# GL textures (save-state thumbnails) draw. The player's settings.toml
+# outranks this default (the launcher writes the key back).
+render_thread = true
 # PGXP ships on by default through the overriding psx.enhancement.pgxp manifest
 # in mods/preloaded (the runtime is the PGXP hook flavour); the mod is the one
 # switch, so the [video] geometry keys and the launcher's own row stay out.

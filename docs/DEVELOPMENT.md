@@ -145,10 +145,32 @@ Notes:
   only seen when redirected (`tools/dvdbg.py launch` writes `dvdbg_4370.log`);
   the exit report `psx_last_run_report.json` is the channel otherwise.
 - `DragonValorDebug.bat` — debug build with the debug server and the FPS readout on.
-- Frame generation (`[video] render_thread` / `frame_generation`, or
-  `PSX_RENDER_THREAD=1 PSX_FRAME_GEN=1`) is of no use on this 60 Hz title and
-  its launcher script was removed on 2026-10-14; the Settings page still
-  exposes the switches.
+- Frame generation (`[video] frame_generation`, `PSX_FRAME_GEN=1`) is of no
+  use on this 60 Hz title and its launcher script was removed on 2026-10-14.
+- **Render thread on by default** (`[video] render_thread = true` in
+  `game.toml`, 2026-11-18; psxrecomp `docs/RENDER_THREAD.md`): the OpenGL
+  calls run on their own thread, so a frame costs max(emulation, GL)
+  instead of the sum. The player felt hitches where many enemies are on
+  screen. Measured on the town street of 1/7 with the red orbs (the
+  player's state, only loaded), 1440p, i7-10700K / RTX 4070 Ti, debug
+  build: the frame ran at the 16.7 ms limit, and where the scene grew from
+  ~720 to ~1075 primitives it fell to 0.6-0.8x for about a second. The
+  host sampler showed about half the frame outside the executable (the GL
+  driver on the emulation thread), the rest the recompiled game,
+  cycle accounting and the GTE (`host_profile`, `phase_profile`: static
+  code ~95 %, the interpreter ~1 %). Not the cause: internal resolution
+  (1080p hitched the same) and texture dumping (no new texture was dumped
+  in those runs). Unthrottled at that spot (`turbo`), 6 interleaved runs:
+  thread off 0.93-1.31x, on 1.70-2.05x, Vulkan 0.47-1.34x; the paced walks
+  with the thread on had no dip. `test_menu`, `test_widescreen` and
+  `test_heroswap` pass with it on (`PSX_RENDER_THREAD=1`), and the in-game
+  menu's own GL textures (the save-state thumbnails) draw. A
+  `settings.toml` that already has `render_thread = false` keeps it off
+  (the runtime writes the key back on every launch); our recomp-ui pin
+  has no launcher row for it, so an existing install is switched by
+  editing that line. The measuring script is not kept (scratch
+  `perf_walk.py`: hold the pad, sample `frame` at 10 Hz, `host_profile`
+  when a 0.5 s window runs under 0.85x).
 - Both open the **recomp-ui launcher** first (disc check, Disc 1/2, pad mode,
   memory cards, Settings, Mods). `--no-launcher` or `PSX_NO_LAUNCHER=1` boots
   straight into the game.
@@ -570,7 +592,7 @@ the model-selection block:
   text being indices into a glyph sheet that the normal way into a stage
   loads and a Continue (which normally reloads the same stage, sheet
   still in VRAM) does not (open: BACKLOG L). The in-game menu's
-  Experimental section has **Area (next Continue)** and **Stage (next
+  Warp section (Experimental until 2026-11-18) has **Area** and **Stage (next
   Continue)** rows for this, and **Go now** makes the trip; by hand: write them, let HP
   reach 0 (or the HP editor), YES on CONTINUE. Beware: the area sits in the save
   block (`+0x1F8`), so a Memory Card save made afterwards keeps it.
@@ -697,6 +719,16 @@ Kodel's save forced to area 0 = stage 0/1) and the render lists in RAM.
   template (16-byte records whose high halves differ per stage), or stage
   scripts that touch hero parts by offset. Not a plain data swap. Next steps
   in `BACKLOG.md`, section F.
+- **Solved (2026-11-16)** from the decomp (github
+  victor-takai/dragon-valor-decomp, `docs/targets/hero-swap.md`): the action
+  pack's entry 0 is an install program (`PackInstall`, 0x80035E48) and the
+  hero is its first ops: the object of op 3 (behaviour script = entry 2, the
+  14 parts, **200 animation slots naming about 80 entries**), the weld lists,
+  the sound bank and the shadow; the swaps above moved the parts but left the
+  other hero's animations under them. Entries hold no absolute address (the
+  install relocates entry numbers), so a pack can be rebuilt freely. The
+  decomp's `tools/heroswap.py` does that and the `dragonvalor.heroswap`
+  package below serves the result: Kodel and Mihael play Clovis's 1/7.
 
 ### Modding: what the framework offers
 
@@ -718,6 +750,40 @@ or installed by the player through the launcher's Mods page) can carry:
   would be done once the field is known.
 - **HD texture packs** and **string translation** are built-in features with
   their own docs.
+
+**The launcher's Mods page (2026-11-18).** The player found it cryptic: a
+row read "CD Speed / CD Speed 1.0.0" or "Cheats / Dragon Valor Cheats
+1.3.0", and nine features sat in seven groups (Cheats, Display,
+Experimental, Convenience, Advanced, Quality of Life, Visual). Now:
+
+- two groups, **Game** (Cheats, Faster loading, Play as, Skip intro movie)
+  and **Graphics** (Bezel artwork, HD texture packs, Steady 3D (PGXP),
+  Widescreen); the list sorts by group, then name;
+- every feature description opens with a short sentence the row shows as
+  its summary ("Infinite HP and MP, more drops.", "Shorter loading from the
+  CD."), then the details; "Disabled by default" / "On by default in this
+  title" openings are gone (the checkbox says it), and the texts are
+  current (Widescreen's HUD at the edges, Play as through the Hero section);
+- the framework packages shown on the page get title overrides like the
+  PGXP one (same id and version under `mods/preloaded/packages`, the
+  builtin manifest verbatim but for the feature's name, description and
+  group): `psx.enhancement.cd-speed` ("Faster loading", options group
+  Speed, still off by default), `psx.enhancement.hd-textures` and
+  `psx.presentation.bezel`; `psx.enhancement.8mb-ram` is hidden by the
+  framework already;
+- the row and detail layout is recomp-ui's: `patches/recomp-ui/0005-...`
+  (name + summary rows; package, version, author and source at the detail
+  pane's foot; no short "EXP" channel tag before a row's name, which pushed
+  it out of line: the detail pane still shows EXPERIMENTAL and its blurb);
+- the launcher keeps 511 bytes of a description (recomp-ui's 512-byte
+  buffers): Play as's was cut mid-sentence, so it was shortened and
+  `tests/test_manifests.py` now fails a longer one.
+
+Checked in the debug launcher (window capture, `PrintWindow`; a scratch
+build opened it on the Mods page with Play as selected, since clicks posted
+to the window do not reach SDL): the two groups, the summaries, the
+options, the EXPERIMENTAL tag and blurb in the detail pane and the
+"Package: ..." foot.
 
 #### This project's package: `dragonvalor.cheats`
 
@@ -770,80 +836,189 @@ values are strings under `[feature.values]`), then `tools/dvdbg.py launch
 on|off` does exactly that; `tests/test_drop_cheat.py on|off` kills the first
 enemy of slot 0 and looks for the gem).
 
-#### In-game menu (`mods/plugins/dragonvalor_menu.cpp`)
+#### In-game menu (`mods/plugins/dragonvalor_menu.cpp`, `dragonvalor_menu_view.cpp`)
 
 Escape, or Select+Start on the pad, opens a menu over the game; the guest
-and audio pause while it is up (the "Pause in menu" row turns that off).
-Keyboard: arrows, Enter / Space, Backspace, Escape. Pad: D-pad, Cross,
-Circle, Start closes. **Mouse (2026-10-15):** the provider feeds SDL mouse
+and audio pause while it is up (Options > Pause in menu turns that off).
+Keyboard: arrows, Enter / Space, Backspace, Escape, Tab / Shift+Tab (or
+Page Down / Up) for the next / previous section. Pad: D-pad or left stick,
+Cross, Circle, L1 / R1 for the sections, Start closes. **Mouse (2026-10-15):** the provider feeds SDL mouse
 events to ImGui while the menu is open (coordinates scaled from window to
-framebuffer), so hovering selects, a click activates a row or a section, the
--/+ buttons step, the wheel scrolls and the right button goes back; closed,
-the mouse is not touched. Checked with the debug server's `host_mouse x= y=`
-(`scratchpad mouse_probe.py`): a click on System entered the page, two
-clicks on the State slot `+` stepped 1 → 3, clicks on Audio and Display
-switched pages. Row descriptions were shortened the same day on the
-player's request, and the Magic and Items rows carry the game's own texts
-(read off the Status screen with every spell at level 3 and every item at
-1, `scratchpad status_all.py` / `status_items2.py`). Sections and rows:
+framebuffer): moving the pointer over a row or a section selects it, a click
+activates (on a value's arrows it steps that way), the wheel scrolls and the
+right button goes back; closed, the mouse is not touched. The Magic and
+Items rows carry the game's own texts (read off the Status screen with every
+spell at level 3 and every item at 1).
+
+**Redesign (2026-11-18, the player: "System could sit better in the list, a
+real confirmation somewhere, like an alert when picking the hero and sword;
+overall it is a bit ugly").** The menu is no longer recomp-ui's standard
+builder plus extras with its generic drawer:
+
+- *Order.* `kItems` lists every row in the order shown (recomp-ui makes a
+  section where its first row is): the pause menu's own business first
+  (Game), then what the game offers (Hero, Cheats, Magic, Items, Warp),
+  then settings (Video, Options). The standard rows keep recomp-ui's keys
+  (`RECOMP_RUNTIME_UI_KEY_*`), so the callbacks are unchanged.
+- *Look.* `dragonvalor_menu_view.cpp` draws the model (through
+  `recomp_runtime_ui_internal.h`, as recomp-ui's own drawer does): a dark
+  panel with a gold accent, the game's name and the hero playing (name, HP,
+  MP, area and stage, from RAM) on top, the sections on the left, one line
+  per row on the right (a switch for on/off rows, arrows around a value, a
+  chevron on an action, crimson for the two rows that leave the game, a
+  muted note such as "saved" / "empty" for the state slot or "in the drive"
+  for a disc), the selected row's description in a help box under the rows
+  (descriptions used to sit under every row and made the old Experimental
+  page a wall of text), key caps in the footer, the status on the right.
+  Lato Regular and Bold from the launcher's assets at four sizes scaled by
+  the window height (ImGui 1.91 bakes glyphs at one size, so the atlas is
+  rebuilt when the scale moves by a 5 % step).
+- *Dialogs.* Load state, Save state over a saved slot, Insert disc, Go now,
+  Return to launcher and Quit ask first in a dialog over the menu (Cancel on
+  the left, the action on the right; Left / Right move between them, Enter
+  presses, Escape takes the dialog away; leaving the game focuses Cancel).
+  The dialog's action calls `cb_run_action` again with `m.confirmed` set.
+- *Hero.* Play as and Weapon are picked with Left / Right ("not applied"
+  beside them) and applied together from a dialog: Enter on either row or
+  on Apply asks "Play as Arlen with Kadum?" with what happens ("This stage
+  restarts from its beginning ..." in an action stage, "... when the next
+  stage loads" elsewhere, or that Play as is off in the launcher). Closing
+  the menu with a choice not applied asks too, with Discard as the other
+  button. In an action stage the menu closes and the stage restarts at once
+  (`dv_heroswap_restart_request`, carried out by the heroswap plugin's
+  VBlank callback, no Game Over).
+- *Notices.* What an action did shows for about 3 s at the top right (the
+  game's HUD is on the left), with the menu open or closed: "State saved /
+  Slot 3", "State loaded", "Arlen, holding Kadum / The stage restarts from
+  its beginning", "Warping / Area 4, stage 1 in about 10 seconds",
+  "Changing discs".
+- *Pad (2026-11-18, the player: "it has to be easy to navigate with a pad
+  too").* The footer shows the buttons of the device last used: keys, or
+  the pad's (SDL3 `SDL_GetGamepadButtonLabelForType` on the south button:
+  Cross / Circle shapes and L1 / R1 on a PlayStation pad, A / B and LB / RB
+  on an Xbox or unknown pad, B / A and L / R on a Nintendo one), and the
+  "Press ... to apply" status names that button. The shoulder buttons step
+  through the sections (entering the next one when inside one). SDL does
+  not repeat pad buttons, so a held D-pad direction (or the left stick past
+  half way, let go under 35 %) repeats from the draw callback: first after
+  380 ms, then every 110 ms down to 35 ms the longer it is held; a held
+  direction stops at the first / last row instead of wrapping around.
+  Checked by turning F13..F20 into pad events in a scratch build (the debug
+  server injects keys and mouse clicks, not pad events): R1 x4 highlighted
+  Items, Cross entered it, holding Down 2 s ran to Copper Key and stopped,
+  R1 entered Warp, a short stick push moved one row, L1 x3 entered Cheats,
+  Circle twice closed the menu; mouse clicks (`host_mouse`) entered Cheats
+  and switched Infinite HP on and off.
+- *Save states (2026-11-18, the player: "the save state's style is ugly
+  too, can it match?").* F7 (the runtime's `SaveStateMenu` binding, matched
+  with `host_keymap_match_event`) and Game > Save state / Load state open a
+  save-state screen in the menu's frame instead of the runtime's own picker
+  (`psx_savestate_menu.c`, a 640 x 480 panel in an 8 x 8 font, which the
+  provider now never lets see F7): a Save and a Load tab (Tab, L1 / R1, or
+  a click) over the 12 slots in a 6 x 2 or 4 x 3 grid (whichever gives the
+  larger cards in the window; the view reports it so the arrows move on the
+  same grid), each card with the slot's thumbnail (`savestate_read_thumb`,
+  128 x 96, uploaded as a GL texture through the `imgl3w` entry points
+  ImGui's OpenGL3 backend loaded; bound texture and unpack state put back),
+  its date (`savestate_slot_mtime`) or Empty, and "Other build" when
+  `savestate_slot_compatible` refuses it. Enter saves into an empty slot at
+  once and asks before overwriting one; on the Load tab it asks before
+  loading; the slot is re-read (date, picture) once `savestate_pending()`
+  says the save landed. Opened by F7, Back closes the menu; from the Game
+  section, Back returns to it. **Select + R1** (the pad): the runtime polls
+  its `[hotkeys] save_state_menu_pad` (default 2040 = Select + R1) straight
+  from the pad after the provider has seen the events and opened its old
+  picker anyway (the player got it on 2026-11-18). A title cannot claim it
+  and the menu host's launcher-settings calls carry no shortcuts, so the
+  provider's static initializer, before `main()` reads `settings.toml`,
+  rewrites that key to 0 while it holds the default (the launcher then
+  shows the shortcut unbound; a binding the player changed is kept; with no
+  `settings.toml` yet nothing is written), and `p_event` opens the screen on
+  Select + R1 itself (again closes it). Checked with pad events made from
+  keys in a scratch build: the key read 0 after the start, Select + R1
+  opened and closed the screen.
+- *A state made with another hero.* The heroswap plugin's resync after a
+  state load (see its section) used to put up an OSD line, "Save made as
+  Clovis: Kodel plays from the next stage", and the player read the
+  Clovis portrait and name in the next scene as the swap failing (test
+  state 10, made as Clovis, again on 2026-11-18). It now sets
+  `dv_heroswap_mismatch` with what the save holds, and the menu makes the
+  save's hero and weapon the Play as choice (`adopt_save_choice`, through
+  `mod_set` like a Hero choice; the save's area hero becomes "each stage's
+  own", its weapon "the hero's own" or a model) and says so in a notice:
+  "Playing as Clovis / As in this save: Play as follows it". A first version
+  asked in a dialog (restart with the old choice, or keep the save); the
+  player preferred no question at every load. The OSD line is only left for
+  builds without the menu (`dv_menu_present`). `tests/test_heroswap.py`
+  checks that a load asks nothing (the game keeps running), that state.toml
+  follows the save, and then picks its hero again in the Hero rows (the
+  stage restarts with it) before the rest of its checks.
+- *Arrows.* ImGui's anti-aliased convex fill feathers the edge outward for
+  one winding only; the mirrored (left) arrows and the diamonds had the
+  other one and came out smaller and softer (the player saw one arrow
+  smaller than the other). Every filled shape in the view now lists its
+  points in the same order.
+- *Labels in buttons* (same day: A and B sat off centre in their circles).
+  A label used to be centred by the font's line box, which also holds room
+  for accents and descenders; now `put_centered` / `put_mid` place it by the
+  ink of its glyphs horizontally and the capitals' height (glyph `H`)
+  vertically, for the pad letters, key caps, the save-state tabs and the
+  dialog buttons, and the hint texts beside them line up the same way.
+- *D-pad icon* (same day, the player asked for a better one than the plus):
+  a cross with rounded arm ends and a dimpled centre, the left and right
+  arms lit (they change a value). Dark arrows embossed in the arms were
+  tried first and dropped: too busy at footer size (the player's call).
 
 | Section | Rows | Applied through |
 |---|---|---|
-| Display | Fullscreen, Game dimming, Menu opacity | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`); the backdrop rows are the menu's own |
-| Graphics | Linear filter, Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `video_apply`, live |
-| Audio | Volume | `host_volume_set` |
-| System | Resume, State slot (1‥12), Save state, Load state, Pause in menu, Return to launcher, Quit | `savestate_request_save/load` (slot − 1), `request_exit`. Return to launcher asks for `PSX_MENU_EXIT_RELAUNCH` in builds without the netplay lobby client (ours): the framework's in-process return re-enters the launcher only inside its lobby-client block and otherwise ends the program (player report 2026-10-16; still so on upstream master 379565a6), while a relaunch restarts the executable with its own arguments, which opens the launcher as at boot. Builds with `PSX_NETPLAY` keep `PSX_MENU_EXIT_TO_FRONTEND`. |
+| Game | Resume, Save state, Load state (both open the save-state screen above; Load shows how many slots are saved), Insert disc 1 / 2, Return to launcher, Quit game | `savestate_request_save/load` (slot − 1), `disc_insert` (the runtime's tray policy), `request_exit`. Return to launcher asks for `PSX_MENU_EXIT_RELAUNCH` in builds without the netplay lobby client (ours): the framework's in-process return re-enters the launcher only inside its lobby-client block and otherwise ends the program (player report 2026-10-16; still so on upstream master 379565a6), while a relaunch restarts the executable with its own arguments, which opens the launcher as at boot. Builds with `PSX_NETPLAY` keep `PSX_MENU_EXIT_TO_FRONTEND`. |
+| Hero (experimental) | Play as, Weapon, Apply | the `hero` and `weapon` options of `dragonvalor.heroswap` (see its section), written by `mod_set` when the dialog is confirmed; off in the launcher, the first choice switches the feature on for the next start |
 | Cheats | Infinite HP, Infinite MP, Gem every N sword kills, Scroll every N magic kills (`mod_set` on `dragonvalor.cheats` / `cheats` → live option change, saved to `mods/state.toml`; the two counts are integer options, 0 = the game's rule); Val, Max HP, Max MP, STR, DEF | the five editors show the value in RAM and write it at once (`psx_mod_write_half`), greyed out until a hero is loaded; STR is spread over the five attack entries at `0x80086324` (the shown STR is their sum, see *How damage is computed*) |
 | Magic | Heal, Defense, Fire, Ice, Thunder, Mine, Stealth, Vortex: Not learned / Level 1‥3, each with the game's description (Heal "Recovers H.P. & damages undead", Defense "Increases defense & weapon range", Fire "Fireball attack or ignite devices", Ice "Ice attack or freeze flame platforms", Thunder "4 Thunder attacks or electrify devices", Mine "3 Controlled Mine attacks", Stealth "Invisibility deters enemy attacks", Vortex "Controlled enemy entrapment"; level-3 costs 14 / 5 / 4 / 5 / 8 / 5 / 12 / 7 MP) | bytes `0x800A2E06`‥`0D`, written at once |
 | Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
-| Game | Skip intro movie, Insert disc 1 / 2 | `mod_set` feature switch (next start), `disc_insert` (the runtime's tray policy) |
-| Experimental (the last section; Area, Stage and Go now moved here from Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time | Area and Stage are RAM rows like the editors (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform |
+| Warp (experimental; Area, Stage and Go now moved out of Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys; the section was called Experimental until 2026-11-18) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time | Area and Stage are RAM rows like the editors (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform, asked in a dialog first |
+| Video | Fullscreen, Smooth picture (the linear filter of the final image), Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`) |
+| Options | Volume, Pause in menu, Skip intro movie, Game dimming, Menu opacity | `host_volume_set`; Skip intro is a `mod_set` feature switch (next start); the rest are the menu's own (`dragonvalor_settings.toml`, below) |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu
 (`psx_menu_host.h`: pause, live video, mod changes, disc tray, exit) and
 calls a `PsxMenuProvider` the title registers with `psx_menu_set_provider`
-before the game window opens; recomp-ui ships the menu model and its Dear
-ImGui presentation (`recomp_runtime_ui.h`: `recomp_runtime_ui_create_standard`
-with the standard rows plus our extras, `recomp_runtime_ui_handle_input`
-with semantic inputs, `recomp_runtime_ui_render_imgui`). The provider is the
+before the game window opens; recomp-ui ships the menu model
+(`recomp_runtime_ui.h`: `recomp_runtime_ui_create` with our rows,
+`recomp_runtime_ui_handle_input` with semantic inputs). The provider is the
 glue: it creates the model and an ImGui context with the OpenGL3 backend
-(`#version 330`, the runtime's context; font `assets/fonts/LatoLatin-Regular.ttf`),
-sees every SDL event first (`event`), maps Escape / arrows / Enter /
-Backspace and the pad's D-pad / Cross / Circle / Start to the model, and
-draws from the runtime's overlay draw callback (GL thread) under one mutex
-with the event path (main thread). No SDL platform backend for ImGui is
-used: the model navigates itself, so ImGui is only ever touched by `draw`.
-Two things cost time: the model closes itself on BACK at the top level, so
-the provider re-syncs its open flag (and the host pause) after every input;
-and the model keeps its rail position between opens, so the provider creates
-a fresh one on every open (the menu always starts on Display).
+(`#version 330`, the runtime's context), sees every SDL event first
+(`event`), maps Escape / arrows / Enter / Backspace and the pad's D-pad /
+Cross / Circle / Start to semantic inputs and sends them, and the view's
+mouse clicks, through one `dispatch` (the dialog, the Hero rows' Enter and
+the close request are handled there before the model), and draws from the
+runtime's overlay draw callback (GL thread) under one mutex with the event
+path (main thread). No SDL platform backend for ImGui is used: the model
+navigates itself, so ImGui is only ever touched by `draw`. The model closes
+itself on BACK only through `dispatch` now (the top-level BACK is the close
+request), and the provider still creates a fresh model on every open, so
+the menu always starts on Game.
 
-The look is recomp-ui's shared design system (the `psx` theme tokens:
-accent colours, row height, radius), drawn by its `runtime_ui_imgui.cpp`;
-the provider draws nothing itself. Two things that drawer lacked at pin
-41c88ff are patched locally (`patches/recomp-ui/0001-…`, applied by
-`CMakeLists.txt` at configure time, see `patches/README.md`): the page did
-not scroll to follow keyboard/pad navigation, so rows past the eighth of the
-Items page were unreachable by eye, and the selected row only had the subtle
-header fill; the patch scrolls the selected row into view and frames it with
-an accent outline plus a left bar. A second patch (`0002-…`, 2026-10-15)
-wraps a row's description inside the row and lets the row grow, after the
-player saw the longer cheat descriptions run past the drawer's edge. Both
-are meant to go upstream as one PR.
+recomp-ui's drawer (`runtime_ui_imgui.cpp`, the `psx` theme) is no longer
+used by the game. The two local patches to it (`patches/recomp-ui/0001-…`
+scrolls the selected row into view and frames it, `0002-…` wraps a long
+description inside its row; see `patches/README.md`) stay for the launcher
+build and the planned upstream PR.
 
-The file compiles to nothing when the recomp-ui launcher is off
+The files compile to nothing when the recomp-ui launcher is off
 (`RECOMP_LAUNCHER`). Rows that need a restart (internal resolution,
 renderer) are left out on purpose; the launcher owns them. The game's own
-Start pause still exists. Scripted test: `tests/test_menu.py` (keys through
-the debug server's `host_key`, screenshots through `present_shot`, since
-native screenshots never contain the overlay).
+Start pause still exists. Scripted tests: `tests/test_menu.py` (keys through
+the debug server's `host_key`, from test state 10; screenshots through
+`present_shot`, which carries the overlay), `tests/test_heroswap.py ...
+--menu` / `--menu-weapon` (the Hero dialog), `tests/test_area_row.py` (Warp).
 
 **What each menu row persists to (2026-10-15).** Three stores, none of
 them this file's choice except the last:
 
 | Rows | Where | How |
 |---|---|---|
-| Fullscreen, Linear filter, Texture filtering, Scanlines, Dynamic resolution | `settings.toml` (the launcher's) | `PsxMenuHost.video_apply` posts the change; the main thread applies it and calls `save_user_settings` (checked live: two steps on Texture filtering rewrote the key) |
+| Fullscreen, Smooth picture, Texture filtering, Scanlines, Dynamic resolution | `settings.toml` (the launcher's) | `PsxMenuHost.video_apply` posts the change; the main thread applies it and calls `save_user_settings` (checked live: two steps on Texture filtering rewrote the key) |
 | Cheats, gem/scroll every N, Skip intro | `mods/state.toml` | `PsxMenuHost.mod_set` records it in the catalogue and saves |
 | Magic levels, Items, Val, stats | nowhere | one-shot RAM writes; the game's own save carries them |
 | State slot | nowhere | a session choice |
@@ -958,9 +1133,62 @@ worked examples this one follows.
   world-scene predicate (`psx_mod_set_world_scene_predicate`) therefore
   reports gameplay for every frame with the mode byte `0x8008634C == 8` (the
   action module; sub-state 5 in play, 7 paused), sampled once per VBlank and
-  re-read after a save-state load. The status screen (Triangle) keeps its
-  panel 4:3-centred with the wide stage behind it. FMV detection is separate
+  re-read after a save-state load. FMV detection is separate
   (`mdec_recently_active`) and unaffected.
+- **4:3 screens inside the action module** (2026-11-17, from the player's
+  play test: "the open menu shows the sides", "the stage-change effects
+  only run in the original area"). The magic / item menu (mode 7,
+  Triangle) is a 384 × 240 panel over a stage that keeps being drawn, so
+  the GTE detector kept it wide with the stage at both sides. The screen
+  transitions (`g_Transition` `0x800A2EF8`; decomp
+  `src/main/r2B_transitions.c`) freeze, move and fade copies of the frame
+  buffer's 384 columns, so in a wide frame they ran inside the 4:3 area
+  while the live stage went on at the sides; the motion blur some event
+  scripts switch on (`g_Render.blurOn`, `0x8009F8A8`) is the same kind of
+  copy and showed as a lighter 4:3 rectangle. The plugin registers a
+  native-scene predicate (`gpu_ws_set_native_scene_predicate` from the
+  runtime's `gpu.h`, not re-exported by `mod_plugins.h`; nonzero = present
+  this frame at 4:3 with side bars; activation clears it, so it belongs to
+  the session's plugin) that says so for mode 7, while
+  `g_Transition.state != 0` and while the blur is on in an event scene
+  (sub-mode 5, `0x8008634D`), sampled per VBlank like the world predicate.
+  The pause screen (Start) stays wide: its darkening tile is extended by
+  the renderer. The world map and its Status screen (modes 10 / 13) were
+  already 4:3 (2D, no projection).
+- **The blur in play** (2026-11-17, the player's report: "with the special
+  (hold X, press Square) the black bars appear at the sides"). The blur is
+  not only an event effect: every action pack's hero script (entry 2) has
+  two moves (animations `0x2036` and `0x204E`) that write `blurOn = 1` and
+  the tint `0x9B` through object-script space 4 (`g_Render`; `SET_B`
+  index `0x1068`), and some enemy-group files do the same (a scan of
+  every stage file of disc 1 for the instruction words
+  `03 07 04 00 68 10 00 00` + value). There `blurY` is 0, so the two sprites draw
+  the 4:3 frame over itself about 10 % lighter while the game runs at 20
+  frames a second; with the predicate above, the bars came and went in
+  the middle of a fight. The lighter part cannot be carried into the
+  margins (they are not in VRAM), so the predicate now asks for 4:3 only
+  in event scenes, and in play the `ModelWeldReset` hook takes the blur's
+  four packets (`blurTpage[f][1]`, `blur[f][1]`, `blurTpage[f][0]`,
+  `blur[f][0]`, linked in that order at `ot[blurOtz]` of
+  `g_FrameBuf[f]`, `0x80086358 + f × 0x2070 + 0x70`) out of the ordering
+  table being built: one link rewritten, the table is cleared again next
+  frame, the packets stay as they are. The slow motion stays. Checked with
+  `blurOn` held at 1 in play from test state 10: wide in all 103 samples,
+  `dv.ws.play_blur_hidden` 80 frames, no lighter rectangle; in the 1/7
+  event scene (sub-mode 5) the blur still presents at 4:3;
+  `tests/test_widescreen.py on` 9/9. The special's exact input was not
+  reproduced here (the script tests the held Attack and Magic actions and
+  a pressed Jump).
+- **Dialogue border** (2026-11-17, "the dialogue bar does not span the
+  screen"). The message window's black band is a 384-wide TILE the renderer
+  already extends; its top border is six identical 64 × 8 sprites from x 0
+  to 383 (decomp `src/main/exeE_msgwin.c`, `MsgWinWork +0x0C`), so the
+  border stopped at the 4:3 edges. The `ModelWeldReset` entry hook tags the
+  leftmost border sprite of the buffer about to be drawn as a repeating
+  rectangle (`gpu_ws_tag_repeat_rect`, `gpu.h`, period 64; the tag is the
+  address of the word before the `0x64` command of the E1 + SPRT packet,
+  only while `g_EventVm.winList[frame]` is set), and the renderer repeats it
+  into the side margins only.
 - **Numbers.** The stage is 384 pixels wide (`0x180`, `video_info
   display_w`): 16:9 reveals 128 extra columns (64 per side, `ws_nw
   nw_extra`), 21:9 reveals 288. Debug-server knobs used for the A/B without
@@ -968,11 +1196,119 @@ worked examples this one follows.
   `ws_nw` (mode 2 = native-wide engaged), `gpu_state` → `ws.*`
   (`game_mode`, `present_native_43`, `x_margin`), `present_shot path=` for
   the window image (`shot` is the canonical 4:3 VRAM only).
-- **HUD** stays at its 4:3 positions (HP/MP bars 64 columns in from the
-  left edge at 16:9, enemy counter the same from the right). The
-  framework's `nw_hud_corners` thirds shift is left off: ENHANCEMENTS.md
-  records composite tears (dialogue boxes split) on the title that tried it,
-  and this game's tutorial boxes span the full width.
+- **HUD at the edges** (2026-11-18; until then it stayed at its 4:3
+  positions, the HP / MP block 64 columns in from the left edge at 16:9,
+  and the player asked for it at the edge). The framework's
+  `nw_hud_corners` thirds shift stays off (ENHANCEMENTS.md records
+  composite tears on the title that tried it, and this game's tutorial
+  boxes span the full width); instead the plugin names the HUD's own
+  primitives. The decomp rebuilt the HUD (`src/main/r2A_hud.c`,
+  `include/dv/r2A_hud.h`): 61 elements built once by `HudInit`, pointers in
+  `XbHudState.prim[]` at `0x8009FAF8 + 0x0C`, two copies each (one per
+  display buffer, back to back), eight groups each opened by a DR_OFFSET
+  and hung on `g_Transition.ot` by `HudLinkGroups`. Every frame, in the
+  `ModelWeldReset` hook (inside `FrameDraw`, after the mode handler's
+  `HudUpdate` and before the HUD is drawn), each element of a corner group
+  is tagged with `gpu_ws_tag_hud_prim` (valid for that frame and packet
+  content; the address is the word before the drawing command, so a
+  T-SPRT's E1 word is skipped: tagging the packet's head left those
+  pieces behind and split the HP bar in the first try) with its edge: left
+  for the spell icon and name, HP / MP and the enemy gauge (bottom left)
+  and the keys, right for the enemies-left counter, the pop-up flashes by
+  where they sit (left of x 128, right of x 300, in place between: those
+  are the ones a flying banner icon drops on its way); the title card stays
+  centred. Seen in a 16:9 capture of test state 10: the spell frame at x 60
+  of 1834 instead of 286, the HP / MP block whole; 60 fps;
+  `tests/test_widescreen.py` 9/9. The counter, gauge and key icons were not
+  on screen in that capture.
+
+  **The pick-up banner** (same day, the player: its icon did not reach the
+  corner either) goes to the right edge too: frame, item name and count.
+  Its item icon flies there from where the pickup was in the world
+  (`HudShowPickupBanner`: `bannerPos += bannerStep`, 1/16 of the way a
+  frame, then a snap to (319, 24)), so it takes the edge's offset bit by
+  bit: it is tagged right and (1 - progress) x the offset
+  (`gpu_ws_configured_x_reveal`) is taken off the x of its corners in the
+  packet drawn this frame (the game rewrites them every frame), so it starts
+  over the pickup and lands in the shifted frame. The name that rises over
+  the pickup stays in the world. Checked by starting the banner by hand
+  (the XbHudState fields `HudShowPickupBanner` sets: group on, relink,
+  timer 70, corners and steps; scratchpad `ws_banner.py`): the icon flew
+  from mid-screen into the frame at the right edge.
+
+  **Stage reloads and transitions** (same day, the player: in some screen
+  changes the HP / MP block and the item banner went to their 4:3 places
+  for a moment). Two cases, both captured:
+  - *A reload with no transition effect* (mode 17, a black screen: the
+    hero-swap restart writes mode 17 / sub 0 / stagePhase 1, and so do some
+    stage changes): the HUD stays linked on `g_Transition.ot` and is drawn
+    every frame, but the world-scene predicate only said "gameplay" for mode
+    8, so these frames fell to the GTE detector, which sees no 3D and
+    presents 4:3: HUD at its 4:3 place until the stage ran. Fixed: the
+    predicate also holds while the HUD is linked (`dv_ws_hud_linked`: state
+    1 and a chain head equal to a group's DR_OFFSET element + b x 0x0C; the
+    state word alone is reused by the CONTINUE prompt). Captured from a
+    player's state of 1/15 (`saves/openbios` file slot04, only loaded) with
+    the reload written by hand: before, the HUD at its 4:3 place on the
+    black screen; after, at the edge throughout. `tests/test_widescreen.py` checks it
+    (writes the reload, expects `present_native_43` 0).
+  - *A transition effect* (`g_Transition`; the player still saw it on
+    2026-11-19 after the fix above): the effects were presented at 4:3 (the
+    copies of the previous picture covered only the 384 columns), so the
+    whole picture, HUD included, jumped into a pillarboxed 4:3 frame. Fixed
+    for effects 0, 1, 2 and 7, which are built only from full-width 15-bit
+    sprite copies: the plugin keeps them wide and tags those copies
+    (`dv_ws_tag_transition`, in the ModelWeldReset hook: the chain on
+    `g_Transition.ot[frame]`, sprites of a 15-bit page at least 128 wide),
+    and the renderer continues each into the margins from the source
+    buffer's wide surface: psxrecomp PR #692 as local patch
+    `patches/psxrecomp/0002`, plus `0003`. Why the HUD comes out right:
+    the 4:3 frame buffer does not hold the HUD at its 4:3 place; read back
+    from the GL VRAM (`gl_fbo_peek`) in wide play it holds the HUD already
+    moved to the edge and cut at x 0, so centre (4:3 buffer) plus margins
+    (wide surface) are exactly the previous wide picture. (An earlier note
+    here guessed the HUD would show twice; the VRAM read said otherwise.)
+    Three things `0003` fixes, all measured on effect 2 from RAM over test
+    state 10, brightness of the left margin against the centre: PR #692
+    copied nothing for Dragon Valor (both buffers at base_x 0 share one wide
+    surface, and the PR skipped a source equal to the target: margins stayed
+    the live world); its band shader rounded an rgb 127 pass back up, so the
+    margins brightened (42 to 61) while the centre faded; and the centre
+    itself stopped at a dark grey (~17 of 255 with bilinear, ~50 with
+    nearest; effect 7 with nearest did not darken at all, as the decomp's
+    r2B_transitions.c had noted for the GL renderer) because `TEX_FS` kept
+    the modulated 15-bit texel unrounded. After: effect 2 fades centre and
+    margins to black together. Effect 7 (CONTINUE) darkens from the top and
+    bottom in the margins as on the PS1, while with bilinear filtering the
+    centre darkens everywhere a little earlier (the filter blurs every
+    feedback pass); both end black. Effect 0 (next stage): the margins fade
+    to black, the centre turns light under the sparkles, as it already did
+    at 4:3 in the GL renderer (not chased). The right copies are 129 wide;
+    their last column, VRAM x 384, is texture memory (clipped on a console)
+    and drew a coloured line at the 4:3 edge that the margin's own copy
+    carried on, so the plugin narrows them to 128 (same 4:3 picture). The
+    melt (3), the shatter (9) and the unused 4, 5, 6, 8 still present at
+    4:3. `tests/test_widescreen.py` checks effect 2 stays wide with its
+    copies tagged and effect 3 goes 4:3 (11/11, also with the render
+    thread). Captures: scratch `ws_trans.py` / `ws_trans_series.py` (start
+    an effect from RAM, shoot, measure the regions).
+  - *A room change inside a stage* (the one the player meant all along:
+    their slot of 1/7 on 2026-11-19, walk left: the picture fades to black
+    and the next room fades in, mode 8 / sub 7 throughout, no
+    `g_Transition`): the frame stayed wide (`present_native_43` 0), but the
+    renderer's HUD-tag counters (`ws_tag_stats`) showed every lookup
+    *stale* from the fade's start to the next room (hits frozen, `stale`
+    climbing by ~1000 a second), so the HP / MP block drew untagged, at its
+    4:3 place. A tag holds for 2 VBlanks (`WS_HUD_ANCHOR_FRESH_FRAMES`); the
+    plugin tags in the ModelWeldReset hook, before FrameDraw's wait for the
+    frame (`while (g_FrameWait > 0)`), and while the room loads that wait
+    is longer. Fixed by tagging again at every VBlank (`dv_ws_refresh_tags`
+    from `dv_ws_vblank`: the same HUD and transition tags, nothing new
+    written; the HUD only while its chain is linked), so the tag is fresh
+    whenever the draw comes. Same walk after: 0 stale lookups, HUD at the
+    edge through the black (also with the render thread). The fade itself
+    is the game's own (FrameDraw's fade tile, which the renderer already
+    widens).
 - **Culling: left stock** (widened at 14:00 on 2026-10-15, withdrawn the
   same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
   --emit-ws-sites` (`cmake --build build-recompiler --target
@@ -1032,6 +1368,35 @@ worked examples this one follows.
   orbs keep their lens, the counter `dv.ws.lens_offframe_hidden`
   (`mod_counters`) climbs about 24 per off-frame orb per frame, and with
   the package off the hook does nothing (ws mode 0, no counter).
+- **The left-margin smear** (fixed 2026-11-17, the player's save in the
+  town of 1/7, menu slot 4, walking up and then left along the wall):
+  horizontal streaks over the lower left margin. `gpu_frame_dump` of one
+  frame, polygons under the streaks: POLY_FT4 `0x2E` quads with texture
+  page `0x100` (the frame buffer, 15-bit), top-left corner at x 1 and
+  top-right corner at x −156‥−734, 2‥14 lines tall, written by
+  `ModelDrawR16` (`wtrace` PCs `0x80023C14‥0x80023C6C`). The mirror of the
+  noise block: for a sprite whose centre is left of the frame the drawer
+  reads x unsigned, clamps the left edge to 0 and keeps the (negative)
+  right one, so a sprite wholly left of the frame comes out inverted from
+  x 1 to right − 1, u from 0 to the right edge's low byte. The console
+  draws at most column 0 of it; the wide surface draws the frame's first
+  columns stretched across the margin. The same `ModelWeldReset` hook now
+  also collapses record-16 packets with xy0.x = 1 and xy1.x < 1. Checked:
+  the walk that showed the streaks has none of those quads in the GP0
+  ring and a clean margin; `tests/test_widescreen.py on` 9/9.
+- **Not fixed, not a bug: black wedges in the margin** where a room's
+  mesh simply ends (the same save, walking left in the garden: a black
+  wedge at the lower left). No polygon covers it (the PGXP triangle ring
+  rasterised over one frame leaves exactly that wedge empty), the only
+  cull before drawing is the ±89° object view cone (wide enough), and on
+  a console a sliver of the same hole shows at the 4:3 edge. Tried and
+  dropped the same day: exact NCLIP for the model drawers' backface tests
+  (`[widescreen] precise_nclip`, `[widescreen.cull] nclip_exact_sites`
+  for the eight `ModelDraw*` branches, plus the plugin's
+  `psx_mod_set_native_wide_nclip_sites` / projection correction). It
+  changed a quarter of the GT3 / GT4 decisions but nothing visible in an
+  on / off comparison of the same frames (`nclip_stats exact=0|1`), and
+  the projection correction never engaged (`projection_vertices` 0).
 - **Checked** on build-debug, OpenGL, 1080p, PGXP on, from save state 0:
   `tests/test_widescreen.py on` 5/5 (mode 2, 128 columns, still wide with
   the pause up, window 16:9) and `off` 4/4; 0 unknown dispatches, the
@@ -1039,6 +1404,380 @@ worked examples this one follows.
   after the regen together with `tests/test_menu.py`. Not checked: later
   chapters, the field module (`MAP.BIN`) scenes, in-stage movies, the
   software renderer, a real resize with Fit.
+  2026-11-17: the test now starts from test state 10 (`--state 9` also
+  works; it refuses slot 0, the player's quick save) and also checks the
+  menu and a transition at 4:3 and the stage wide again after each: `on`
+  9/9, `off` 4/4. The transition is started from RAM and the state
+  reloaded afterwards: an effect allocates its packets from
+  `g_GameState.arena`, the stage's work area, so a stage cannot resume
+  after an effect it did not start (the emulation stops on an unknown
+  dispatch from `0x800C3FB0` a few frames later; a real scene change
+  loads the next stage first). Composed frames (`present_shot`) of the
+  menu, GAME OVER → CONTINUE (effect 7) into 3/1's opening scene with its
+  dialogues, effect 2, the pause, the blur and the world map of area 1
+  match the description above.
+
+#### The bilinear page-edge seam (2026-11-17, a local psxrecomp patch)
+
+- **What the player saw.** With `texture_filtering = "bilinear"` (the
+  launcher's other choice; the project ships nearest), a coloured vertical
+  stripe at x 256, two thirds across the screen, during the screen
+  transitions and the motion blur ("a stripe in the middle of the screen at
+  some moments"), and a dark line at the same column through the title
+  screen; 4:3 and wide alike, OpenGL only. Every such picture is drawn as
+  two prims meeting at a 256-texel page edge: the transitions and the blur
+  copy the frame buffer from the pages at x 0 and 256, the title draws its
+  picture in a 256 and a 128 half.
+- **Cause** (psxrecomp, not the game). The plain bilinear path fetches the
+  neighbour texels with `fetch_texel`, which wraps u / v to 8 bits before it
+  clamps them to the prim's UV bounds: a neighbour left of u 0 becomes 255
+  and is clamped to the prim's right edge, one past 255 becomes 0, so a
+  prim's edge column blends the far side of its own texture. The feedback
+  transitions grow that column into the stripe (VRAM column 256 bright and
+  coloured while 255 had faded to black; `vram_peek` and `gl_fbo_peek`
+  agree). The framework's `stable_texel` already clamps first; the plain
+  path did not. Upstream: issue RetroPortingToolKit/psxrecomp#719 (another
+  title, the same line on its title screen), PR #896 open; master 31130e90
+  still has the old code.
+- **Fix.** `patches/psxrecomp/0001-bilinear-clamp-neighbours-before-wrap.patch`
+  (applied at configure time like the recomp-ui patches; `patches/README.md`
+  allows psxrecomp patches since 2026-11-17 for bugs with an upstream issue
+  or PR): a neighbour is clamped to the prim's bounds inside the base
+  texel's 256-texel page before it wraps, in the OpenGL shader, the Vulkan
+  shader and the software renderer, the same helper and calls as PR #896.
+  It replaced a game-side workaround of the same day (a `dragonvalor.fixes`
+  plugin that moved the transitions' and the blur's screen copies one page
+  column left with u + 64), which only covered those copies.
+- **Left as is.** Effect 0 (the dissolve of the next stage of an area)
+  turns white on GL instead of fading to black: the renderer's modulation
+  of those copies, not this seam (*Comparing renderers* below;
+  `PLAYTESTING.md` item 6).
+- **Checked:** `tests/test_bilinear_seam.py` (bilinear for the run, effect 2
+  from test state 10, VRAM columns 255 / 256 of both buffers one second
+  in): 3/3, largest step 2 colour levels (20 before). The title screen with
+  bilinear has no line any more (column profile as with nearest), and
+  composed frames of effects 0, 2, 7 and the blur show no stripe.
+
+#### This project's package: `dragonvalor.heroswap` "Play as" (2026-11-17, experimental)
+
+Every action stage loads with the hero the player picks. Package 2.0.0,
+feature `play-as` (channel experimental, on by default since 2026-11-18 at its neutral choices, see below), option `hero`
+(`stage` = each stage's own, or `clovis` … `anita`); the in-game menu's
+Hero section has the same choice as **Play as**, confirmed in a dialog (the
+first choice also switches the feature on, for the next start, when it is
+off). The choice applies when a
+stage loads, and a choice made in the in-game menu restarts the stage being
+played as soon as the menu closes (2026-11-17): the plugin's VBlank callback
+waits for plain play (mode 8 / sub-mode 7, the game's pause off, no event
+script, no load busy) and writes what a stage exit or the CONTINUE prompt
+writes, `g_GameFlow` mode 17 / sub-mode 0 and `g_GameState.stagePhase = 1`
+(0x800A2D18): the stage loads again from its start with the new hero, with no
+GAME OVER, Val and HP kept; the stage's doors and keys reset as with
+Continue. Until 2026-11-18 the feature was off by default, so a player's
+first choice in the menu only saved it for the next start: the plugin was
+not running, the stage did not restart and a GAME OVER / Continue changed
+nothing (the player's report on the release build). It is now on by default
+with the neutral choices, where the plugin does nothing to the game (no
+stage rebuild: hero and weapon equal the stage's own; map and epilogue
+swaps only run with a hero chosen) beyond reading the disc once at the
+first start and checking save-state loads, so a choice in the menu applies
+at once (`tests/test_manifests.py` accepts it through `INERT_CHOICES`;
+`tests/test_heroswap.py default --menu-weapon turquoise`, a state.toml that
+does not name the package: 1/7 loads untouched, then the menu's Weapon
+restarts it with Clovis holding the turquoise sword, 9/9). A player who
+switched the feature off in the launcher gets the old behaviour.
+The hero
+is data, not code: the decomp (github victor-takai/dragon-valor-decomp,
+`docs/targets/hero-swap.md`) found it, and its `tools/heroswap.py` is the
+reference this plugin's C rebuild is checked against.
+
+What the plugin (`mods/plugins/dragonvalor_heroswap.c`) does:
+
+- **Kits, at start.** It reads `DATA.CDR` from the mounted disc
+  (`psx_mod_read_disc_file`, the whole file: 438 MB on disc 1, 500 MB on
+  disc 2, freed again) and keeps one kit per hero of that disc, taken from
+  the first stage of the hero's first area (Clovis 1/1, Arlen 2/1, … Anita
+  9/1): the hero's install ops (op 3 object, op 31 weld lists, op 52 kind 0
+  sound bank, op 7 shadow) with the entries they name (animations no slot
+  uses left out, the decomp tool's `--prune`), the VAB of the stage's file
+  0, its hero-page TIMs (VRAM 384..447 × 0..255) and its portrait (960, 432,
+  40 × 64, CLUT row (0, 500)). With them a table of the disc's action stages
+  (108 on disc 1, 118 on disc 2) and the sizes a rebuild needs. Kits and
+  tables go to `mods/cache/dragonvalor.heroswap/` beside the executable, so
+  later starts read nothing. The other disc's heroes (Anna, Mihael, Anita on
+  disc 2; Clovis to Phillip on disc 1; Gerome's kit comes from disc 1) come
+  from the other disc's image (see *Disc change* below); before 2026-11-17
+  that disc had to be started once with the feature on.
+- **`StageBuffersAlloc` (0x80035AB8), every stage load.** For an action
+  stage whose own hero is not the chosen one, it works out the rebuilt
+  sizes and raises row 0 (`g_StageBufferSizes[0]`, 0x80078B20: file 0 and
+  then the action pack, whole sectors) and sound slot 1 (`g_SoundBodySize[1]`,
+  0x80077DBC: the VAB body rounded up to 64) when needed, unless the stage
+  buffers would then end past 0x801EE69C or the sound slots take more than
+  476096 bytes (the largest layouts the game itself uses: that stage keeps
+  its hero). Otherwise it gives back the hero index a swap replaced.
+- **`PackInstall` (0x80035E48, a0 = the file just read).** In a swapped
+  stage, file 0 and the action pack, both read to ACTION's heap (0x800C5E98),
+  are rebuilt in RAM before the install: file 0 takes the kit's VAB,
+  hero-page TIMs (in the places of the stage's) and portrait; the pack keeps
+  the stage's own ops and entries after the kit's (tools/heroswap.py's
+  merge, byte for byte). With the pack it writes `g_Hero.index` (0x80086318,
+  the name in the menus and the save; the game writes it only at a chapter
+  start). In any other pack it replaces copies of the stage hero's portrait
+  by the kit's: frame 0 of each event image set (op 66), uploaded back at a
+  dialogue's end. The CD reads are untouched.
+
+**Story scenes (2026-11-17).** Most scenes play the hero object itself, with
+motions the event pack writes into its slots (op 23, 231 packs: made for the
+stage's hero, played on the chosen hero's parts; 1/23's boss intro with
+Kodel looks right). Six event packs (0/1 file 88, 3/1, 4/13, 5/19 and 12/29
+file 80, 9/10 file 216) install their own copy of the stage's hero instead:
+a 14-part object whose vertex entries are the hero's byte for byte, with its
+own script, motions and texture page. In every pack of a swapped stage the
+`PackInstall` hook now also:
+
+- swaps such a copy's parts for the kit's (whose packets use the hero page)
+  and its weld lists for the kit's (the old ones are packet offsets into the
+  old parts); the table notes, per stage, the copy's part and list bytes, so
+  `StageBuffersAlloc` grows the warp row (`g_StageBufferSizes[8]`) by the
+  difference;
+- replaces the stage hero's name by the chosen hero's in the messages (op 62
+  entries, glyph-code text): the speaker label ("Kodel:") and whole-word
+  copies in the lines; both names come from ACTION.BIN's g_HeroNames
+  (0x800C5E14), the same glyph codes;
+- replaces a reload of the stage hero's texture (0/1's file 81, after the
+  opening) by the kit's.
+
+A rebuilt pack is written only if it fits before the next stage buffer (the
+warp row runs over the enemy groups' memory, as the game's own files do).
+Checked with screenshots every 1.5 s through the scenes: 3/1's opening as
+Clovis (Clovis on screen, "Clovis:" labels), 0/1's prologue as Kodel (the
+village scene with Kodel, his texture, "Kodel:" labels), 1/23's boss intro
+and fight as Kodel. A save made while playing as another hero records that
+hero's name.
+
+**Chapter epilogues (2026-11-17).** A scan of every entry of every stage of
+both discs for the nine name glyph strings (ACTION.BIN's g_HeroNames): 305
+op-62 messages (the dialogues, above) and 19 op-20 text banks, all on
+MAP.BIN screens: the chapter epilogues (mode 11: 1/35, 1/37, 2/29, 3/29,
+3/31, 4/27, 5/26, 6/23, 7/30, 8/30, 9/30) and the character profiles after
+them (mode 12). No action stage's bank (the magic menu's texts) and no
+narration page names a hero. The `PackInstall` hook now rewrites an
+epilogue's text (program [30 1, 20 2, 71 11 0]): the area hero's name
+becomes the chosen hero's, whole words (the lines are centred when drawn;
+0xFCCC colour codes skipped), if the file still fits its buffer. The names
+are a table in the plugin, because ACTION.BIN is not in RAM in MAP.BIN's
+modes. The profiles stay as they are: each is a character's page with its
+picture. Checked: 1/35 as Kodel ("once Kodel rescued Princess Celia",
+"Kodel was coerced into becoming Princess Celia's personal bodyguard";
+"His name was Arlen" stays), 3/31 as Felippe (five names, the file 20
+bytes longer).
+
+**Twins, the area hero's look, disc change (2026-11-17).** The remaining
+scenes, read from the data and then watched:
+
+- *Twin variants.* The enemy-group files 77 / 75 / 77 of 5/19, 5/20, 5/24
+  upload Phillip's page again with Kadum's blade in its unused corner (units
+  416..447 × 64..183) and a CLUT row 243; 12/29's file 77 uploads Anita's
+  page with another face and a great sword (rows to 239, CLUT rows
+  241..255). They texture a scene copy of the hero (file 80's object 0 /
+  object 8), the hero holding the sword the scene gives him. Every other
+  hero uses that corner of the page, so the variant painted the chosen hero
+  with the stage hero's texture. The copy takes the kit's parts anyway, so
+  the variant is now replaced by a two-unit TIM that leaves the kit's
+  texture (there since file 0) as it is: the chosen hero takes the sword
+  with their own weapon. (A kit's TIM can be bigger than the variant,
+  Felippe's and Anna's, more than the enemy group's buffer holds.)
+- *The area hero's look.* 5/20 and 5/24 play Phillip with Kadum: 13 of their
+  hero's 14 vertex entries differ from 5/1's, while their scene copies are
+  the plain Phillip of 5/1 (12 of 14 equal), so the copy was not found and
+  showed Phillip's shape in the chosen hero's texture. A copy is now also
+  one whose vertex entries match the area hero's kit (table cache version 3
+  for the warp-row budget), and a portrait equal to the area hero's kit
+  portrait is the hero's too: 12/29's ending shows 9/1's Anita, not its own
+  file 0's.
+- *Disc change.* The runtime's plugin disc reads (`psx_mod_read_disc_file`,
+  `psx_mod_disc_file_extent`) read the disc the session started with; when
+  the game asks for disc 2 and the player changes it (`cdrom_disc_select`),
+  they still read disc 1, so disc 2's stages found no table and kept their
+  hero. The plugin now asks the roster (`cdrom_disc_selected`,
+  `cdrom_disc_roster_path`, runtime `include/cdrom.h`) which image is in the
+  drive and reads a disc other than the session's straight from its image:
+  the .cue's first FILE, MODE2/2352 sectors (2048 bytes at +24), `DATA.CDR`
+  in the ISO 9660 root. The same reader takes the other disc's kits at
+  start, so a disc 2 hero no longer needs disc 2 started once.
+- *Checked* (composed frames, test state 10, GAME OVER > CONTINUE, a room
+  reached the way `RoomWarp` does it once no read is in flight): 5/19 as
+  Felippe (the Guardian gives Kadum; Felippe in the close-ups, "Felippe:",
+  his portrait; the variant neutralised; then 5/20's scene with Jeanne,
+  Vilherm and Calvin naming Felippe, the copy swapped), 4/13 as Kodel (the
+  Guardian and the sword Soul), 9/10 as Clovis after `disc_select n=2` from
+  the disc 1 session (disc 2 read from its image, 118 stages, the stage
+  rebuilt; its scene, file 216, is loaded by an event script and was not
+  reached), 12/29 as Clovis (Dahaka's end: Clovis, "Clovis:", his
+  portrait). A first room warp that ignored a read still in flight (room
+  0 prefetches room 1's enemy group into the memory the warp row overlaps)
+  crashed the swapped runs and not the stock ones: a test artefact, gone
+  once the warp waits for idle rows.
+
+**World map and name (2026-11-17, from the player's play test).** With a
+hero chosen, `g_Hero.index` now holds that hero outside the action stages
+too (world map, scenes, the save screen), so the menus and the memory card
+save name the hero being played; "Each stage's own" gives the game's value
+back. (A bug fixed the same day: after several changes the plugin gave back
+a previous swap's hero, and a save made after playing Gerome said Phillip.)
+The world map's walker (decomp `src/map/mod2_worldmap.c`, MapWalkerDraw) is
+an 8-bit sprite on page (832, 0), CLUT (384, 240), 8 frames of 32 px per
+direction, in the 192 x 176 sheet each map stage uploads at VRAM (768, 0)
+(the left half is the map's own labels and buttons, the walker the right
+half, rows 0..143). The disc scan keeps each hero's walker and palette from
+a map stage of the hero's area (cache `hero<N>.map`), and the `PackInstall`
+hook writes them, with the hero's portrait (the map's Status screen), into
+a map stage's file 0 (program [30, 21, 20, 71 10 0]) in place. Checked: 1/2
+(Clovis's map) as Kodel shows Kodel walking, as Gerome the Status screen
+shows Gerome's portrait and name.
+
+**Save states (2026-11-17, from the player's play test: "in the first
+cutscene after the stage of save 11, the name and the picture are still
+Clovis's").** The swap happens when a stage loads; a save state brings back
+the RAM of its moment, packs included. The player's menu slot 11 is test
+state 10 (file slot 10, 1/7, taken as Clovis on 2026-10-15): with Play as
+Arlen it loads with `g_Hero.index` 0 and Clovis's packs, so the stage, and
+its closing scene (room 5's event pack, file 112: "Carolina: ... Thanks for
+saving me again!"), stayed Clovis's; the same scene after a Continue as
+Arlen shows "Arlen:" and Arlen's portrait in every line (the plugin swaps 1
+portrait and 1 name in that pack). The plugin now registers a save-state
+callback and, at the next VBlank, reads the loaded RAM: in an action stage
+whose `g_Hero.index` is not the area hero, the stage was rebuilt for that
+hero, so the swap state is set for it (the stage's other packs keep
+following that hero: dialogue names, portraits, scene copies, texture
+reloads) with the area hero's kit as the original (portrait, hero page,
+vertex entries; the stage's own file 0 / 1 would mean reading all of
+`DATA.CDR`, which on the emulation thread took over 4 s and the runtime's
+starvation watchdog stopped the game). When the state's hero is not the
+one chosen now, an on-screen notice (`host_osd_push`) says "Save made as
+Clovis: Arlen plays from the next stage" (a stage cannot be rebuilt in the
+middle; picking another hero in the menu restarts it). Checked in one
+session: Continue as Arlen, save to a scratch slot (deleted afterwards),
+load test state 10 (the notice), load the scratch slot ("save state 1/7
+played as Arlen: its scenes follow"); `tests/test_heroswap.py arlen`
+12/12. Not checked: a scene pack installed after such a load (a read
+queued by hand into the warp row right after a load stays in its read
+state, with or without the plugin; reads the game queues itself after a
+load were not affected in play).
+
+**Weapon (2026-11-17, the player's request: "being able to swap the hero's
+sword too").** A second option of the feature, `weapon` (`hero` = the
+hero's own, else a weapon model), and a menu row Weapon after Play as (a
+change restarts the stage the same way). The weapon is node 2 of the hero
+object (decomp `docs/targets/hero-swap.md`, *The weapon*: the node a
+spell's power-up trades, the one with the sword trail's attach points, in
+no weld list); a model only, damage stays STR and the moves the hero's.
+The first version offered "each hero's weapon" from the kits (each hero's
+first stage), and the player saw that most were the same sword: of the 9
+kits, 7 hold one and the same model (Clovis's), only Anna's and Mihael's
+differ. A scan of node 2 in all 226 action stages (geometry, and the look
+decoded through the CLUTs) found the models (2026-11-18), now the option's
+values, each taken from the first stage that has it. The four magic
+swords carry the names the game's dialogues give them (the player named
+Azos and Igunis; the glyph text of every stage file, decoded with the
+decomp's `docs/FORMATS.md` table, agrees): `azos` Azos (1/1; the first
+weapon of Clovis, Arlen, Kodel, Phillip, Gerome and Anita, 111 stages;
+3/1 "You're stealing the magic sword Azos?", 9/1 Anita: "my sword,
+Azos"), `soul` Soul (Felippe from 4/15, 4/13 "The magic sword Soul is
+yours to protect now"; Anna's in area 7), `kadum` Kadum (Mihael's, area
+8; 5/19 "You deserve to inherit Kadum", that scene's twin holds the same
+model with another palette), `igunis` Igunis (10/2 and 46 more stages:
+the three last campaigns, areas 10, 11, 12 with Mihael, Anna, Anita,
+start with the hero's own weapon and give Igunis, 10/7 and 12/7 "The
+magic sword Igunis has chosen you as its master", held at stage 2 and
+from stage 9 on); then the other models: `felippe` Felippe's first sword
+(4/3..4/13), and the last campaigns' own weapons, `dark` Mihael's (10/1,
+10/4, 10/6, 10/7), `red` Anna's (11/1, 11/4, 11/6, 11/7), `purple`
+Anita's (12/6, 12/7) and `turquoise` Anita's of 12/1 and 12/4 (the purple
+one's design with a turquoise palette, the player's wish; its texture is
+on another page of its file 0, VRAM (576, 256): `arm_kit` takes a
+weapon's texels from the TIM its prims draw from, page-relative, and
+gives the moved prims the hero page's tpage, as the decomp tool's `arm`
+does; `tests/test_heroswap.py arlen --weapon turquoise --ref
+<decomp>/build/heroswap/2-1_w12-1_to_1-7 --prime-disc2` 19/19, the hero-page
+weapons' references rebuild unchanged). The last four have no name in the
+game's text. (10/7 also says "Azos, the angel of fire. Soul, the angel of
+light. Kadum, the angel of thunder.") Not offered: the prologue's
+(0/1..0/5: a few more vertices, Azos's texture, the same sword on screen,
+the player's check). The disc scan keeps each model's node-2 prims and
+verts and the TIM they draw from (cache `weapon_<area>_<stage>.bin`, so a
+renamed value keeps its cache); a disc-2 model is
+offered once disc 2 has been read, like a disc-2 hero (that read used to
+be tried once at activation, before the disc roster is registered, and
+then never again: now the try only counts once the other disc's image
+opens). A model that is the hero's own (Arlen with Azos) needs
+no rebuild. `arm_kit` builds an armed kit: the hero's kit with the model's node-2
+prims and verts, and the texels its hero-page prims use copied into the
+hero's page where the hero's other 13 nodes use none (its own weapon's are
+free then); prims sharing texels move together, an island keeps its place
+if free, else the first free place by rows then 16-bit units; the CLUTs
+keep their slot or take the first free one; if needed the image grows to
+64 units x the CLUT block's first row (a scan of both discs: nothing but
+the hero's own texture uploads into the page). It is the decomp tool's
+`arm` (`heroswap.py build ... --weapon A S`) in C, and the swap uses the
+armed kit wherever it used the kit (file 0, the pack, scene copies,
+texture reloads), so scenes show the weapon too. The swap now also runs
+when only the weapon differs (the stage's own hero, rebuilt from its kit
+with the other weapon; its portrait and dialogue names are left alone).
+Every hero / kit-weapon pair fits (Anna's and Mihael's pages grow for
+some). Checked: `tests/test_heroswap.py arlen --weapon kadum --ref
+<decomp>/build/heroswap/2-1_w8-1_to_1-7 --menu-weapon flame` 20/20 (pack
+head in RAM and hero page image + CLUTs in VRAM equal to `build 2 1 1 7
+--prune --weapon 8 1`; the menu row restarts 1/7 with Igunis, then still
+called `flame`), `anna --weapon felippe --ref
+<decomp>/build/heroswap/7-1_w4-3_to_1-7` 18/18 (`build 7 1 1 7 --prune
+--weapon 4 3`), `kodel --menu stage` 14/14, `arlen --weapon soul
+--menu-weapon purple` 15/15 (the row's last value), and after the
+renaming `arlen --weapon kadum --menu-weapon igunis` 15/15 (the cache
+renamed to `weapon_<area>_<stage>.bin` loads, no disc read); close-ups of
+Arlen after a Continue into 1/7 with each of the other models, all
+textured right (Kadum's split ice-blue blade and ring pommel, Soul's gold,
+Igunis's fiery tip, Anna's thin white blade), and earlier Clovis (Each
+stage's own) with Soul and Anna with Azos. (The test's GAME OVER answer pressed Cross once after a
+fixed wait and sometimes missed the prompt; it now presses while mode 9
+lasts.) After a save-state load the weapon is read back too: the hero
+object's node 2 (`g_Objects[0]` `0x8008A4E0`, `nodes` at +0x80, node 2's
+verts at +0x6C) points at a vertex entry that is byte for byte the hero
+kit's (its own) or one model's (an armed stage holds the model's entry
+unchanged), so the swap state is set with the armed kit again ("save
+state 1/7 played as Arlen with weapon kadum: its scenes follow"; the
+stage's own hero with another weapon: "... as Clovis with weapon soul"),
+and a state whose weapon is not the chosen one gets the notice "Save made
+with the hero's own weapon: Soul from the next stage". Checked in one
+session with a scratch slot (deleted), as above.
+
+History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
+tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
+itself for every stage.
+
+- **Checked** on build-debug, muted and hidden, with
+  `tests/test_heroswap.py HERO --ref FOLDER` (own `mods/state.toml`, the
+  player's files restored, the game killed by PID): test state 10 (1/7,
+  Clovis), GAME OVER > CONTINUE, then 1/7's file 0 and pack rebuilt, the
+  pack in RAM with the same container head as the decomp tool's output for
+  the same kit stage (`heroswap.py build 3 1 1 7 --prune` for Kodel), VRAM
+  holding the reference's hero texture and portrait byte for byte
+  (`vram_peek`), `g_Hero.index`, the Status screen (Triangle), 20 s of play,
+  then a second Continue into 1/9, rebuilt for the same hero. Kodel 17/17
+  (first start: disc 1 read, 108 stages, six kits); Anita 18/18 with
+  `--prime-disc2` (disc 2 started first: 118 stages, three more kits; then
+  disc 1 from the cache; row 0 and slot 1 raised). Screenshots: Kodel in
+  Raxis City, on the Status screen with his portrait and name, and in 1/9.
+  Arlen, Felippe, Phillip, Gerome, Anna and Mihael 17/17 each. Clovis, from
+  test state 9 into Kodel's 3/1 (`--state 9 --leave 3/3`): the rebuild, the
+  reference head, VRAM and the index pass, but the stage opens with a story
+  scene (Kodel's actor on screen, Clovis's portrait in the dialogue) that
+  holds the Status screen and the GAME OVER back, so those checks fail
+  (14/17): the scene actors above (since handled, see *Story scenes*).
+  In-menu change (`--menu felippe` after Kodel): 1/7 restarted as Felippe
+  with modes 8 and 17 only (no GAME OVER), Val and HP kept, 22/22. Not
+  checked: long play, a whole stage.
 
 #### Video and audio defaults (measured 2026-10-14)
 
@@ -1192,14 +1931,16 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   A second Start on the title goes to the menu; a Start on the menu starts a
   New Game.
 - **Committed tests** (`tests/test_manifests.py`, `test_cheats.py`, `test_drop_cheat.py`,
-  `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`).
+  `test_scroll_cheat.py`, `test_menu.py`, `test_area_row.py`, `test_skip_intro.py`, `test_widescreen.py`,
+  `test_bilinear_seam.py`, `test_heroswap.py HERO`).
   `python tests/test_manifests.py` checks every mod
-  manifest statically (ids, default-off features, option bounds, plugin ids
+  manifest statically (ids, default-off features unless every option is off or at a value in `INERT_CHOICES`,
+  option bounds, plugin ids
   registered in `mods/plugins/*.c`); `python tests/test_cheats.py on|off`
   exercises the cheat plugins on a running debug build from slot 0 (see *This
   project's package* for the `state.toml` setup); `python
   tests/test_skip_intro.py [--off]` checks the intro skip on a fresh boot;
-  `python tests/test_menu.py` drives the in-game menu from slot 0 (it launches
+  `python tests/test_menu.py` drives the in-game menu from test state 10 (it launches
   the build itself with its own `mods/state.toml`, Infinite HP off, the
   player's file backed up and restored, because the menu persists every
   toggle there; `--attach` uses the game already running; the last step
@@ -1231,7 +1972,7 @@ aot/overlays.json     AOT profile for the five BIN/*.BIN modules (docs/AOT.md)
 seeds/ghidra_funcs.txt  recompiler seeds (grow as discovery finds more)
 symbols.toml          progressive symbol map -> tools/sync_symbols.py -> psx_symbols.h
 launcher_assets/img/  boxart (libretro, see BOXART_SOURCE.txt);  assets/  app icon (tools/make_app_icon.py)
-mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen; the psx.enhancement.pgxp override)
+mods/preloaded/       bundled mod packages (dragonvalor.cheats, dragonvalor.skip-intro, dragonvalor.enhancement.widescreen, dragonvalor.heroswap; overrides of psx.enhancement.pgxp, cd-speed, hd-textures and psx.presentation.bezel)
 mods/plugins/         C plugins behind those packages' [[plugin]] ids; dragonvalor_menu.cpp = in-game menu provider
 tools/dvdbg.py        debug-server helper;  tools/session_monitor.py  long-run sampler
 tools/sync_symbols.py framework copy of the symbol sync;  tools/mipsdis.py  listing from generated C
@@ -1240,7 +1981,7 @@ tools/datacdr.py      DATA.CDR areas / stages / files, action stages vs scenes (
 tools/make_app_icon.py  draws the app icon into assets/ (.ico, .png, .svg; needs Pillow)
 tools/ramscan/        RAM-dump listing, base-register scan and the live drop/pepper probes (README inside)
 tests/states/         save states 0, 9 and 10, local only (not in git) + README;  tests/test_*.py  checks
-scripts/package_release.sh  local release zip (framework packager with --stage-only, minus mods/texture-packs, then its create_release_zip.py)
+scripts/package_release.sh  local release zip (framework packager with --stage-only, minus mods/texture-packs, then its create_release_zip.py; mods/cache, the Play as data read from the disc, is parked outside the build tree for the run: the packager's BIOS guard refused its .bin files on 2026-11-18)
 DragonValor.bat, DragonValorDebug.bat  player / debug launch (were Play.bat, PlayDebug.bat)
 DISC.md               which dumps work (ships at the zip root);  LICENSE  (MIT, our files)
 CONTROLS.md           pads, keyboard binds, the game's default buttons, host hotkeys

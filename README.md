@@ -36,9 +36,11 @@ ending and the Linux / macOS builds are untested
 ## Features
 
 - Native 60 fps, 1080p by default, PGXP for steadier 3D
-- In-game menu: pause, save states, video and audio settings
+- In-game menu: pause, save states (with confirmations), video and audio settings
 - Cheats: infinite HP / MP, more drops, Val, stats, spells and items
 - Widescreen (experimental), Skip Intro, rewind and turbo
+- Play as (experimental): any of the nine heroes in every stage, holding
+  any of the game's weapons (Azos, Soul, Kadum, Igunis and five more)
 - Xbox, PlayStation and Switch pads, or the keyboard
 
 ## Playing
@@ -52,7 +54,7 @@ ending and the Linux / macOS builds are untested
    ([`DISC.md`](DISC.md) lists the dumps that work) and press **Play**.
 
 In the game, **Esc** (or **Select + Start** on the pad) opens the menu.
-Cheats, Skip Intro, widescreen and HD texture packs are switched on in the
+Cheats, Skip Intro, widescreen, Play as and HD texture packs are switched on in the
 launcher's **Mods** page. Keys and buttons: [`CONTROLS.md`](CONTROLS.md).
 Memory card saves live in `saves/`.
 

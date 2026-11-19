@@ -6,7 +6,7 @@
 
 The test writes its own <build>/mods/state.toml (cheats enabled, Infinite
 HP off; the player's file is backed up and restored, even on failure) and
-launches the build muted from slot 0 with tools/dvdbg.py, because the menu
+launches the build muted from test state 10 with tools/dvdbg.py, because the menu
 persists every toggle to that file and the checks below assume Infinite HP
 starts off. With --attach it uses the running game and the player's file as
 they are (the Infinite HP checks then expect whatever state the file holds).
@@ -20,15 +20,17 @@ events a keyboard produces) and checks:
      (third on the page) writes RAM at once: one step right = 100. The STR
      row (sixth) spreads its value over the five attack entries at
      0x80086324 (the game sums them into the shown STR): one step = +5.
-  4. System page: "Save state" on slot 12 (runtime slot 11) writes the slot
+  4. Game page > Save state opens the save-state screen on its Save tab;
+     Down / Right to the last slot, 12 (runtime slot 11), and Enter writes the slot
      file; the slot's previous content is restored afterwards. No other
      slot is written (slot 0/1 is only ever restored from tests/states/).
-  5. System page: "Return to launcher" restarts the program with the same
+  5. Game page: "Return to launcher" asks in a dialog (Cancel focused:
+     Right, then Enter) and restarts the program with the same
      command line (PSX_MENU_EXIT_RELAUNCH in builds without the netplay
      lobby client; with the player's arguments that opens the launcher).
      Skipped with --attach. The player's settings.toml and
      dragonvalor_settings.toml are backed up and restored around the run.
-The menu always opens on the first section (Display) with nothing selected,
+The menu always opens on its first section (Game), not entered,
 so a path is Down x N then Enter. Exit code 0 on PASS.
 """
 import os
@@ -44,7 +46,7 @@ from dvdbg import rpc, port_from_args, slot_file, wait_savestate, SAVES_STATES_D
 
 DV = str(ROOT / "tools" / "dvdbg.py")
 HP, HPMAX = 0x8008A5AE, 0x8008A5B0
-SECTIONS = ["Display", "Graphics", "Audio", "System", "Cheats", "Game"]
+SECTIONS = ["Game", "Hero", "Cheats", "Magic", "Items", "Warp", "Video", "Options"]
 STATE = """format_version = 2
 
 [[package]]
@@ -85,7 +87,7 @@ def main(argv):
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(STATE, encoding="utf-8")
         try:
-            print("launch:", cli("launch", "--state", "0", "--build", str(ROOT / build)))
+            print("launch:", cli("launch", "--state", "10", "--build", str(ROOT / build)))
             time.sleep(9)
             return run(port, attach=False, exe=ROOT / build / "DragonValorRecompiled.exe")
         finally:
@@ -145,7 +147,7 @@ def run(port, attach, exe=None):
         key("Escape", 2); time.sleep(0.3)
 
     if rd16(HPMAX) == 0:
-        sys.exit("no hero loaded (HPmax = 0): launch with --state 0")
+        sys.exit("no hero loaded (HPmax = 0): launch with --state 10")
 
     # 1. open + pause
     key("Escape"); time.sleep(0.5)
@@ -196,37 +198,44 @@ def run(port, attach, exe=None):
     check(f"STR editor wrote {before + 5} as attack entries {comps}",
           rd16(STR) == before + 5 and sum(comps) == before + 5 and min(comps) > 0)
 
-    # 4. save state from the System page (Resume, State slot, Save state, ...)
+    # 4. save state from the Game page (Resume, Save state, Load state, ...): the
+    #    save-state screen, its grid 6 x 2 or 4 x 3 by the window's shape, so
+    #    Down and Right until they stop reach the last slot either way
     #    into the LAST slot, menu slot 12 = runtime slot 11, so a player's low
     #    slots are never touched; whatever was in slot 12 is put back after.
     target = SAVES_STATES_DIR / slot_file(11, os.environ.get("DVDBG_DISC") or DEFAULT_DISC)
     thumb = target.with_suffix(".thumb")
-    saved = {}
+    saved, stamps = {}, {}
     for f in (target, thumb):
         if f.exists():
             saved[f] = f.read_bytes()
+            stamps[f] = (f.stat().st_atime, f.stat().st_mtime)   # the screen shows the date
             f.unlink()
     try:
-        key("Escape"); goto_section("System"); key("Down")
-        key("Left", 12); key("Right", 11)          # slot row: 1 -> 12 whatever it showed
+        key("Escape"); goto_section("Game"); key("Down"); key("Return")   # Save state: the screen
+        key("Down", 3); key("Right", 6)            # the last slot, 12 (empty: the test removed it)
         gen = rpc(port, "savestate_status").get("generation", 0)
-        key("Down"); key("Return")
+        key("Return")
         wait_savestate(port, gen)                   # the save is staged; wait for it to land
-        close(); time.sleep(0.5)
+        key("Escape"); close(); time.sleep(0.5)   # the screen, the Game page, the menu
         check(f"Save state from the menu wrote slot 12 ({target.name})", target.exists())
     finally:
         for f in (target, thumb):
             if f in saved:
                 f.write_bytes(saved[f])
+                os.utime(f, stamps[f])
             elif f.exists():
                 f.unlink()
 
-    # 5. Return to launcher (System rows: Resume, State slot, Save state, Load
-    #    state, Pause in menu, Return to launcher, Quit): the process restarts
-    #    with its own command line and the debug server comes back.
+    # 5. Return to launcher (Game rows: Resume, Save state, Load state,
+    #    Insert disc 1, Insert disc 2, Return to launcher, Quit game):
+    #    a dialog asks with Cancel focused, Right moves to Leave the game; the
+    #    process restarts with its own command line and the debug server
+    #    comes back.
     if not attach and exe is not None:
         before = game_processes(exe)
-        key("Escape"); goto_section("System"); key("Down", 5); key("Return", 2)   # the row asks to press twice
+        key("Escape"); goto_section("Game"); key("Down", 5); key("Return")   # the dialog
+        key("Right"); key("Return")                                           # Leave the game
         after, t0 = {}, time.time()
         while time.time() - t0 < 60:
             after = game_processes(exe)

@@ -24,8 +24,8 @@ game_id = "SLUS-01092"
 [[feature]]
 id = "cheats"
 name = "Cheats"
-description = "Holds the cheat switches. Enabled by default so they can be changed in-game; with every option off it does nothing."
-group = "Cheats"
+description = "Infinite HP and MP, more drops. Switch them here or in the in-game menu (Cheats), which also edits Val, stats, spells and items. On by default so the menu can switch them; with every option off it does nothing."
+group = "Game"
 default_enabled = true
 
 [[option]]

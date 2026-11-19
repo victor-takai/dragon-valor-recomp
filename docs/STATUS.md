@@ -71,16 +71,45 @@ the native 60 Hz version.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
-  predicate), title / menus / movies stay 4:3, the HUD keeps its 4:3
-  positions; the game's own screen-X rejects are left stock (widening
+  predicate), title / menus / movies stay 4:3, the HUD sits at the window
+  edges (2026-11-18: HP / MP, spell, gauge and keys left, counter and the
+  pick-up banner right, also on the black screen of a stage reload); the
+  game's own screen-X rejects are left stock (widening
   them bought nothing visible). The block of texture noise at the right
   edge of the castle corridor (1/19) is fixed (2026-11-16): off-frame lens
   sprites of prim record 16, collapsed by the plugin (`BACKLOG.md`,
-  section F). `tests/test_widescreen.py on|off` 5/5 and 4/4;
+  section F). After the player's play test (2026-11-17): the magic / item
+  menu, the screen transitions and the event motion blur present at 4:3
+  with side bars (they only cover the 4:3 frame; the blur only in event
+  scenes: in play, where the hero's specials switch it on, the frame stays
+  wide and the blur is left out), and the dialogue
+  window's top border runs to both edges; the streaks in the left margin
+  (town of 1/7) were the left-side twin of the noise block (off-frame
+  lens sprites drawn inverted) and are collapsed by the same hook. Black
+  wedges where a room's mesh ends stay (no geometry there; a sliver of
+  them shows at the 4:3 edge on a console). Since 2026-11-19 the scene
+  changes (effects 0, 1, 2 and 7) run at full width, HUD at the edges: the
+  plugin tags their frame-buffer copies and the renderer continues them
+  into the margins (psxrecomp PR #692 + a fix of ours, local patches
+  `psxrecomp/0002`, `0003`; 0003 also makes the GL 127/128 fades reach
+  black). The melt (soft reset, attract demo) and the ending title's
+  shatter stay 4:3. The fade between two rooms of a stage keeps the HUD at
+  the edges too (its tags are renewed every VBlank: they had gone stale
+  while the next room loaded). `tests/test_widescreen.py on|off` 11/11 and 4/4 (test
+  state 10);
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
+- **Bilinear seam fixed** (2026-11-17): with bilinear texture filtering the
+  OpenGL renderer drew a line at x 256, two thirds across the screen (a
+  coloured stripe in the transitions and the blur, a dark line on the title
+  screen): its bilinear neighbours wrapped to the far side of the texture
+  page before the prim clamp. A local psxrecomp patch
+  (`patches/psxrecomp/0001-…`, the same change as the open upstream PR #896
+  for issue #719) clamps first; `tests/test_bilinear_seam.py` 3/3. The
+  game-side workaround of the same day (`dragonvalor.fixes`) is gone. The
+  white-out of effect 0 on GL is a separate, older renderer issue.
 - **Chapter 2 reached** (2026-10-16): the player finished chapter 1 (Clovis)
   on this build and plays chapter 2 as Kodel at 60 fps; their save state at
   its first stage (area 3 / stage 1) is the third test state
@@ -88,6 +117,66 @@ the native 60 Hz version.
   `DEVELOPMENT.md`, *Character and weapon*: the hero follows the area, so
   the Cheats page gained an **Area (next Continue)** row that reloads
   another area's stage (Kodel's save + area 0 = Clovis in the prologue).
+- **Launcher Mods page cleaned up** (2026-11-18, branch `hero-swap`): two
+  groups (Game, Graphics), names a player understands (Faster loading,
+  Steady 3D (PGXP), ...), a one-line summary per row instead of the package
+  name and version (`patches/recomp-ui/0005-...`), current descriptions;
+  title overrides of the framework's cd-speed, hd-textures and bezel
+  packages for the texts.
+- **In-game menu redesigned** (2026-11-18, branch `hero-swap`, the player's
+  request): the title draws its own menu (`dragonvalor_menu_view.cpp`: dark
+  panel with a gold accent, the hero, HP / MP and stage on top, one line
+  per row, the selected row's help underneath, key caps) instead of
+  recomp-ui's generic one; sections Game (Resume, states, discs, leaving),
+  Hero, Cheats, Magic, Items, Warp, Video, Options; a dialog asks before
+  loading or overwriting a state, changing discs, the warp, leaving the
+  game and applying a Play as / Weapon choice (picked first, applied
+  together), and a notice at the top right says what happened.
+  F7 and Game > Save / Load state open a save-state screen in the same
+  style (12 slots with pictures and dates, Save and Load tabs) instead of
+  the runtime's 8 x 8-font picker; loading a state made with another hero
+  than Play as makes the save's hero and weapon the choice (a notice says so).
+  `tests/test_menu.py` 9/9 (now from test state 10, no longer slot 0),
+  `test_heroswap.py arlen --menu kodel,stage` 19/19, `default
+  --menu-weapon igunis` 9/9.
+- **Play as** (2026-11-17, branch `hero-swap`, experimental): pick the hero
+  of every action stage in the launcher or the in-game menu
+  (`dragonvalor.heroswap` 2.0.0; on by default since 2026-11-18 at the
+  neutral choices, so a menu choice applies at once: off, the first choice
+  only took effect after restarting the game). The plugin reads the heroes from the disc
+  at start (cached afterwards; a disc-2 hero needs disc 2 started once) and
+  rebuilds each stage's files in RAM as they load (hooks on
+  `StageBuffersAlloc` and `PackInstall`), model, moves, sounds, portrait and
+  name; the C rebuild gives the decomp tool's bytes. `tests/test_heroswap.py`
+  passes for all eight heroes in Clovis's 1/7 and 1/9. Story scenes follow
+  too: a scene's own copy of the stage's hero takes the chosen one's parts,
+  and the dialogues name the chosen hero (3/1's opening as Clovis, 0/1's
+  prologue as Kodel); the world map's walker, the Status screen and the
+  save follow it too, and a choice in the in-game menu restarts the stage
+  with the new hero at once. The remaining scenes were checked the same
+  day: the twins of 5/19‥5/24 and 12/29 (their texture variants no longer
+  overwrite the chosen hero's), 5/20 and 5/24's copies of the plain Phillip,
+  12/29's ending portrait, and disc 2 after a disc change in the same
+  session (read from its image; its heroes no longer need disc 2 started
+  once). The chapter epilogues name the chosen hero too (the only other
+  texts that name a hero; the character profiles stay). Save states keep
+  the hero they were taken with (the swap happens when a stage loads): a
+  state taken as another hero plays on as it was and an on-screen notice
+  says the choice applies from the next stage; a state taken with a swapped
+  hero keeps its scenes on that hero after the load. The hero can hold any
+  of the game's nine weapon models (option `weapon`, menu row Weapon,
+  2026-11-17/18; found by scanning the hero's node 2 in all 226 action
+  stages, the magic swords named as the game's dialogues name them: Azos,
+  Soul, Kadum, Igunis (the three last campaigns' sword), then Felippe's
+  first and Mihael's, Anna's and Anita's own weapons of those campaigns,
+  Anita's in its purple and its turquoise colours):
+  the model and its texture, moved into the hero's
+  texture page (the C port matches the decomp tool byte for byte;
+  `tests/test_heroswap.py --weapon / --menu-weapon`). Before it
+  (2026-11-16): one stage per folder written by the decomp's
+  `tools/heroswap.py`. Open: long play, 9/10's scene not watched, a scene
+  pack installed right after a save-state load not watched
+  (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own
   return only works in netplay builds and closed the game; upstream
@@ -171,10 +260,16 @@ the native 60 Hz version.
    `tools/dvdbg.py launch` delete the existing dumps before each start (no
    config switch exists; 58 of them, 2 GB, had piled up in one afternoon of
    scripted runs).
-5. Widescreen follow-ups: HUD anchored to the window edges, a check of
-   chapters 3+ and the field module (chapter 2's first stage is fine), a
-   real Fit resize; see
+5. Widescreen follow-ups: a check of chapters 3+ and the field module
+   (chapter 2's first stage is fine), a real Fit resize, the light centre
+   of the next-stage transition (effect 0) in the GL renderer; see
    `BACKLOG.md`, section F.
+6. Hitches where many enemies are on screen (player, 2026-11-18): the frame
+   ran at its 16.7 ms limit with the GL calls on the emulation thread; the
+   render thread is now on by default (`game.toml`), which measured about
+   1.5x the headroom at the spot (`DEVELOPMENT.md`, *Run*). An install whose
+   `settings.toml` says `render_thread = false` keeps it off until that line
+   is changed.
 
 ## Backlog
 
