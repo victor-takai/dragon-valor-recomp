@@ -68,6 +68,15 @@ the native 60 Hz version.
   repository re-created with the same release and zips (DEVELOPMENT).
   Public since 2026-10-21, and submitted to the Retro Launcher catalog the
   same day (Retro-Catalog issue #54, awaiting approval; BACKLOG).
+  **v0.2.0 was published on 2026-11-19** (pre-release, four zips: Windows
+  31 MB, Linux 54 MB, macOS 29 MB each), from the merge of PR #1
+  (`hero-swap`: Play as, the new menu, widescreen HUD and transitions,
+  render thread). The re-created repository had never registered its
+  workflow (`gh workflow run` answered 404, the API listed 0 workflows),
+  so the release was started by pushing the tag `v0.2.0` (the `push: tags`
+  trigger reads the workflow from the tagged commit); the release text
+  was then replaced with the short `RELEASE_NOTES.md` of `89bf7a9`
+  (`gh release edit --notes-file`), the zips keep the tag's longer notes.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
