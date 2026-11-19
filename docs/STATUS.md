@@ -254,10 +254,16 @@ the native 60 Hz version.
    `tools/dvdbg.py launch` delete the existing dumps before each start (no
    config switch exists; 58 of them, 2 GB, had piled up in one afternoon of
    scripted runs).
-5. Widescreen follow-ups: HUD anchored to the window edges, a check of
-   chapters 3+ and the field module (chapter 2's first stage is fine), a
-   real Fit resize; see
+5. Widescreen follow-ups: a check of chapters 3+ and the field module
+   (chapter 2's first stage is fine), a real Fit resize, the HUD inside
+   the frozen picture of a screen transition (still at its 4:3 place); see
    `BACKLOG.md`, section F.
+6. Hitches where many enemies are on screen (player, 2026-11-18): the frame
+   ran at its 16.7 ms limit with the GL calls on the emulation thread; the
+   render thread is now on by default (`game.toml`), which measured about
+   1.5x the headroom at the spot (`DEVELOPMENT.md`, *Run*). An install whose
+   `settings.toml` says `render_thread = false` keeps it off until that line
+   is changed.
 
 ## Backlog
 

@@ -145,10 +145,32 @@ Notes:
   only seen when redirected (`tools/dvdbg.py launch` writes `dvdbg_4370.log`);
   the exit report `psx_last_run_report.json` is the channel otherwise.
 - `DragonValorDebug.bat` — debug build with the debug server and the FPS readout on.
-- Frame generation (`[video] render_thread` / `frame_generation`, or
-  `PSX_RENDER_THREAD=1 PSX_FRAME_GEN=1`) is of no use on this 60 Hz title and
-  its launcher script was removed on 2026-10-14; the Settings page still
-  exposes the switches.
+- Frame generation (`[video] frame_generation`, `PSX_FRAME_GEN=1`) is of no
+  use on this 60 Hz title and its launcher script was removed on 2026-10-14.
+- **Render thread on by default** (`[video] render_thread = true` in
+  `game.toml`, 2026-11-18; psxrecomp `docs/RENDER_THREAD.md`): the OpenGL
+  calls run on their own thread, so a frame costs max(emulation, GL)
+  instead of the sum. The player felt hitches where many enemies are on
+  screen. Measured on the town street of 1/7 with the red orbs (the
+  player's state, only loaded), 1440p, i7-10700K / RTX 4070 Ti, debug
+  build: the frame ran at the 16.7 ms limit, and where the scene grew from
+  ~720 to ~1075 primitives it fell to 0.6-0.8x for about a second. The
+  host sampler showed about half the frame outside the executable (the GL
+  driver on the emulation thread), the rest the recompiled game,
+  cycle accounting and the GTE (`host_profile`, `phase_profile`: static
+  code ~95 %, the interpreter ~1 %). Not the cause: internal resolution
+  (1080p hitched the same) and texture dumping (no new texture was dumped
+  in those runs). Unthrottled at that spot (`turbo`), 6 interleaved runs:
+  thread off 0.93-1.31x, on 1.70-2.05x, Vulkan 0.47-1.34x; the paced walks
+  with the thread on had no dip. `test_menu`, `test_widescreen` and
+  `test_heroswap` pass with it on (`PSX_RENDER_THREAD=1`), and the in-game
+  menu's own GL textures (the save-state thumbnails) draw. A
+  `settings.toml` that already has `render_thread = false` keeps it off
+  (the runtime writes the key back on every launch); our recomp-ui pin
+  has no launcher row for it, so an existing install is switched by
+  editing that line. The measuring script is not kept (scratch
+  `perf_walk.py`: hold the pad, sample `frame` at 10 Hz, `host_profile`
+  when a 0.5 s window runs under 0.85x).
 - Both open the **recomp-ui launcher** first (disc check, Disc 1/2, pad mode,
   memory cards, Settings, Mods). `--no-launcher` or `PSX_NO_LAUNCHER=1` boots
   straight into the game.
