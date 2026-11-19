@@ -71,8 +71,10 @@ the native 60 Hz version.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
-  predicate), title / menus / movies stay 4:3, the HUD keeps its 4:3
-  positions; the game's own screen-X rejects are left stock (widening
+  predicate), title / menus / movies stay 4:3, the HUD sits at the window
+  edges (2026-11-18: HP / MP, spell, gauge and keys left, counter and the
+  pick-up banner right, also on the black screen of a stage reload); the
+  game's own screen-X rejects are left stock (widening
   them bought nothing visible). The block of texture noise at the right
   edge of the castle corridor (1/19) is fixed (2026-11-16): off-frame lens
   sprites of prim record 16, collapsed by the plugin (`BACKLOG.md`,
@@ -85,8 +87,10 @@ the native 60 Hz version.
   (town of 1/7) were the left-side twin of the noise block (off-frame
   lens sprites drawn inverted) and are collapsed by the same hook. Black
   wedges where a room's mesh ends stay (no geometry there; a sliver of
-  them shows at the 4:3 edge on a console). `tests/test_widescreen.py on|off`
-  9/9 and 4/4 (test state 10);
+  them shows at the 4:3 edge on a console). During a screen transition the
+  frozen picture still shows the HUD at its 4:3 place, inside the 4:3 frame
+  (the copy is of the 4:3 frame buffer; see DEVELOPMENT.md).
+  `tests/test_widescreen.py on|off` 10/10 and 4/4 (test state 10);
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see
   `DEVELOPMENT.md`, *This project's package:

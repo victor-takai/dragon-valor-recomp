@@ -124,10 +124,17 @@ static int s_enabled;
  * is sampled once per VBlank (as RidgeRacerType4Recomp's plugin does); a
  * save-state load invalidates the sample, and an invalid one reads live. */
 static int s_scene_valid, s_scene_value, s_native_value;
+static int dv_ws_hud_linked(void);
 
+/* Gameplay: the action module (mode 8), and any other frame the HUD is drawn
+ * in. A stage that reloads without a screen transition (mode 17, a black
+ * screen: the hero-swap restart, some stage changes) keeps the HUD up; with
+ * mode 8 alone such frames fell back to the GTE detector, which sees no 3D
+ * and presents 4:3, so the HP / MP block and the item banner sat at their 4:3
+ * places until the stage ran again (the player, 2026-11-18). */
 static int dv_ws_scene_live(void)
 {
-    return s_enabled && psx_mod_read_byte(DV_MODE) == DV_MODE_ACTION;
+    return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_ACTION || dv_ws_hud_linked());
 }
 
 /* The blur of an event scene (sub-mode 5): present at 4:3. Anywhere else in
@@ -293,6 +300,26 @@ static void dv_ws_hide_play_blur(uint32_t frame)
 #define DV_HUD_ICON_TARGET_X  0x013F0000                /* 319 << 16: the corner it flies to */
 
 int gpu_ws_configured_x_reveal(void);
+
+/* The HUD is drawn: it runs (state 1) and its chain hangs on g_Transition.ot
+ * of a buffer (HudLinkGroups: the head of a group's copy b is its DR_OFFSET
+ * element + b x 0x0C). The word at DV_HUD_STATE is reused by other modes'
+ * work areas (the CONTINUE prompt keeps its state there), so the chain head
+ * is what proves it. */
+static int dv_ws_hud_linked(void)
+{
+    uint32_t b, i;
+    if (psx_mod_read_word(DV_HUD_STATE) != 1u) return 0;
+    for (b = 0; b < 2u; b++) {
+        const uint32_t ot = psx_mod_read_word(DV_TRANSITION + 0x10u + b * 4u);
+        if (!dv_ws_ram_ptr(ot)) continue;
+        for (i = 0; i < DV_HUD_COUNT; i++) {
+            const uint32_t p = psx_mod_read_word(DV_HUD_PRIMS + i * 4u);
+            if (dv_ws_ram_ptr(p) && ot == p + b * 0x0Cu) return 1;
+        }
+    }
+    return 0;
+}
 
 static int dv_ws_hud_anchor(uint32_t i)
 {

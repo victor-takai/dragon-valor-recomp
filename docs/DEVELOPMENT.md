@@ -1213,6 +1213,37 @@ worked examples this one follows.
   (the XbHudState fields `HudShowPickupBanner` sets: group on, relink,
   timer 70, corners and steps; scratchpad `ws_banner.py`): the icon flew
   from mid-screen into the frame at the right edge.
+
+  **Stage reloads and transitions** (same day, the player: in some screen
+  changes the HP / MP block and the item banner went to their 4:3 places
+  for a moment). Two cases, both captured:
+  - *A reload with no transition effect* (mode 17, a black screen: the
+    hero-swap restart writes mode 17 / sub 0 / stagePhase 1, and so do some
+    stage changes): the HUD stays linked on `g_Transition.ot` and is drawn
+    every frame, but the world-scene predicate only said "gameplay" for mode
+    8, so these frames fell to the GTE detector, which sees no 3D and
+    presents 4:3: HUD at its 4:3 place until the stage ran. Fixed: the
+    predicate also holds while the HUD is linked (`dv_ws_hud_linked`: state
+    1 and a chain head equal to a group's DR_OFFSET element + b x 0x0C; the
+    state word alone is reused by the CONTINUE prompt). Captured from a
+    player's state of 1/15 (`saves/openbios` file slot04, only loaded) with
+    the reload written by hand: before, the HUD at its 4:3 place on the
+    black screen; after, at the edge throughout. `tests/test_widescreen.py` checks it
+    (writes the reload, expects `present_native_43` 0).
+  - *A transition effect* (`g_Transition`, effect 2 from RAM over test
+    state 10): presented 4:3 on purpose (above), and the frozen picture is a
+    copy of the 4:3 frame buffer, which is faithful: the HUD at its 4:3
+    place, inside the 4:3 frame. Left as is. What would fix it: psxrecomp
+    PR #692 (merged 2026-10-19, after our pin f9c287f; it applies cleanly)
+    continues 15-bit frame-buffer copies into the bands from the source
+    buffer's wide surface, so effects 0, 1, 2 and 7 (all full-width
+    sprites) could stay wide; but the centre of each copy still comes from
+    the 4:3 buffer, so the HUD would show twice (4:3 copy in the centre,
+    shifted copy in the band). The frozen frame would need to be drawn
+    without the HUD, and the effect starts in the same main-loop pass that
+    the script asks for it (mode handler, then TransitionUpdate, then
+    FrameDraw: the copy is of the frame before), after StageReset /
+    StageTeardown for effects 0 and 7, so there is no clean frame to freeze.
 - **Culling: left stock** (widened at 14:00 on 2026-10-15, withdrawn the
   same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
   --emit-ws-sites` (`cmake --build build-recompiler --target

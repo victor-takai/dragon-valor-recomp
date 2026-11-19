@@ -137,6 +137,16 @@ def main(argv):
             time.sleep(3)
             check("wide again after the transition (state reloaded)",
                   read_word(TRANSITION) == 0 and native43() == 0, f"present_native_43 {native43()}")
+            # A stage reload with no screen transition (mode 17, black, as
+            # the hero-swap restart writes it): the HUD stays up, so the
+            # frame stays wide and the HUD at the edges (the player saw the
+            # HP / MP block go to its 4:3 place there, 2026-11-18).
+            for addr, val in ((MODE_BYTE, 17), (MODE_BYTE + 1, 0), (0x800A2D18, 1)):
+                rpc(port, "write_ram", addr=f"{addr:08X}", val=val)
+            time.sleep(0.5)
+            reload_mode = rpc(port, "read_ram", addr=f"{MODE_BYTE:08X}", len=1)["hex"]
+            check("stage reload (mode 17, HUD up) stays wide", reload_mode == "11" and native43() == 0,
+                  f"mode byte {reload_mode} present_native_43 {native43()}")
         else:
             check("stock path in play (mode 0)", nw.get("mode") == 0, str(nw.get("mode")))
             check("no extra columns", nw.get("nw_extra", 0) == 0, str(nw.get("nw_extra")))
