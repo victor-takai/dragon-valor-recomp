@@ -1292,6 +1292,23 @@ worked examples this one follows.
     copies tagged and effect 3 goes 4:3 (11/11, also with the render
     thread). Captures: scratch `ws_trans.py` / `ws_trans_series.py` (start
     an effect from RAM, shoot, measure the regions).
+  - *A room change inside a stage* (the one the player meant all along:
+    their slot of 1/7 on 2026-11-19, walk left: the picture fades to black
+    and the next room fades in, mode 8 / sub 7 throughout, no
+    `g_Transition`): the frame stayed wide (`present_native_43` 0), but the
+    renderer's HUD-tag counters (`ws_tag_stats`) showed every lookup
+    *stale* from the fade's start to the next room (hits frozen, `stale`
+    climbing by ~1000 a second), so the HP / MP block drew untagged, at its
+    4:3 place. A tag holds for 2 VBlanks (`WS_HUD_ANCHOR_FRESH_FRAMES`); the
+    plugin tags in the ModelWeldReset hook, before FrameDraw's wait for the
+    frame (`while (g_FrameWait > 0)`), and while the room loads that wait
+    is longer. Fixed by tagging again at every VBlank (`dv_ws_refresh_tags`
+    from `dv_ws_vblank`: the same HUD and transition tags, nothing new
+    written; the HUD only while its chain is linked), so the tag is fresh
+    whenever the draw comes. Same walk after: 0 stale lookups, HUD at the
+    edge through the black (also with the render thread). The fade itself
+    is the game's own (FrameDraw's fade tile, which the renderer already
+    widens).
 - **Culling: left stock** (widened at 14:00 on 2026-10-15, withdrawn the
   same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
   --emit-ws-sites` (`cmake --build build-recompiler --target

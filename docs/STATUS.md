@@ -93,7 +93,9 @@ the native 60 Hz version.
   into the margins (psxrecomp PR #692 + a fix of ours, local patches
   `psxrecomp/0002`, `0003`; 0003 also makes the GL 127/128 fades reach
   black). The melt (soft reset, attract demo) and the ending title's
-  shatter stay 4:3. `tests/test_widescreen.py on|off` 11/11 and 4/4 (test
+  shatter stay 4:3. The fade between two rooms of a stage keeps the HUD at
+  the edges too (its tags are renewed every VBlank: they had gone stale
+  while the next room loaded). `tests/test_widescreen.py on|off` 11/11 and 4/4 (test
   state 10);
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see

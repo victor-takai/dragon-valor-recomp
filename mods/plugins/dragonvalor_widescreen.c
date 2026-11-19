@@ -196,11 +196,14 @@ static int dv_ws_native(void)
     return dv_ws_native_live();
 }
 
+static void dv_ws_refresh_tags(void);
+
 static void dv_ws_vblank(void)
 {
     s_scene_value = dv_ws_scene_live();
     s_native_value = dv_ws_native_live();
     s_scene_valid = 1;
+    if (s_enabled) dv_ws_refresh_tags();
 }
 
 static void dv_ws_savestate_loaded(void)
@@ -375,7 +378,13 @@ static float dv_ws_banner_progress(void)
     return p < 0.0f ? 0.0f : p > 1.0f ? 1.0f : p;
 }
 
-static void dv_ws_tag_hud(void)
+/* refresh: the VBlank's pass (dv_ws_vblank): the same tags again, nothing
+ * written. A tag holds for 2 VBlanks (WS_HUD_ANCHOR_FRESH_FRAMES) and the
+ * hook runs before FrameDraw's wait for the frame; while a room loads (the
+ * fade to black between two rooms of a stage, the player's slot of 1/7 on
+ * 2026-11-19) that wait was longer, every lookup came out stale and the
+ * HP / MP block drew at its 4:3 place until the next room showed. */
+static void dv_ws_tag_hud(int refresh)
 {
     uint32_t i, b, frame = psx_mod_read_byte(DV_RENDER_FRAME) & 1u;
     if (psx_mod_read_word(DV_HUD_STATE) != 1u) return;   /* 1: the HUD runs */
@@ -408,7 +417,7 @@ static void dv_ws_tag_hud(void)
                 const int back = (int)((1.0f - dv_ws_banner_progress()) * (float)gpu_ws_configured_x_reveal() + 0.5f);
                 uint32_t k;
                 a = 1;
-                if (b == frame && back > 0)
+                if (!refresh && b == frame && back > 0)
                     for (k = 0; k < 4u; k++) {
                         const uint32_t at = w + 4u + k * 8u, xy = psx_mod_read_word(at);
                         const int x = (int16_t)(xy & 0xFFFFu) - back;
@@ -462,6 +471,16 @@ static void dv_ws_tag_transition(uint32_t frame)
     if (tagged) psx_mod_counter_add("dv.ws.transition_copies_tagged", tagged);
 }
 
+/* Every VBlank: the HUD and transition tags again (nothing the hook has not
+ * already written), so they are fresh when FrameDraw finally draws, however
+ * many VBlanks its wait took. The HUD only while its chain is linked: the
+ * VBlank also comes in modes whose work areas reuse the HUD's state word. */
+static void dv_ws_refresh_tags(void)
+{
+    if (dv_ws_hud_linked()) dv_ws_tag_hud(1);
+    dv_ws_tag_transition(psx_mod_read_byte(DV_RENDER_FRAME) & 1u);
+}
+
 static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
 {
     uint32_t frame, list, i, k, hidden = 0;
@@ -470,7 +489,7 @@ static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
     if (!s_enabled) return;
     frame = psx_mod_read_byte(DV_RENDER_FRAME) & 1u;
     dv_ws_tag_dialogue_border(frame);
-    dv_ws_tag_hud();
+    dv_ws_tag_hud(0);
     dv_ws_tag_transition(frame);
     dv_ws_hide_play_blur(frame);
     for (list = 0; list < 2u; list++) {
