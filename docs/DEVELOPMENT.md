@@ -1252,20 +1252,46 @@ worked examples this one follows.
     the reload written by hand: before, the HUD at its 4:3 place on the
     black screen; after, at the edge throughout. `tests/test_widescreen.py` checks it
     (writes the reload, expects `present_native_43` 0).
-  - *A transition effect* (`g_Transition`, effect 2 from RAM over test
-    state 10): presented 4:3 on purpose (above), and the frozen picture is a
-    copy of the 4:3 frame buffer, which is faithful: the HUD at its 4:3
-    place, inside the 4:3 frame. Left as is. What would fix it: psxrecomp
-    PR #692 (merged 2026-10-19, after our pin f9c287f; it applies cleanly)
-    continues 15-bit frame-buffer copies into the bands from the source
-    buffer's wide surface, so effects 0, 1, 2 and 7 (all full-width
-    sprites) could stay wide; but the centre of each copy still comes from
-    the 4:3 buffer, so the HUD would show twice (4:3 copy in the centre,
-    shifted copy in the band). The frozen frame would need to be drawn
-    without the HUD, and the effect starts in the same main-loop pass that
-    the script asks for it (mode handler, then TransitionUpdate, then
-    FrameDraw: the copy is of the frame before), after StageReset /
-    StageTeardown for effects 0 and 7, so there is no clean frame to freeze.
+  - *A transition effect* (`g_Transition`; the player still saw it on
+    2026-11-19 after the fix above): the effects were presented at 4:3 (the
+    copies of the previous picture covered only the 384 columns), so the
+    whole picture, HUD included, jumped into a pillarboxed 4:3 frame. Fixed
+    for effects 0, 1, 2 and 7, which are built only from full-width 15-bit
+    sprite copies: the plugin keeps them wide and tags those copies
+    (`dv_ws_tag_transition`, in the ModelWeldReset hook: the chain on
+    `g_Transition.ot[frame]`, sprites of a 15-bit page at least 128 wide),
+    and the renderer continues each into the margins from the source
+    buffer's wide surface: psxrecomp PR #692 as local patch
+    `patches/psxrecomp/0002`, plus `0003`. Why the HUD comes out right:
+    the 4:3 frame buffer does not hold the HUD at its 4:3 place; read back
+    from the GL VRAM (`gl_fbo_peek`) in wide play it holds the HUD already
+    moved to the edge and cut at x 0, so centre (4:3 buffer) plus margins
+    (wide surface) are exactly the previous wide picture. (An earlier note
+    here guessed the HUD would show twice; the VRAM read said otherwise.)
+    Three things `0003` fixes, all measured on effect 2 from RAM over test
+    state 10, brightness of the left margin against the centre: PR #692
+    copied nothing for Dragon Valor (both buffers at base_x 0 share one wide
+    surface, and the PR skipped a source equal to the target: margins stayed
+    the live world); its band shader rounded an rgb 127 pass back up, so the
+    margins brightened (42 to 61) while the centre faded; and the centre
+    itself stopped at a dark grey (~17 of 255 with bilinear, ~50 with
+    nearest; effect 7 with nearest did not darken at all, as the decomp's
+    r2B_transitions.c had noted for the GL renderer) because `TEX_FS` kept
+    the modulated 15-bit texel unrounded. After: effect 2 fades centre and
+    margins to black together. Effect 7 (CONTINUE) darkens from the top and
+    bottom in the margins as on the PS1, while with bilinear filtering the
+    centre darkens everywhere a little earlier (the filter blurs every
+    feedback pass); both end black. Effect 0 (next stage): the margins fade
+    to black, the centre turns light under the sparkles, as it already did
+    at 4:3 in the GL renderer (not chased). The right copies are 129 wide;
+    their last column, VRAM x 384, is texture memory (clipped on a console)
+    and drew a coloured line at the 4:3 edge that the margin's own copy
+    carried on, so the plugin narrows them to 128 (same 4:3 picture). The
+    melt (3), the shatter (9) and the unused 4, 5, 6, 8 still present at
+    4:3. `tests/test_widescreen.py` checks effect 2 stays wide with its
+    copies tagged and effect 3 goes 4:3 (11/11, also with the render
+    thread). Captures: scratch `ws_trans.py` / `ws_trans_series.py` (start
+    an effect from RAM, shoot, measure the regions).
 - **Culling: left stock** (widened at 14:00 on 2026-10-15, withdrawn the
   same evening). `psxrecomp-analyze SLUS_010.92 --scan-widescreen
   --emit-ws-sites` (`cmake --build build-recompiler --target

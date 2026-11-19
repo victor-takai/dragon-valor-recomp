@@ -124,15 +124,34 @@ def main(argv):
             cli("press", "triangle:6")
             time.sleep(2.5)
             check("wide again after the menu", native43() == 0, f"present_native_43 {native43()}")
-            write_word(TRANSITION + 4, 2)       # the common scene change (scroll-flicker)
+            # The common scene change (effect 2, scroll-flicker) stays wide:
+            # its full-width frame-buffer copies are tagged and continued
+            # into the margins (patches/psxrecomp/0002 + 0003); the melt
+            # (effect 3, quads) still presents at 4:3.
+            def counter(name):
+                for c in rpc(port, "mod_counters").get("counters", []):
+                    if c.get("name") == name:
+                        return c.get("count", 0)
+                return 0
+            tagged0 = counter("dv.ws.transition_copies_tagged")
+            write_word(TRANSITION + 4, 2)
             write_word(TRANSITION, 1)
             time.sleep(0.6)
-            check("screen transition at 4:3", read_word(TRANSITION) != 0 and native43() == 1,
-                  f"state {read_word(TRANSITION)} present_native_43 {native43()}")
+            tagged = counter("dv.ws.transition_copies_tagged") - tagged0
+            check("scene-change transition (effect 2) stays wide, its copies tagged",
+                  read_word(TRANSITION) != 0 and native43() == 0 and tagged > 0,
+                  f"state {read_word(TRANSITION)} present_native_43 {native43()} copies tagged {tagged}")
             # A transition started from RAM over play reuses the stage's work
             # area (the effects allocate from g_GameState.arena), so the stage
             # cannot resume after it: reload the state instead (a real scene
             # change loads the next stage first).
+            print("  reload:", cli("state", "load", slot).splitlines()[-1])
+            time.sleep(3)
+            write_word(TRANSITION + 4, 3)
+            write_word(TRANSITION, 1)
+            time.sleep(0.6)
+            check("melt transition (effect 3) at 4:3", read_word(TRANSITION) != 0 and native43() == 1,
+                  f"state {read_word(TRANSITION)} present_native_43 {native43()}")
             print("  reload:", cli("state", "load", slot).splitlines()[-1])
             time.sleep(3)
             check("wide again after the transition (state reloaded)",

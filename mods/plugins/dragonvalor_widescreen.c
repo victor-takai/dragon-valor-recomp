@@ -64,8 +64,27 @@
  *     copy: a lighter 4:3 rectangle in a wide frame. A native-scene
  *     predicate (gpu_ws_set_native_scene_predicate: nonzero = present this
  *     frame at 4:3 with side bars) says so for mode 7, while a transition
- *     runs (g_Transition.state != 0) and while the blur is on in an event
- *     scene (sub-mode 5), sampled once per VBlank like the world predicate.
+ *     other than the wide ones below runs (g_Transition.state != 0) and while
+ *     the blur is on in an event scene (sub-mode 5), sampled once per VBlank
+ *     like the world predicate.
+ *
+ *   - Wide transitions (2026-11-19; the player saw the HP / MP block jump to
+ *     its 4:3 place at every scene change, because the frame went 4:3 with
+ *     the transition). Effects 0, 1, 2 and 7 (the next stage, four stages'
+ *     scripts, the common scene change, CONTINUE) are built only from
+ *     full-width 15-bit sprites that copy the previous picture, 256 + 129
+ *     columns from x 0. The hook tags each of them, in the chain of the
+ *     buffer about to be drawn, as a frame-buffer feedback rectangle
+ *     (gpu_ws_tag_feedback_rect, psxrecomp PR #692, our local patch
+ *     patches/psxrecomp/0002): where a copy touches the draw area's edge the
+ *     renderer continues it into the margin from the source buffer's own
+ *     wide surface. The 4:3 buffer already holds the HUD where the wide
+ *     frame shows it (moved to the edge, cut at x 0), so centre and margins
+ *     together are the previous wide picture: it freezes, scrolls and fades
+ *     at full width, HUD at the edges. The 97 small sparkle copies of effect
+ *     0 stay in the 4:3 area. The melt (3, soft reset and the attract demo,
+ *     quads), the ending title's shatter (9) and the unused 4, 5, 6, 8
+ *     still present at 4:3.
  *
  *   - The blur in play (side bars during a special attack, player's report
  *     2026-11-17). The hero's script (action pack entry 2, two moves) and
@@ -88,8 +107,10 @@
  *     repeats it into the side margins only.
  *
  * The only guest RAM written is the lens packets of the buffer about to be
- * drawn and, while a blur runs in play, one link of the ordering table being
- * built. Everything is inert unless the package is enabled: activation is
+ * drawn, while a blur runs in play one link of the ordering table being
+ * built, while a wide transition runs the width of its right copies (129 to
+ * 128: the last column is texture memory, clipped on a console), and the
+ * corners of the flying pick-up icon (below). Everything is inert unless the package is enabled: activation is
  * the only thing that sets s_enabled, and the predicates check it first;
  * the hook runs only while the package's plan is active.
  */
@@ -118,6 +139,10 @@
 void gpu_ws_set_native_scene_predicate(int (*predicate)(void));
 void gpu_ws_tag_repeat_rect(uint32_t prim, int32_t period);
 void gpu_ws_tag_hud_prim(uint32_t prim, int anchor);
+void gpu_ws_tag_feedback_rect(uint32_t prim);   /* patches/psxrecomp/0002 */
+
+/* The transitions drawn at full width (see the header): effects 0, 1, 2, 7. */
+#define DV_WIDE_EFFECTS ((1u << 0) | (1u << 1) | (1u << 2) | (1u << 7))
 
 static int s_enabled;
 /* The predicate runs on every primitive and GTE projection, so the mode byte
@@ -145,10 +170,17 @@ static int dv_ws_event_blur(void)
     return psx_mod_read_byte(DV_BLUR_ON) != 0u && psx_mod_read_byte(DV_SUBMODE) == DV_SUB_EVENT;
 }
 
+/* A transition runs that is drawn at full width (header). */
+static int dv_ws_wide_transition(void)
+{
+    const uint32_t effect = psx_mod_read_word(DV_TRANSITION + 4u);
+    return psx_mod_read_word(DV_TRANSITION) != 0u && effect < 32u && ((DV_WIDE_EFFECTS >> effect) & 1u);
+}
+
 static int dv_ws_native_live(void)
 {
     return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_MENU ||
-                         psx_mod_read_word(DV_TRANSITION) != 0u ||
+                         (psx_mod_read_word(DV_TRANSITION) != 0u && !dv_ws_wide_transition()) ||
                          dv_ws_event_blur());
 }
 
@@ -388,6 +420,48 @@ static void dv_ws_tag_hud(void)
     }
 }
 
+/* A wide transition (header): its chain for this buffer hangs on
+ * g_Transition.ot[frame], drawn by FrameDraw after the frame. Every sprite
+ * of it that copies a frame buffer (15-bit texture page) across the full
+ * width (at least 128 wide: the 256 / 129 halves; the sparkles are 16..19)
+ * is tagged; the renderer continues it into the margins. The texture page
+ * is the last DR_TPAGE seen along the chain (each sprite is merged with its
+ * own). Bounded walk, read only. */
+static void dv_ws_tag_transition(uint32_t frame)
+{
+    uint32_t p, n, tp_mode = 0u, tagged = 0u;
+    if (!dv_ws_wide_transition()) return;
+    p = psx_mod_read_word(DV_TRANSITION + 0x10u + frame * 4u);
+    for (n = 0; n < 1024u && dv_ws_ram_ptr(p); n++) {
+        const uint32_t head = psx_mod_read_word(p), len = head >> 24, next = head & 0x00FFFFFFu;
+        uint32_t w = p + 4u, end = p + 4u + len * 4u;
+        while (w < end) {
+            const uint32_t word = psx_mod_read_word(w), c = word >> 24;
+            if (c == 0xE1u) tp_mode = (word >> 7) & 3u;
+            else if (c != 0u && (c < 0xE2u || c > 0xE6u)) break;
+            w += 4u;
+        }
+        if (w + 16u <= end) {   /* a SPRT: command, xy, uv / CLUT, wh */
+            const uint32_t c = psx_mod_read_word(w) >> 24;
+            const uint32_t wh = psx_mod_read_word(w + 12u), width = wh & 0xFFFFu;
+            const int x = (int16_t)(psx_mod_read_word(w + 4u) & 0xFFFFu);
+            if (c >= 0x64u && c <= 0x67u && tp_mode == 2u && width >= 128u && width <= 1024u) {
+                /* The right copies are 129 wide: their last column is VRAM
+                 * x 384, texture memory, clipped on a console by the 384-wide
+                 * draw area. In the wide frame it lands in the margin's first
+                 * column and the margin's own copy carries it on, a coloured
+                 * line at the 4:3 edge; 128 draws the same 4:3 picture. */
+                if (x == 256 && width == 129u) psx_mod_write_word(w + 12u, (wh & 0xFFFF0000u) | 128u);
+                gpu_ws_tag_feedback_rect(w - 4u);
+                tagged++;
+            }
+        }
+        if (next == 0x00FFFFFFu) break;
+        p = next | 0x80000000u;
+    }
+    if (tagged) psx_mod_counter_add("dv.ws.transition_copies_tagged", tagged);
+}
+
 static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
 {
     uint32_t frame, list, i, k, hidden = 0;
@@ -397,6 +471,7 @@ static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
     frame = psx_mod_read_byte(DV_RENDER_FRAME) & 1u;
     dv_ws_tag_dialogue_border(frame);
     dv_ws_tag_hud();
+    dv_ws_tag_transition(frame);
     dv_ws_hide_play_blur(frame);
     for (list = 0; list < 2u; list++) {
         uint32_t count = psx_mod_read_word(DV_RENDER_COUNTS + list * 4u);

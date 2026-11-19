@@ -87,10 +87,14 @@ the native 60 Hz version.
   (town of 1/7) were the left-side twin of the noise block (off-frame
   lens sprites drawn inverted) and are collapsed by the same hook. Black
   wedges where a room's mesh ends stay (no geometry there; a sliver of
-  them shows at the 4:3 edge on a console). During a screen transition the
-  frozen picture still shows the HUD at its 4:3 place, inside the 4:3 frame
-  (the copy is of the 4:3 frame buffer; see DEVELOPMENT.md).
-  `tests/test_widescreen.py on|off` 10/10 and 4/4 (test state 10);
+  them shows at the 4:3 edge on a console). Since 2026-11-19 the scene
+  changes (effects 0, 1, 2 and 7) run at full width, HUD at the edges: the
+  plugin tags their frame-buffer copies and the renderer continues them
+  into the margins (psxrecomp PR #692 + a fix of ours, local patches
+  `psxrecomp/0002`, `0003`; 0003 also makes the GL 127/128 fades reach
+  black). The melt (soft reset, attract demo) and the ending title's
+  shatter stay 4:3. `tests/test_widescreen.py on|off` 11/11 and 4/4 (test
+  state 10);
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see
   `DEVELOPMENT.md`, *This project's package:
@@ -255,8 +259,8 @@ the native 60 Hz version.
    config switch exists; 58 of them, 2 GB, had piled up in one afternoon of
    scripted runs).
 5. Widescreen follow-ups: a check of chapters 3+ and the field module
-   (chapter 2's first stage is fine), a real Fit resize, the HUD inside
-   the frozen picture of a screen transition (still at its 4:3 place); see
+   (chapter 2's first stage is fine), a real Fit resize, the light centre
+   of the next-stage transition (effect 0) in the GL renderer; see
    `BACKLOG.md`, section F.
 6. Hitches where many enemies are on screen (player, 2026-11-18): the frame
    ran at its 16.7 ms limit with the GL calls on the emulation thread; the
