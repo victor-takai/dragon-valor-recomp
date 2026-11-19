@@ -35,13 +35,17 @@ ending and the Linux / macOS builds are untested
 
 ## Features
 
-- Native 60 fps, 1080p by default, PGXP for steadier 3D
-- In-game menu: pause, save states (with confirmations), video and audio settings
-- Cheats: infinite HP / MP, more drops, Val, stats, spells and items
-- Widescreen (experimental), Skip Intro, rewind and turbo
-- Play as (experimental): any of the nine heroes in every stage, holding
-  any of the game's weapons (Azos, Soul, Kadum, Igunis and five more)
+- Runs natively at 60 fps, rendered at 1080p by default, with PGXP for
+  steadier 3D
+- An in-game menu to pause, save and load states, change the video and
+  sound settings, use the cheats and warp to another stage
+- Twelve save-state slots, each with a picture and the date it was saved
+- Cheats: infinite HP and MP, more drops, Val, stats, spells and items
+- Skip Intro, rewind and turbo
 - Xbox, PlayStation and Switch pads, or the keyboard
+- Two experimental options: Play as, to play every stage as any of the
+  nine heroes holding any of the game's weapons, and widescreen, with the
+  HUD at the screen edges
 
 ## Playing
 
@@ -53,10 +57,12 @@ ending and the Linux / macOS builds are untested
 3. In the launcher, point it at your `Dragon Valor (USA) (Disc 1).cue`
    ([`DISC.md`](DISC.md) lists the dumps that work) and press **Play**.
 
-In the game, **Esc** (or **Select + Start** on the pad) opens the menu.
-Cheats, Skip Intro, widescreen, Play as and HD texture packs are switched on in the
-launcher's **Mods** page. Keys and buttons: [`CONTROLS.md`](CONTROLS.md).
-Memory card saves live in `saves/`.
+In the game, **Esc** or **Select + Start** on the pad opens the menu, and
+**F7** or **Select + R1** the save states. Cheats, Skip Intro, widescreen
+and HD texture packs are switched on in the launcher's **Mods** page; Play
+as is on from the start, and its hero and weapon are picked in the menu.
+Keys and buttons: [`CONTROLS.md`](CONTROLS.md). Memory card saves live in
+`saves/`.
 
 Found a bug? [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md) says what to test
 and what to attach.
