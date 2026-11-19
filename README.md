@@ -35,17 +35,12 @@ ending and the Linux / macOS builds are untested
 
 ## Features
 
-- Runs natively at 60 fps, rendered at 1080p by default, with PGXP for
-  steadier 3D
-- An in-game menu to pause, save and load states, change the video and
-  sound settings, use the cheats and warp to another stage
-- Twelve save-state slots, each with a picture and the date it was saved
-- Cheats: infinite HP and MP, more drops, Val, stats, spells and items
+- Native 60 fps at 1080p, with PGXP
+- In-game menu with save states, cheats and settings
+- Play as any of the nine heroes
+- Widescreen
 - Skip Intro, rewind and turbo
 - Xbox, PlayStation and Switch pads, or the keyboard
-- Two experimental options: Play as, to play every stage as any of the
-  nine heroes holding any of the game's weapons, and widescreen, with the
-  HUD at the screen edges
 
 ## Playing
 
