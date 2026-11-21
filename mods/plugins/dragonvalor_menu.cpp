@@ -86,9 +86,8 @@ const char* const kSecretChoices[] = {"Cut prologue scene (0/5)", "Marble corrid
                                       "Japanese world map (1/14)", "Japanese world map, copy (1/16)"};
 const SecretStage kSecrets[] = {
     {0, 5, 0, "the cut prologue scene",
-     "A forest scene cut from the prologue: a girl in an orange dress (Elena, Clovis's sister, going by the "
-     "narration that follows), someone blond in red, Clovis and a pink dragon. Its lines are Japanese, which the "
-     "US font shows as stray letters.",
+     "A forest scene cut from the prologue: Raimun finds Elena, Clovis's sister, dead, and a dragon offers him "
+     "revenge. Its lines were left in Japanese; this recomp shows them in an English translation.",
      "About a minute long; then chapter 1 starts."},
     {1, 24, 0, "the marble corridor",
      "A castle corridor that no exit leads to: white marble walls, a wooden door, a room with green curtains.",

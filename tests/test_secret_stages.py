@@ -18,7 +18,12 @@ world map). Checks:
      ends (areaPhase / stagePhase 0x800A2D14 / 0x800A2D18 back to 0) and the
      game is in the stage's mode (g_GameFlow.mode 0x8008634C: 8 for an action
      or scene stage, 10 for a world map);
-  3. the guest still runs 3 s later (the frame counter moves).
+  3. the guest still runs 3 s later (the frame counter moves);
+  4. in 0/5, the room's message table (g_EventVm.messages) points at the
+     English lines dragonvalor_cheats.c wrote ({pos 88,188}"..." first);
+  5. the trip's argument bytes (g_CdUnused8768) are zero again;
+  6. test state 9 still loads afterwards (the trip leaves the save-state
+     layout alone: no expansion memory).
 A picture of each stage is written to --shots (default <build>/test_shots).
 The player's settings.toml, dragonvalor_settings.toml and mods/state.toml
 are backed up and restored. Exit code 0 on PASS.
@@ -37,6 +42,9 @@ DV = str(ROOT / "tools" / "dvdbg.py")
 HPMAX = 0x8008A5B0
 MODE, AREA, STAGE = 0x8008634C, 0x800A2F18, 0x800A2F1A
 AREA_PHASE, STAGE_PHASE = 0x800A2D14, 0x800A2D18
+EVENT_MESSAGES = 0x8009FA18          # g_EventVm.messages
+TRIP_ARGS = 0x80078768               # g_CdUnused8768, the trip's argument bytes
+ENGLISH_MESSAGE0 = [0x90B2, 0x1180, 0x1180, 0x1180]   # {pos 88,188}"..." of "...Elena?!"
 SECTIONS = ["Game", "Hero", "Cheats", "Magic", "Items", "Warp", "Video", "Options"]
 WARP_ROWS = ["Area", "Stage", "Go now", "Secret stage", "Go to secret stage"]
 # (name, area, stage, mode once there)
@@ -134,6 +142,19 @@ def run(port, index, shots):
     rpc(port, "present_shot", path=str(out))
     time.sleep(1)
     print(f"  picture: {out}")
+    if (area, stage) == (0, 5):
+        table = rd(EVENT_MESSAGES, 4)
+        m0 = rd(table, 4) if table >> 21 == 0x80000000 >> 21 else 0
+        words = [rd(m0 + 2 * i) for i in range(4)] if m0 else []
+        check(f"the scene's messages are the English ones (message 0 at {m0:08X}: "
+              f"{' '.join(f'{w:04X}' for w in words)})", words == ENGLISH_MESSAGE0)
+    check(f"args scratch g_CdUnused8768 is zero again", rd(TRIP_ARGS, 4) == 0)
+    # A state saved before the trip must still load (no layout change).
+    r = subprocess.run([sys.executable, DV, "state", "load", "9", "--port", str(port)],
+                       capture_output=True, text=True, timeout=60)
+    time.sleep(2)
+    check(f"test state 9 loads after the trip ({(r.stdout + r.stderr).strip().splitlines()[-1][:70]})",
+          r.returncode == 0 and rd(HPMAX) != 0 and runs())
     return results
 
 
