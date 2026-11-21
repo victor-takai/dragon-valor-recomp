@@ -144,15 +144,14 @@ static void dv_cheats_vblank(void)
                       DV_SCROLL_CAP, g_scroll_every);
 }
 
-/* --- trips: the in-game menu's Warp > Secret stage --------------------------
- * The menu sets dv_trip_area / dv_trip_stage / dv_trip_map and then
- * dv_trip_request. At the first quiet frame of an action stage (plain play:
+/* --- trips: the in-game menu's Warp > Cut prologue scene ---------------------
+ * The menu sets dv_trip_area / dv_trip_stage and then dv_trip_request. At the first quiet frame of an action stage (plain play:
  * mode 8 sub-mode 7, no pause, no event script, no stage or area load, every
  * load row idle) the hook below calls the game's own ModeTransition
  * (0x80025264, object native 3 / event native 2), as a stage exit would:
  * kind 0 (area and stage deltas, the module kept; kind 1, the stage delta
- * alone, inside the area) for an action or scene stage, kind 3 (deltas,
- * MAP.BIN) for a world map. The game then resets the
+ * alone, inside the area), for an action or scene stage (a world map would
+ * take kind 3, into MAP.BIN). The game then resets the
  * stage, loads the area header and the stage, and asks for the other disc
  * itself when the area needs it (decomp src/main/objscript.c).
  *
@@ -179,7 +178,7 @@ static void dv_cheats_vblank(void)
 #define DV_TRIP_ARGS        0x80078768u   /* g_CdUnused8768: { kind, area delta, stage delta, 0 } */
 
 volatile int dv_trip_request = 0;   /* set by the menu; cleared when the trip starts */
-volatile int dv_trip_area = 0, dv_trip_stage = 0, dv_trip_map = 0;
+volatile int dv_trip_area = 0, dv_trip_stage = 0;
 
 static int dv_trip_quiet(void)
 {
@@ -203,7 +202,7 @@ static void dv_trip_frame(struct CPUState* cpu, uint32_t address)
     da = dv_trip_area - (int16_t)psx_mod_read_half(DV_STAGE_AREA);
     ds = dv_trip_stage - (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
     if (da < -128 || da > 127 || ds < -128 || ds > 127) return;
-    kind = dv_trip_map ? 3 : da ? 0 : 1;
+    kind = da ? 0 : 1;
     psx_mod_write_word(DV_TRIP_ARGS, (uint32_t)kind | (uint32_t)(uint8_t)(int8_t)da << 8 |
                                      (uint32_t)(uint8_t)(int8_t)ds << 16);
     fprintf(stderr, "%s: trip to %d/%d (ModeTransition kind %d)\n", DV_PLUGIN_ID, dv_trip_area, dv_trip_stage, kind);
@@ -211,22 +210,16 @@ static void dv_trip_frame(struct CPUState* cpu, uint32_t address)
     psx_mod_write_word(DV_TRIP_ARGS, 0);
 }
 
-/* --- the cut scenes in English ---------------------------------------------
- * Two stages that only Warp > Secret stage reaches play event scripts whose
- * messages are the Japanese release's: kana in the cells where the US font
- * has its accented letters, kanji of a sheet the disc no longer has.
- *   0/5 room 1: a scene cut from the prologue (22 messages, file 80 entries
- *   4..25);
- *   1/24 room 1: an early draft of the scene where Clovis finds Princess
- *   Celia (the game has it as 1/15 room 10; 21 messages, file 80 entries
- *   4..24). It starts when the hero walks to the door at the end of the
- *   corridor (the room pack's object script: object native 10 within 1500
- *   units of (0, -4000)).
- * They were read and translated on 2026-11-21 (the Japanese, rebuilt, is in
- * the decomp's docs/SECRETS.md). The names are the US release's: Celia,
- * Raxis, Volef; the choice of 1/24 is worded as in 1/15.
+/* --- the cut prologue scene in English --------------------------------------
+ * 0/5 (Warp > Cut prologue scene) plays a scene cut from the prologue whose
+ * 22 messages (room 1 event pack, file 80, entries 4..25) are the Japanese
+ * release's: kana in the cells where the US font has its accented letters,
+ * kanji of a sheet the disc no longer has. They were read and translated on
+ * 2026-11-21 (the Japanese, rebuilt, is in the decomp's docs/SECRETS.md,
+ * with 1/24's Celia draft, whose English this plugin also showed until the
+ * corridor left the menu).
  *
- * While a room's message table (g_EventVm.messages, op 62) still points at
+ * While the room's message table (g_EventVm.messages, op 62) still points at
  * the Japanese message 0, the VBlank below writes the English, in the US
  * font's glyph code (decomp docs/EVENT_SCRIPT.md, "Text": glyph = advance
  * << 10 | column << 5 | row, 21 cells a row; control words 0x8000 new line,
@@ -238,9 +231,11 @@ static void dv_trip_frame(struct CPUState* cpu, uint32_t address)
  * under 0x801FFFF4 (the game runs on the scratchpad stack and switches there
  * for the CD, sound and object-script calls); from 0x801D1698 to 0x801FF698
  * RAM stayed zero in 1/24. The text is written only while the stage's arena
- * starts 64 KB or more below it. Main RAM only, so a save state taken during
- * a scene keeps the English and loads anywhere (no expansion memory: that
- * changes the save-state layout). */
+ * starts 64 KB or more below it. The first version wrote over 0/5's
+ * description bank (a Japanese leftover there); a stage whose bank is the
+ * English one the magic menu reads could not spare it. Main RAM only, so a
+ * save state taken during the scene keeps the English and loads anywhere
+ * (no expansion memory: that changes the save-state layout). */
 #define DV_EVENT_MESSAGES   0x8009FA18u   /* g_EventVm.messages (u16 **) */
 #define DV_EVENT_MSG_COUNT  0x8009FA1Cu   /* g_EventVm.messageCount */
 #define DV_ARENA2           0x800A2CA0u   /* g_GameState.row[7].buffer[1] (GS_ARENA2) */
@@ -276,33 +271,8 @@ static const char* const kCutScene[22] = {
     "{color 3}Dragon:",
 };
 
-static const char* const kCelia[21] = {
-    "......?!{speed 30}\nT{speed 0}hat's strange...\nOnly this door is locked...",                  /* Clovis */
-    "{pos 88,176}<What to do?>{speed 30}{instant 120,188}{color 3}B{speed 0}reak down the door.\n"
-        "Ignore it and move on.",                                                                     /* the choice */
-    "Monsters! It's no use hiding!",                                                                  /* broken down */
-    "...Oh, never mind.{speed 30}\nF{speed 0}inding the dragon comes first.",                       /* moved on */
-    "......?!",
-    "Who is there?\nWhat is all this noise...",                                                      /* the girl */
-    "What? Who are you?\nStay in a place like this and\nthe monsters will kill you.",
-    "Oh...?!{speed 30}\nY{speed 0}ou are not one of Volef's men?",
-    "Then forgive my rudeness.\nI am Celia, first princess of\nthe Kingdom of Raxis.",
-    "I know not who you are, but\nI thank you for saving me.",
-    "......{speed 30}\n({speed 0}I didn't exactly come here\nto save her...)",
-    "I've killed every monster here.\nSorry, but get yourself out.\nI still have work to do...",
-    "But you, all alone...{speed 10}\nO{speed 0}ur kingdom's knights will help.\nTogether, let us defeat Volef.",
-    "Heh heh heh...{speed 10}\nC{speed 0}an those knights of yours\nbeat a dragon?",
-    "......?!",
-    "My foe isn't small fry like Volef.\nIt's the dragon in this castle.\n...I can squeeze it out of Volef.",
-    "A dragon...{speed 30}\n.{speed 0}..I see.{speed 30}\nT{speed 0}hen, sir swordsman... Good luck.",
-    "Yeah. You too...",
-    "{color 2}Clovis:",                                                                              /* speaker names */
-    "{color 1}Girl:",
-    "{color 1}Celia:",
-};
-
 /* The rooms, known by their Japanese message 0: {pos 88,188}...Elena?! in
- * kana (0/5) and {pos 88,188}......?! (1/24). */
+ * kana (0/5). */
 static const struct {
     int16_t area, stage;
     uint32_t count;
@@ -310,7 +280,6 @@ static const struct {
     const char* const* text;
 } kScenes[] = {
     {0, 5, 22, {0x90B2, 0x31EC, 0x3288, 0x320A}, kCutScene},
-    {1, 24, 21, {0x90B2, 0x31EC, 0x31EC, 0x2564}, kCelia},
 };
 
 /* US font cells of ASCII 0x20..0x7E: {row x 21 + column, advance}; 0xFFFF none. */

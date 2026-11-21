@@ -69,40 +69,16 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_DISC1       "dv.disc.1"
 #define DV_KEY_DISC2       "dv.disc.2"
 #define DV_KEY_GO_NOW      "dv.warp.go"
-#define DV_KEY_SECRET      "dv.warp.secret"
 #define DV_KEY_SECRET_GO   "dv.warp.secret_go"
-/* Warp > Secret stage: the stages of disc 1 that nothing in the game leads to
- * (the decomp's tools/stages.py walks every way a stage is picked; its
- * docs/SECRETS.md). Reached by a trip, the game's own ModeTransition called
- * at a quiet frame (dragonvalor_cheats.c): kind 0 / 1 for an action or scene
- * stage, kind 3 (MAP.BIN) for a world map. */
-struct SecretStage {
-    int area, stage, map;
-    const char* name;   /* the dialog's title: "Go to <name>?" */
-    const char* what;   /* the dialog's body */
-    const char* out;    /* how the player gets back */
-};
-const char* const kSecretChoices[] = {"Cut prologue scene (0/5)", "Marble corridor (1/24)",
-                                      "Japanese world map (1/14)", "Japanese world map, copy (1/16)"};
-const SecretStage kSecrets[] = {
-    {0, 5, 0, "the cut prologue scene",
-     "A forest scene cut from the prologue: Raimun finds Elena, Clovis's sister, dead, and a dragon offers him "
-     "revenge. Its lines were left in Japanese; this recomp shows them in an English translation.",
-     "About a minute long; then chapter 1 starts."},
-    {1, 24, 0, "the marble corridor",
-     "A castle corridor no exit leads to. Walk up to the wooden door: an early draft of the scene where Clovis "
-     "finds Princess Celia plays, its Japanese lines shown in English.",
-     "Break the door down and the scene ends on a white screen; the stage has no way out either: load a save "
-     "state to come back."},
-    {1, 14, 1, "the Japanese world map",
-     "Chapter 1's world map from the Japanese release, left on this disc: a Japanese name plate and commands. "
-     "Status shows stray accented letters where the Japanese text was.",
-     "Its one destination is the Alchemy Research Tower."},
-    {1, 16, 1, "the second Japanese world map",
-     "A second copy of the Japanese release's world map of chapter 1.",
-     "Its one destination is the Alchemy Research Tower."},
-};
-#define DV_SECRETS 4
+/* Warp > Cut prologue scene: stage 0/5, a scene cut from the prologue that
+ * nothing in the game leads to (the decomp's tools/stages.py walks every way a
+ * stage is picked; its docs/SECRETS.md). Reached by a trip, the game's own
+ * ModeTransition called at a quiet frame (dragonvalor_cheats.c, kind 0). The
+ * other stages nothing reaches (the corridor 1/24, the Japanese world maps
+ * 1/14 and 1/16) were offered too until 2026-11-21 and taken out at the
+ * player's request. */
+#define DV_SECRET_AREA  0
+#define DV_SECRET_STAGE 5
 #define DV_KEY_PLAY_AS     "dv.heroswap.hero"
 #define DV_KEY_HERO_APPLY  "dv.heroswap.apply"
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
@@ -246,13 +222,9 @@ const RecompRuntimeUiItem kItems[] = {
     DV_ROW_ACTION(DV_KEY_GO_NOW, "Warp", "Go now",
                   "End the stage with a Game Over and Continue into the area and stage above, in about 10 "
                   "seconds. Make a save state first: skipped stages can leave items and keys behind."),
-    {DV_KEY_SECRET, "Warp", "Secret stage",
-     "Stages left on disc 1 that nothing in the game leads to: a cut prologue scene, a hidden corridor and the "
-     "Japanese release's world map.",
-     RECOMP_RUNTIME_UI_CHOICE, 0, DV_SECRETS - 1, 1, kSecretChoices, DV_SECRETS, nullptr},
-    DV_ROW_ACTION(DV_KEY_SECRET_GO, "Warp", "Go to secret stage",
-                  "Leave this stage for the secret stage above, as an exit would: no Game Over. Make a save state "
-                  "first: not every secret stage has a way out."),
+    DV_ROW_ACTION(DV_KEY_SECRET_GO, "Warp", "Cut prologue scene",
+                  "Watch a scene cut from the prologue, left on disc 1, its Japanese lines in English. Leaves "
+                  "this stage as an exit would: no Game Over. Make a save state first."),
 
     DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_FULLSCREEN, "Video", "Fullscreen", "Fill the screen, or play in a window."),
     DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_LINEAR_FILTER, "Video", "Smooth picture",
@@ -292,7 +264,6 @@ struct Menu {
     bool pause_in_menu = true;
     int dim = RECOMP_RUNTIME_UI_DEFAULT_DIM_PERCENT, opacity = 100;
     int slot = 1;                  /* 1-based state slot shown; runtime slot = slot - 1 */
-    int secret = 0;                /* Warp > Secret stage: index into kSecrets */
     /* mirrors of the mod selection (the catalogue is the host's) */
     int cheat_hp = 0, cheat_mp = 0, skip_intro = 0;
     int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
@@ -611,8 +582,8 @@ const PSXModPadTransform kWarpTransform = {
 
 bool warp_possible() { return !g_warp.phase && hero_loaded() && psx_mod_read_byte(DV_MODE) == 8; }
 
-/* ---- Warp > Secret stage: a trip (dragonvalor_cheats.c) --------------------- */
-extern "C" volatile int dv_trip_request, dv_trip_area, dv_trip_stage, dv_trip_map;
+/* ---- Warp > Cut prologue scene: a trip (dragonvalor_cheats.c) -------------- */
+extern "C" volatile int dv_trip_request, dv_trip_area, dv_trip_stage;
 /* dragonvalor.cheats is in the running plan: its hook makes the trip. */
 bool cheats_live() {
     char v[16];
@@ -693,7 +664,6 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, RECOMP_RUNTIME_UI_KEY_MENU_OPACITY)) { *out = m.opacity; return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU)) { *out = m.pause_in_menu; return 1; }
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { *out = m.slot; return 1; }
-    if (is(item, DV_KEY_SECRET)) { *out = m.secret; return 1; }
     if (is(item, DV_KEY_CHEAT_HP)) { *out = m.cheat_hp; return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { *out = m.cheat_mp; return 1; }
     if (is(item, DV_KEY_GEM_EVERY)) { *out = m.gem_every; return 1; }
@@ -860,11 +830,6 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
         return 1;
     }
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { m.slot = value; return 1; }
-    if (is(item, DV_KEY_SECRET)) {
-        m.secret = value < 0 ? 0 : value >= DV_SECRETS ? DV_SECRETS - 1 : value;
-        recomp_runtime_ui_set_status(m.ui, "");
-        return 0;
-    }
     if (is(item, DV_KEY_CHEAT_HP)) { m.cheat_hp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { m.cheat_mp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_mp", value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_GEM_EVERY)) { m.gem_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", text); return 1; }
@@ -1074,9 +1039,11 @@ bool ask_first(Menu& m, const RecompRuntimeUiItem* item) {
     }
     if (is(item, DV_KEY_SECRET_GO)) {
         if (m.host->netplay_active() || !trip_possible()) return false;
-        const SecretStage& s = kSecrets[m.secret];
-        std::snprintf(title, sizeof title, "Go to %s?", s.name);
-        std::snprintf(body, sizeof body, "%s %s%s Make a save state first.", s.what, s.out,
+        std::snprintf(title, sizeof title, "Go to the cut prologue scene?");
+        std::snprintf(body, sizeof body,
+                      "A forest scene cut from the prologue: Raimun finds Elena, Clovis's sister, dead, and a dragon "
+                      "offers him revenge. Its lines were left in Japanese; this recomp shows them in an English "
+                      "translation. About a minute long; then chapter 1 starts.%s Make a save state first.",
                       psx_mod_read_half(DV_AREA) >= 7 ? " The game asks for disc 1 first." : "");
         open_dialog(m, DV_DIALOG_ACTION, item, title, body, "Go", nullptr, false, 0);
         return true;
@@ -1124,12 +1091,10 @@ int cb_run_action(void* ctx, const RecompRuntimeUiItem* item) {
         if (m.host->netplay_active()) { recomp_runtime_ui_set_status(m.ui, "Not during netplay"); return 0; }
         if (!cheats_live()) { recomp_runtime_ui_set_status(m.ui, "Needs the Cheats mod (launcher)"); return 0; }
         if (!trip_possible()) { recomp_runtime_ui_set_status(m.ui, "Only in an action stage"); return 0; }
-        const SecretStage& s = kSecrets[m.secret];
-        dv_trip_area = s.area;
-        dv_trip_stage = s.stage;
-        dv_trip_map = s.map;
-        dv_trip_request = 1;   /* last: the emulation thread reads the three above once it sees this */
-        toast(m, "Secret stage", kSecretChoices[m.secret]);
+        dv_trip_area = DV_SECRET_AREA;
+        dv_trip_stage = DV_SECRET_STAGE;
+        dv_trip_request = 1;   /* last: the emulation thread reads the two above once it sees this */
+        toast(m, "Cut prologue scene", "Stage 0/5");
         set_open_locked(m, false);
         return 0;
     }

@@ -1,37 +1,28 @@
 #!/usr/bin/env python3
-"""Check the in-game menu's Warp > "Secret stage" / "Go to secret stage" rows
-on a debug build: each secret stage is reached from test state 10.
+"""Check the in-game menu's Warp > "Cut prologue scene" row on a debug build:
+the cut scene 0/5 is reached from test state 10 and shows in English.
 
-  python tests/test_secret_stages.py [INDEX ...] [--build build-debug] [--port N] [--shots DIR]
+  python tests/test_secret_stages.py [--build build-debug] [--port N] [--shots DIR]
 
-INDEX: 0 cut prologue scene (0/5), 1 marble corridor (1/24), 2 Japanese
-world map (1/14), 3 its copy (1/16); all four by default. For each one the
-test launches the build (muted, hidden window) from test state 10, opens the
-menu (Escape), enters the Warp section, steps the Secret stage row Right
-INDEX times, presses Enter on Go to secret stage and confirms the dialog
-(Enter on its focused Go button). Nothing else is pressed: the trip is the
-game's own ModeTransition, called by dragonvalor_cheats.c at the first quiet
-frame (kind 0 / 1 for an action or scene stage, kind 3 into MAP.BIN for a
-world map). Checks:
+The test launches the build (muted, hidden window) from test state 10, opens
+the menu (Escape), enters the Warp section, presses Enter on Cut prologue
+scene and confirms the dialog (Enter on its focused Go button). Nothing else
+is pressed: the trip is the game's own ModeTransition, called by
+dragonvalor_cheats.c at the first quiet frame (kind 0). Checks:
   1. the menu closes and the guest runs again;
-  2. g_StageSelect (0x800A2F18 / 0x800A2F1A) becomes the stage, the load
-     ends (areaPhase / stagePhase 0x800A2D14 / 0x800A2D18 back to 0) and the
-     game is in the stage's mode (g_GameFlow.mode 0x8008634C: 8 for an action
-     or scene stage, 10 for a world map);
+  2. g_StageSelect (0x800A2F18 / 0x800A2F1A) becomes 0/5, the load ends
+     (areaPhase / stagePhase 0x800A2D14 / 0x800A2D18 back to 0) and the game
+     is in mode 8 (g_GameFlow.mode 0x8008634C);
   3. the guest still runs 3 s later (the frame counter moves);
-  4. in 0/5 and 1/24, the room's message table (g_EventVm.messages) points
-     at the English lines dragonvalor_cheats.c wrote ({pos 88,188}"..."
-     first); in 1/24 the hero then walks down the corridor (Up) and into the
-     door's wall (Right), and the scene must start (g_EventVm.running), with
-     a second picture of it;
+  4. the room's message table (g_EventVm.messages) points at the English
+     lines dragonvalor_cheats.c wrote ({pos 88,188}"..." first);
   5. the trip's argument bytes (g_CdUnused8768) are zero again;
   6. test state 9 still loads afterwards (the trip leaves the save-state
      layout alone: no expansion memory).
-A picture of each stage is written to --shots (default <build>/test_shots).
+A picture of the scene is written to --shots (default <build>/test_shots).
 The player's settings.toml, dragonvalor_settings.toml and mods/state.toml
 are backed up and restored. Exit code 0 on PASS.
 """
-import shutil
 import subprocess
 import sys
 import time
@@ -46,17 +37,11 @@ HPMAX = 0x8008A5B0
 MODE, AREA, STAGE = 0x8008634C, 0x800A2F18, 0x800A2F1A
 AREA_PHASE, STAGE_PHASE = 0x800A2D14, 0x800A2D18
 EVENT_MESSAGES = 0x8009FA18          # g_EventVm.messages
-EVENT_MSG_COUNT = 0x8009FA1C         # g_EventVm.messageCount
-EVENT_RUNNING = 0x8009F9F8           # g_EventVm.running
-HERO_X = 0x8008A4E0 + 0x20           # g_Objects[0].pos[0] (pos[2] at +8)
 TRIP_ARGS = 0x80078768               # g_CdUnused8768, the trip's argument bytes
-# {pos 88,188}"..." of 0/5's "...Elena?!" and of 1/24's "......?!"
-ENGLISH_MESSAGE0 = [0x90B2, 0x1180, 0x1180, 0x1180]
+ENGLISH_MESSAGE0 = [0x90B2, 0x1180, 0x1180, 0x1180]   # {pos 88,188}"..." of "...Elena?!"
 SECTIONS = ["Game", "Hero", "Cheats", "Magic", "Items", "Warp", "Video", "Options"]
-WARP_ROWS = ["Area", "Stage", "Go now", "Secret stage", "Go to secret stage"]
-# (name, area, stage, mode once there)
-SECRETS = [("cut prologue scene", 0, 5, 8), ("marble corridor", 1, 24, 8),
-           ("Japanese world map", 1, 14, 10), ("Japanese world map, copy", 1, 16, 10)]
+WARP_ROWS = ["Area", "Stage", "Go now", "Cut prologue scene"]
+TARGET = (0, 5)
 
 
 def main(argv):
@@ -71,7 +56,6 @@ def main(argv):
             else:
                 shots = Path(args[i + 1]).resolve()
             del args[i:i + 2]
-    picks = [int(a) for a in args if a.isdigit()] or list(range(len(SECRETS)))
     bdir = ROOT / build
     shots = shots or bdir / "test_shots"
     shots.mkdir(parents=True, exist_ok=True)
@@ -84,15 +68,14 @@ def main(argv):
                                         bdir / "mods" / "state.toml") if f.is_file()}
     results = []
     try:
-        for i in picks:
-            print(f"[{i}] {SECRETS[i][0]} ({SECRETS[i][1]}/{SECRETS[i][2]})")
-            print("  launch:", cli("launch", "--state", "10", "--build", str(bdir)).splitlines()[-1])
-            time.sleep(9)
-            try:
-                results += run(port, i, shots)
-            finally:
-                cli("kill")
-                time.sleep(2)
+        print(f"cut prologue scene ({TARGET[0]}/{TARGET[1]})")
+        print("  launch:", cli("launch", "--state", "10", "--build", str(bdir)).splitlines()[-1])
+        time.sleep(9)
+        try:
+            results = run(port, shots)
+        finally:
+            cli("kill")
+            time.sleep(2)
     finally:
         for f, b in kept.items():
             f.write_bytes(b)
@@ -101,9 +84,9 @@ def main(argv):
     return 0 if ok else 1
 
 
-def run(port, index, shots):
+def run(port, shots):
     results = []
-    name, area, stage, mode = SECRETS[index]
+    area, stage = TARGET
 
     def frame():
         return rpc(port, "frame").get("frame")
@@ -125,30 +108,22 @@ def run(port, index, shots):
     def runs():
         f0 = frame(); time.sleep(0.8); return frame() != f0
 
-    def s32(a):
-        return int.from_bytes(bytes.fromhex(rpc(port, "read_ram", addr=f"{a:08X}", len=4)["hex"]), "little", signed=True)
-
-    def hold(mask, frames=6):
-        rpc(port, "press", buttons=0xFFFF & ~mask, frames=frames)   # PS1 pad words are active-low
-        time.sleep(0.15)
-
     if rd(HPMAX) == 0:
         sys.exit("no hero loaded (HPmax = 0): state 10 did not load")
     start = (rd(AREA), rd(STAGE))
     key("Escape"); time.sleep(0.5)
     key("Down", SECTIONS.index("Warp")); key("Return")
-    key("Down", WARP_ROWS.index("Secret stage")); key("Right", index)
-    key("Down"); key("Return"); time.sleep(0.4)   # the dialog
-    key("Return"); time.sleep(1.0)                # Go
+    key("Down", WARP_ROWS.index("Cut prologue scene")); key("Return"); time.sleep(0.4)   # the dialog
+    key("Return"); time.sleep(1.0)                                                      # Go
     check(f"the menu closes and the game runs (from {start[0]}/{start[1]})", runs())
     there, t0 = False, time.time()
     while time.time() - t0 < 40:
         if (rd(AREA), rd(STAGE)) == (area, stage) and rd(AREA_PHASE, 4) == 0 and rd(STAGE_PHASE, 4) == 0 \
-                and rd(MODE, 1) == mode:
+                and rd(MODE, 1) == 8:
             there = True
             break
         time.sleep(0.5)
-    check(f"{area}/{stage} loaded, mode {mode} (after {time.time() - t0:.0f} s; now "
+    check(f"{area}/{stage} loaded, mode 8 (after {time.time() - t0:.0f} s; now "
           f"{rd(AREA)}/{rd(STAGE)} mode {rd(MODE, 1)})", there)
     time.sleep(3)
     check("the game still runs", runs())
@@ -156,39 +131,12 @@ def run(port, index, shots):
     rpc(port, "present_shot", path=str(out))
     time.sleep(1)
     print(f"  picture: {out}")
-    def english():
-        table = rd(EVENT_MESSAGES, 4)
-        m0 = rd(table, 4) if table >> 21 == 0x80000000 >> 21 else 0
-        words = [rd(m0 + 2 * i) for i in range(4)] if m0 else []
-        return m0, words
-
-    if (area, stage) == (0, 5):
-        m0, words = english()
-        check(f"the scene's messages are the English ones (message 0 at {m0:08X}: "
-              f"{' '.join(f'{w:04X}' for w in words)})", words == ENGLISH_MESSAGE0)
-    if (area, stage) == (1, 24):
-        # Room 1's event pack loads about 3 s after the stage (first visit).
-        t0 = time.time()
-        while time.time() - t0 < 15 and not (rd(EVENT_MSG_COUNT, 4) == 21 and english()[1] == ENGLISH_MESSAGE0):
-            time.sleep(0.25)
-        m0, words = english()
-        check(f"the room's 21 messages are the English ones (message 0 at {m0:08X}: "
-              f"{' '.join(f'{w:04X}' for w in words)})", words == ENGLISH_MESSAGE0)
-        # The scene starts next to the door (0, -4000): down the corridor (Up), then into its wall (Right).
-        t0 = time.time()
-        while s32(HERO_X) > 250 and time.time() - t0 < 20:
-            hold(0x0010)
-        while rd(EVENT_RUNNING, 4) == 0 and time.time() - t0 < 30:
-            hold(0x0020)
-        rpc(port, "clear_input")
-        check(f"walking to the door starts the scene (hero at {s32(HERO_X)}, {s32(HERO_X + 8)})",
-              rd(EVENT_RUNNING, 4) != 0)
-        time.sleep(4)
-        out = shots / f"secret_{area}-{stage}_scene.png"
-        rpc(port, "present_shot", path=str(out))
-        time.sleep(1)
-        print(f"  picture: {out}")
-    check(f"args scratch g_CdUnused8768 is zero again", rd(TRIP_ARGS, 4) == 0)
+    table = rd(EVENT_MESSAGES, 4)
+    m0 = rd(table, 4) if table >> 21 == 0x80000000 >> 21 else 0
+    words = [rd(m0 + 2 * i) for i in range(4)] if m0 else []
+    check(f"the scene's messages are the English ones (message 0 at {m0:08X}: "
+          f"{' '.join(f'{w:04X}' for w in words)})", words == ENGLISH_MESSAGE0)
+    check("args scratch g_CdUnused8768 is zero again", rd(TRIP_ARGS, 4) == 0)
     # A state saved before the trip must still load (no layout change).
     r = subprocess.run([sys.executable, DV, "state", "load", "9", "--port", str(port)],
                        capture_output=True, text=True, timeout=60)
