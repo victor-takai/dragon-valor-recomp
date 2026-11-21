@@ -132,6 +132,14 @@ the native 60 Hz version.
   name and version (`patches/recomp-ui/0005-...`), current descriptions;
   title overrides of the framework's cd-speed, hd-textures and bezel
   packages for the texts.
+- **Secret stages** (2026-11-21, branch `secret-stages`, the player's
+  request): Warp > Secret stage / Go to secret stage takes the hero to the
+  four stages of disc 1 that nothing in the game leads to (the decomp's
+  docs/SECRETS.md): the cut prologue scene 0/5, the marble corridor 1/24
+  and the Japanese release's world map of chapter 1 (1/14, 1/16). The
+  cheats plugin calls the game's own ModeTransition at a quiet frame, as a
+  stage exit would: no Game Over, about a second.
+  `tests/test_secret_stages.py` 12/12.
 - **In-game menu redesigned** (2026-11-18, branch `hero-swap`, the player's
   request): the title draws its own menu (`dragonvalor_menu_view.cpp`: dark
   panel with a gold accent, the hero, HP / MP and stage on top, one line

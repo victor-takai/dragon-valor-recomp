@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "cpu_state.h"
 #include "mod_plugins.h"
 
 #define DV_HP       0x8008A5AEu   /* u16 current HP            */
@@ -139,10 +140,86 @@ static void dv_cheats_vblank(void)
                       DV_SCROLL_CAP, g_scroll_every);
 }
 
+/* --- trips: the in-game menu's Warp > Secret stage --------------------------
+ * The menu sets dv_trip_area / dv_trip_stage / dv_trip_map and then
+ * dv_trip_request. At the first quiet frame of an action stage (plain play:
+ * mode 8 sub-mode 7, no pause, no event script, no stage or area load, every
+ * load row idle) the hook below calls the game's own ModeTransition
+ * (0x80025264, object native 3 / event native 2), as a stage exit would:
+ * kind 0 (area and stage deltas, the module kept; kind 1, the stage delta
+ * alone, inside the area) for an action or scene stage, kind 3 (deltas,
+ * MAP.BIN) for a world map. The game then resets the
+ * stage, loads the area header and the stage, and asks for the other disc
+ * itself when the area needs it (decomp src/main/objscript.c).
+ *
+ * The call is made from the entry of ModelWeldReset (0x80021CE4, already in
+ * game.toml [recompiler] mod_function_entry_funcs: FrameDraw calls it each
+ * frame, after the frame's objects ran and before DrawOTag), which is where
+ * a script's exit would also have left the frame. The arguments live in four
+ * bytes of expansion memory (psx_mod_alloc_guest_memory). A loaded save state
+ * cancels a pending trip. */
+#define DV_MODEL_WELD_RESET 0x80021CE4u
+#define DV_MODE_TRANSITION  0x80025264u
+#define DV_MODE             0x8008634Cu   /* g_GameFlow.mode, +1 subMode */
+#define DV_PAUSE_STATE      0x8007D826u   /* g_PauseState */
+#define DV_EVENT_RUNNING    0x8009F9F8u   /* g_EventVm.running */
+#define DV_AREA_PHASE       0x800A2D14u   /* g_GameState.areaPhase */
+#define DV_STAGE_PHASE      0x800A2D18u   /* g_GameState.stagePhase */
+#define DV_LOAD_ROWS        0x800A2B84u   /* g_GameState.row[10], 0x28 bytes each */
+#define DV_STAGE_AREA       0x800A2F18u   /* g_StageSelect.area (s16) */
+#define DV_STAGE_STAGE      0x800A2F1Au   /* g_StageSelect.stage (s16) */
+
+volatile int dv_trip_request = 0;   /* set by the menu; cleared when the trip starts */
+volatile int dv_trip_area = 0, dv_trip_stage = 0, dv_trip_map = 0;
+static uint32_t g_trip_args;        /* guest address of { kind, area delta, stage delta, 0 } */
+
+static int dv_trip_quiet(void)
+{
+    uint32_t r, c;
+    if (psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_byte(DV_MODE + 1) != 7 ||
+        psx_mod_read_byte(DV_PAUSE_STATE) || psx_mod_read_word(DV_EVENT_RUNNING) ||
+        psx_mod_read_word(DV_AREA_PHASE) || psx_mod_read_word(DV_STAGE_PHASE) || !dv_hero_loaded())
+        return 0;
+    for (r = 0; r < 10; r++)
+        for (c = 0; c < 2; c++)
+            if (psx_mod_read_byte(DV_LOAD_ROWS + r * 0x28 + 0x10 + c)) return 0;
+    return 1;
+}
+
+static void dv_trip_frame(struct CPUState* cpu, uint32_t address)
+{
+    int da, ds, kind;
+    (void)address;
+    if (!dv_trip_request || !dv_trip_quiet()) return;
+    if (!g_trip_args) g_trip_args = psx_mod_alloc_guest_memory(4, 4);
+    dv_trip_request = 0;
+    if (!g_trip_args) {
+        fprintf(stderr, "%s: trip: no guest memory for the arguments\n", DV_PLUGIN_ID);
+        return;
+    }
+    da = dv_trip_area - (int16_t)psx_mod_read_half(DV_STAGE_AREA);
+    ds = dv_trip_stage - (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
+    if (da < -128 || da > 127 || ds < -128 || ds > 127) return;
+    kind = dv_trip_map ? 3 : da ? 0 : 1;
+    psx_mod_write_byte(g_trip_args, (uint8_t)kind);
+    psx_mod_write_byte(g_trip_args + 1, (uint8_t)(int8_t)da);
+    psx_mod_write_byte(g_trip_args + 2, (uint8_t)(int8_t)ds);
+    psx_mod_write_byte(g_trip_args + 3, 0);
+    fprintf(stderr, "%s: trip to %d/%d (ModeTransition kind %d)\n", DV_PLUGIN_ID, dv_trip_area, dv_trip_stage, kind);
+    psx_mod_call_guest(cpu, DV_MODE_TRANSITION, cpu->gpr[31], 0, g_trip_args, 0, 0);
+}
+
+static void dv_cheats_savestate_loaded(void)
+{
+    dv_trip_request = 0;
+}
+
 PSX_MOD_CONSTRUCTOR(dv_register_cheat_plugins)
 {
     int ok = psx_mod_register_activation_plugin(DV_PLUGIN_ID, dv_cheats_activate)
           && psx_mod_register_vblank_plugin(DV_PLUGIN_ID, dv_cheats_vblank)
-          && psx_mod_register_option_changed_plugin(DV_PLUGIN_ID, dv_cheats_option_changed);
+          && psx_mod_register_option_changed_plugin(DV_PLUGIN_ID, dv_cheats_option_changed)
+          && psx_mod_register_savestate_plugin(DV_PLUGIN_ID, dv_cheats_savestate_loaded)
+          && psx_mod_register_function_entry_plugin(DV_PLUGIN_ID, DV_MODEL_WELD_RESET, dv_trip_frame);
     if (!ok) fprintf(stderr, "dragonvalor.cheats: plugin failed to register\n");
 }

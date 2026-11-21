@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Check the in-game menu's Warp > "Secret stage" / "Go to secret stage" rows
+on a debug build: each secret stage is reached from test state 10.
+
+  python tests/test_secret_stages.py [INDEX ...] [--build build-debug] [--port N] [--shots DIR]
+
+INDEX: 0 cut prologue scene (0/5), 1 marble corridor (1/24), 2 Japanese
+world map (1/14), 3 its copy (1/16); all four by default. For each one the
+test launches the build (muted, hidden window) from test state 10, opens the
+menu (Escape), enters the Warp section, steps the Secret stage row Right
+INDEX times, presses Enter on Go to secret stage and confirms the dialog
+(Enter on its focused Go button). Nothing else is pressed: the trip is the
+game's own ModeTransition, called by dragonvalor_cheats.c at the first quiet
+frame (kind 0 / 1 for an action or scene stage, kind 3 into MAP.BIN for a
+world map). Checks:
+  1. the menu closes and the guest runs again;
+  2. g_StageSelect (0x800A2F18 / 0x800A2F1A) becomes the stage, the load
+     ends (areaPhase / stagePhase 0x800A2D14 / 0x800A2D18 back to 0) and the
+     game is in the stage's mode (g_GameFlow.mode 0x8008634C: 8 for an action
+     or scene stage, 10 for a world map);
+  3. the guest still runs 3 s later (the frame counter moves).
+A picture of each stage is written to --shots (default <build>/test_shots).
+The player's settings.toml, dragonvalor_settings.toml and mods/state.toml
+are backed up and restored. Exit code 0 on PASS.
+"""
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+from dvdbg import rpc, port_from_args  # noqa: E402
+
+DV = str(ROOT / "tools" / "dvdbg.py")
+HPMAX = 0x8008A5B0
+MODE, AREA, STAGE = 0x8008634C, 0x800A2F18, 0x800A2F1A
+AREA_PHASE, STAGE_PHASE = 0x800A2D14, 0x800A2D18
+SECTIONS = ["Game", "Hero", "Cheats", "Magic", "Items", "Warp", "Video", "Options"]
+WARP_ROWS = ["Area", "Stage", "Go now", "Secret stage", "Go to secret stage"]
+# (name, area, stage, mode once there)
+SECRETS = [("cut prologue scene", 0, 5, 8), ("marble corridor", 1, 24, 8),
+           ("Japanese world map", 1, 14, 10), ("Japanese world map, copy", 1, 16, 10)]
+
+
+def main(argv):
+    args = list(argv)
+    port = port_from_args(args)
+    build, shots = "build-debug", None
+    for flag in ("--build", "--shots"):
+        if flag in args:
+            i = args.index(flag)
+            if flag == "--build":
+                build = args[i + 1]
+            else:
+                shots = Path(args[i + 1]).resolve()
+            del args[i:i + 2]
+    picks = [int(a) for a in args if a.isdigit()] or list(range(len(SECRETS)))
+    bdir = ROOT / build
+    shots = shots or bdir / "test_shots"
+    shots.mkdir(parents=True, exist_ok=True)
+
+    def cli(*a, timeout=120):
+        r = subprocess.run([sys.executable, DV, *a, "--port", str(port)], capture_output=True, text=True, timeout=timeout)
+        return (r.stdout + r.stderr).strip()
+
+    kept = {f: f.read_bytes() for f in (bdir / "settings.toml", bdir / "dragonvalor_settings.toml",
+                                        bdir / "mods" / "state.toml") if f.is_file()}
+    results = []
+    try:
+        for i in picks:
+            print(f"[{i}] {SECRETS[i][0]} ({SECRETS[i][1]}/{SECRETS[i][2]})")
+            print("  launch:", cli("launch", "--state", "10", "--build", str(bdir)).splitlines()[-1])
+            time.sleep(9)
+            try:
+                results += run(port, i, shots)
+            finally:
+                cli("kill")
+                time.sleep(2)
+    finally:
+        for f, b in kept.items():
+            f.write_bytes(b)
+    ok = all(results) and results
+    print("PASS" if ok else "FAIL", f"({sum(results)}/{len(results)})")
+    return 0 if ok else 1
+
+
+def run(port, index, shots):
+    results = []
+    name, area, stage, mode = SECRETS[index]
+
+    def frame():
+        return rpc(port, "frame").get("frame")
+
+    def rd(a, n=2):
+        return int.from_bytes(bytes.fromhex(rpc(port, "read_ram", addr=f"{a:08X}", len=n)["hex"]), "little")
+
+    def key(k, n=1):
+        for _ in range(n):
+            r = rpc(port, "host_key", name=k)
+            if not r.get("ok"):
+                sys.exit(f"host_key {k} failed: {r}")
+            time.sleep(0.3)
+
+    def check(label, good):
+        results.append(bool(good))
+        print(f"  {'ok  ' if good else 'FAIL'} {label}")
+
+    def runs():
+        f0 = frame(); time.sleep(0.8); return frame() != f0
+
+    if rd(HPMAX) == 0:
+        sys.exit("no hero loaded (HPmax = 0): state 10 did not load")
+    start = (rd(AREA), rd(STAGE))
+    key("Escape"); time.sleep(0.5)
+    key("Down", SECTIONS.index("Warp")); key("Return")
+    key("Down", WARP_ROWS.index("Secret stage")); key("Right", index)
+    key("Down"); key("Return"); time.sleep(0.4)   # the dialog
+    key("Return"); time.sleep(1.0)                # Go
+    check(f"the menu closes and the game runs (from {start[0]}/{start[1]})", runs())
+    there, t0 = False, time.time()
+    while time.time() - t0 < 40:
+        if (rd(AREA), rd(STAGE)) == (area, stage) and rd(AREA_PHASE, 4) == 0 and rd(STAGE_PHASE, 4) == 0 \
+                and rd(MODE, 1) == mode:
+            there = True
+            break
+        time.sleep(0.5)
+    check(f"{area}/{stage} loaded, mode {mode} (after {time.time() - t0:.0f} s; now "
+          f"{rd(AREA)}/{rd(STAGE)} mode {rd(MODE, 1)})", there)
+    time.sleep(3)
+    check("the game still runs", runs())
+    out = shots / f"secret_{area}-{stage}.png"
+    rpc(port, "present_shot", path=str(out))
+    time.sleep(1)
+    print(f"  picture: {out}")
+    return results
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
