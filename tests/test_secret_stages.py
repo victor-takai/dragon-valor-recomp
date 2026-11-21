@@ -19,8 +19,11 @@ world map). Checks:
      game is in the stage's mode (g_GameFlow.mode 0x8008634C: 8 for an action
      or scene stage, 10 for a world map);
   3. the guest still runs 3 s later (the frame counter moves);
-  4. in 0/5, the room's message table (g_EventVm.messages) points at the
-     English lines dragonvalor_cheats.c wrote ({pos 88,188}"..." first);
+  4. in 0/5 and 1/24, the room's message table (g_EventVm.messages) points
+     at the English lines dragonvalor_cheats.c wrote ({pos 88,188}"..."
+     first); in 1/24 the hero then walks down the corridor (Up) and into the
+     door's wall (Right), and the scene must start (g_EventVm.running), with
+     a second picture of it;
   5. the trip's argument bytes (g_CdUnused8768) are zero again;
   6. test state 9 still loads afterwards (the trip leaves the save-state
      layout alone: no expansion memory).
@@ -43,8 +46,12 @@ HPMAX = 0x8008A5B0
 MODE, AREA, STAGE = 0x8008634C, 0x800A2F18, 0x800A2F1A
 AREA_PHASE, STAGE_PHASE = 0x800A2D14, 0x800A2D18
 EVENT_MESSAGES = 0x8009FA18          # g_EventVm.messages
+EVENT_MSG_COUNT = 0x8009FA1C         # g_EventVm.messageCount
+EVENT_RUNNING = 0x8009F9F8           # g_EventVm.running
+HERO_X = 0x8008A4E0 + 0x20           # g_Objects[0].pos[0] (pos[2] at +8)
 TRIP_ARGS = 0x80078768               # g_CdUnused8768, the trip's argument bytes
-ENGLISH_MESSAGE0 = [0x90B2, 0x1180, 0x1180, 0x1180]   # {pos 88,188}"..." of "...Elena?!"
+# {pos 88,188}"..." of 0/5's "...Elena?!" and of 1/24's "......?!"
+ENGLISH_MESSAGE0 = [0x90B2, 0x1180, 0x1180, 0x1180]
 SECTIONS = ["Game", "Hero", "Cheats", "Magic", "Items", "Warp", "Video", "Options"]
 WARP_ROWS = ["Area", "Stage", "Go now", "Secret stage", "Go to secret stage"]
 # (name, area, stage, mode once there)
@@ -118,6 +125,13 @@ def run(port, index, shots):
     def runs():
         f0 = frame(); time.sleep(0.8); return frame() != f0
 
+    def s32(a):
+        return int.from_bytes(bytes.fromhex(rpc(port, "read_ram", addr=f"{a:08X}", len=4)["hex"]), "little", signed=True)
+
+    def hold(mask, frames=6):
+        rpc(port, "press", buttons=0xFFFF & ~mask, frames=frames)   # PS1 pad words are active-low
+        time.sleep(0.15)
+
     if rd(HPMAX) == 0:
         sys.exit("no hero loaded (HPmax = 0): state 10 did not load")
     start = (rd(AREA), rd(STAGE))
@@ -142,12 +156,38 @@ def run(port, index, shots):
     rpc(port, "present_shot", path=str(out))
     time.sleep(1)
     print(f"  picture: {out}")
-    if (area, stage) == (0, 5):
+    def english():
         table = rd(EVENT_MESSAGES, 4)
         m0 = rd(table, 4) if table >> 21 == 0x80000000 >> 21 else 0
         words = [rd(m0 + 2 * i) for i in range(4)] if m0 else []
+        return m0, words
+
+    if (area, stage) == (0, 5):
+        m0, words = english()
         check(f"the scene's messages are the English ones (message 0 at {m0:08X}: "
               f"{' '.join(f'{w:04X}' for w in words)})", words == ENGLISH_MESSAGE0)
+    if (area, stage) == (1, 24):
+        # Room 1's event pack loads about 3 s after the stage (first visit).
+        t0 = time.time()
+        while time.time() - t0 < 15 and not (rd(EVENT_MSG_COUNT, 4) == 21 and english()[1] == ENGLISH_MESSAGE0):
+            time.sleep(0.25)
+        m0, words = english()
+        check(f"the room's 21 messages are the English ones (message 0 at {m0:08X}: "
+              f"{' '.join(f'{w:04X}' for w in words)})", words == ENGLISH_MESSAGE0)
+        # The scene starts next to the door (0, -4000): down the corridor (Up), then into its wall (Right).
+        t0 = time.time()
+        while s32(HERO_X) > 250 and time.time() - t0 < 20:
+            hold(0x0010)
+        while rd(EVENT_RUNNING, 4) == 0 and time.time() - t0 < 30:
+            hold(0x0020)
+        rpc(port, "clear_input")
+        check(f"walking to the door starts the scene (hero at {s32(HERO_X)}, {s32(HERO_X + 8)})",
+              rd(EVENT_RUNNING, 4) != 0)
+        time.sleep(4)
+        out = shots / f"secret_{area}-{stage}_scene.png"
+        rpc(port, "present_shot", path=str(out))
+        time.sleep(1)
+        print(f"  picture: {out}")
     check(f"args scratch g_CdUnused8768 is zero again", rd(TRIP_ARGS, 4) == 0)
     # A state saved before the trip must still load (no layout change).
     r = subprocess.run([sys.executable, DV, "state", "load", "9", "--port", str(port)],

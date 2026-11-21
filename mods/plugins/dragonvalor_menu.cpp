@@ -90,8 +90,10 @@ const SecretStage kSecrets[] = {
      "revenge. Its lines were left in Japanese; this recomp shows them in an English translation.",
      "About a minute long; then chapter 1 starts."},
     {1, 24, 0, "the marble corridor",
-     "A castle corridor that no exit leads to: white marble walls, a wooden door, a room with green curtains.",
-     "It has no way out: load a save state to come back."},
+     "A castle corridor no exit leads to. Walk up to the wooden door: an early draft of the scene where Clovis "
+     "finds Princess Celia plays, its Japanese lines shown in English.",
+     "Break the door down and the scene ends on a white screen; the stage has no way out either: load a save "
+     "state to come back."},
     {1, 14, 1, "the Japanese world map",
      "Chapter 1's world map from the Japanese release, left on this disc: a Japanese name plate and commands. "
      "Status shows stray accented letters where the Japanese text was.",

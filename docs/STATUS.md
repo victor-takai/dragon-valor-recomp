@@ -138,11 +138,14 @@ the native 60 Hz version.
   docs/SECRETS.md): the cut prologue scene 0/5, the marble corridor 1/24
   and the Japanese release's world map of chapter 1 (1/14, 1/16). The
   cheats plugin calls the game's own ModeTransition at a quiet frame, as a
-  stage exit would: no Game Over, about a second. The cut scene's lines,
-  left in Japanese, were read and translated (the decomp's SECRETS.md)
-  and show in English. `tests/test_secret_stages.py` 21/21 (with a save
-  state loaded after each trip: the first version's expansion-memory
-  allocation changed the save-state layout and refused older states).
+  stage exit would: no Game Over, about a second. The two scenes left in
+  Japanese, the cut prologue scene (0/5) and an early draft of Clovis
+  finding Princess Celia (1/24, at the corridor's wooden door), were
+  read and translated (the decomp's SECRETS.md) and show in English.
+  `tests/test_secret_stages.py` 23/23 (it walks to 1/24's door and
+  loads a save state after each trip: the first version's
+  expansion-memory allocation changed the save-state layout and refused
+  older states).
 - **In-game menu redesigned** (2026-11-18, branch `hero-swap`, the player's
   request): the title draws its own menu (`dragonvalor_menu_view.cpp`: dark
   panel with a gold accent, the hero, HP / MP and stage on top, one line
