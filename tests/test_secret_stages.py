@@ -131,9 +131,16 @@ def run(port, shots):
     rpc(port, "present_shot", path=str(out))
     time.sleep(1)
     print(f"  picture: {out}")
-    table = rd(EVENT_MESSAGES, 4)
-    m0 = rd(table, 4) if table >> 21 == 0x80000000 >> 21 else 0
-    words = [rd(m0 + 2 * i) for i in range(4)] if m0 else []
+    def english():
+        table = rd(EVENT_MESSAGES, 4)
+        m0 = rd(table, 4) if table >> 21 == 0x80000000 >> 21 else 0
+        return m0, [rd(m0 + 2 * i) for i in range(4)] if m0 >> 21 == 0x80000000 >> 21 else []
+
+    # The room's event pack is read after the stage (a few seconds on a busy machine).
+    t0 = time.time()
+    while time.time() - t0 < 15 and english()[1] != ENGLISH_MESSAGE0:
+        time.sleep(0.25)
+    m0, words = english()
     check(f"the scene's messages are the English ones (message 0 at {m0:08X}: "
           f"{' '.join(f'{w:04X}' for w in words)})", words == ENGLISH_MESSAGE0)
     check("args scratch g_CdUnused8768 is zero again", rd(TRIP_ARGS, 4) == 0)

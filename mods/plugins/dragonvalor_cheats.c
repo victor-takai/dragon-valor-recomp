@@ -47,9 +47,11 @@
 #define DV_SCROLL_CAP    5u
 #define DV_BOTH_CAP      10u
 
+#define DV_MODE             0x8008634Cu   /* g_GameFlow.mode, +1 subMode */
+
 #define DV_PLUGIN_ID "dragonvalor.cheats"
 
-static int g_infinite_hp, g_infinite_mp, g_gem_every, g_scroll_every;
+static int g_infinite_hp, g_infinite_mp, g_gem_every, g_scroll_every, g_unlock_gallery;
 
 /* The in-game menu's "Go now" (mods/plugins/dragonvalor_menu.cpp) sets this
  * while it takes the hero through a Game Over to reload the stage in the
@@ -78,6 +80,7 @@ static void dv_cheats_read_options(void)
     g_infinite_mp  = dv_opt_bool("infinite_mp");
     g_gem_every    = dv_opt_int("gem_every");
     g_scroll_every = dv_opt_int("scroll_every");
+    g_unlock_gallery = dv_opt_bool("unlock_gallery");
 }
 
 /* Session start: the committed plan's option values. */
@@ -127,11 +130,41 @@ static void dv_drop_floor(uint32_t counter, uint32_t table, uint32_t collected,
 
 static void dv_cut_scene_english(void);
 
+/* --- Unlock gallery -----------------------------------------------------------
+ * The title's main menu (mode 3, OPENNING.BIN) offers a fourth item, the
+ * illustration gallery, only when one of the three ending flags of the save
+ * data in memory is set (g_SaveBlock.areaFlags[10..12], 0x800A2E18..1A: the
+ * ending sets areaFlags[10 + ending]); each flag unlocks its own list of
+ * pictures, two or more unlock 43..95, and flags 0 and 1 together lock
+ * picture 9 again (decomp src/openning/titlemenu.c: TitleMainInit,
+ * GalleryUnlockInit, GalleryUnlockBonus). With the option on, the VBlank
+ * leaves the flags alone and writes the module's own results instead, only
+ * while OPENNING is the module in memory (its first word is 4) and the title
+ * runs: g_TitleHasClearData = 1 (the item count, read every pass) and, in
+ * the gallery (g_TitleWork.screen 5, past its Init), every picture 1..95
+ * unlocked (0, the first one shown, stays as the game has it). */
+#define DV_MODULE_ID         0x800BBEF0u   /* first word of the loaded BIN: 4 = OPENNING */
+#define DV_TITLE_HAS_CLEAR   0x80157248u   /* g_TitleHasClearData (u8) */
+#define DV_TITLE_SCREEN      0x80156F32u   /* g_TitleWork.screen (u8): 5 = gallery */
+#define DV_TITLE_STATE       0x80156F33u   /* g_TitleWork.state (u8) */
+#define DV_GALLERY_UNLOCKED  0x80158520u   /* g_GalleryUnlocked (s16[96]) */
+
+static void dv_gallery_unlock(void)
+{
+    uint32_t i;
+    if (!g_unlock_gallery || psx_mod_read_byte(DV_MODE) != 3 || psx_mod_read_word(DV_MODULE_ID) != 4) return;
+    if (psx_mod_read_byte(DV_TITLE_HAS_CLEAR) != 1) psx_mod_write_byte(DV_TITLE_HAS_CLEAR, 1);
+    if (psx_mod_read_byte(DV_TITLE_SCREEN) != 5 || psx_mod_read_byte(DV_TITLE_STATE) == 0) return;
+    for (i = 1; i < 96; i++)
+        if (psx_mod_read_half(DV_GALLERY_UNLOCKED + 2u * i) != 1) psx_mod_write_half(DV_GALLERY_UNLOCKED + 2u * i, 1);
+}
+
 static void dv_cheats_vblank(void)
 {
     if (!dv_cheats_hold_hp) g_hold_vblanks = 0;
     else if (++g_hold_vblanks > 3600u) dv_cheats_hold_hp = 0;
     dv_cut_scene_english();
+    dv_gallery_unlock();
     if (!(g_infinite_hp || g_infinite_mp || g_gem_every || g_scroll_every)) return;
     if (!dv_hero_loaded()) return;
     if (g_infinite_hp && !dv_cheats_hold_hp) dv_top_up(DV_HP, DV_HP_MAX);
@@ -167,7 +200,6 @@ static void dv_cheats_vblank(void)
  * pending trip. */
 #define DV_MODEL_WELD_RESET 0x80021CE4u
 #define DV_MODE_TRANSITION  0x80025264u
-#define DV_MODE             0x8008634Cu   /* g_GameFlow.mode, +1 subMode */
 #define DV_PAUSE_STATE      0x8007D826u   /* g_PauseState */
 #define DV_EVENT_RUNNING    0x8009F9F8u   /* g_EventVm.running */
 #define DV_AREA_PHASE       0x800A2D14u   /* g_GameState.areaPhase */

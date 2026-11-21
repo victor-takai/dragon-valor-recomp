@@ -63,6 +63,7 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_DYNRES      "dv.graphics.dynamic_resolution"
 #define DV_KEY_CHEAT_HP    "dv.cheats.infinite_hp"
 #define DV_KEY_CHEAT_MP    "dv.cheats.infinite_mp"
+#define DV_KEY_GALLERY     "dv.cheats.unlock_gallery"
 #define DV_KEY_GEM_EVERY   "dv.cheats.gem_every"
 #define DV_KEY_SCROLL_EVERY "dv.cheats.scroll_every"
 #define DV_KEY_SKIP_INTRO  "dv.game.skip_intro"
@@ -177,6 +178,8 @@ const RecompRuntimeUiItem kItems[] = {
                "0 keeps the game's rule; N drops a gem every N kills with the sword.", 0, 15, 1),
     DV_ROW_INT(DV_KEY_SCROLL_EVERY, "Cheats", "Scroll every N magic kills",
                "0 keeps the game's rule; N drops a scroll every N kills with magic.", 0, 5, 1),
+    DV_ROW_BOOL(DV_KEY_GALLERY, "Cheats", "Unlock gallery",
+                "The title menu's illustration gallery, normally offered after an ending, with all 95 pictures."),
     DV_ROW_INT(DV_RAM_VAL, "Cheats", "Val", "Your gold.", 0, 9999, 100),
     DV_ROW_INT("dv.ram.hpmax", "Cheats", "Max HP", "Maximum HP.", 1, 999, 10),
     DV_ROW_INT("dv.ram.mpmax", "Cheats", "Max MP", "Maximum MP.", 1, 999, 10),
@@ -265,7 +268,7 @@ struct Menu {
     int dim = RECOMP_RUNTIME_UI_DEFAULT_DIM_PERCENT, opacity = 100;
     int slot = 1;                  /* 1-based state slot shown; runtime slot = slot - 1 */
     /* mirrors of the mod selection (the catalogue is the host's) */
-    int cheat_hp = 0, cheat_mp = 0, skip_intro = 0;
+    int cheat_hp = 0, cheat_mp = 0, gallery = 0, skip_intro = 0;
     int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
     int play_as = 0;                       /* index in kPlayAsValues: the applied choice */
     int weapon = 0;                        /* index in kWeaponValues: the applied choice */
@@ -666,6 +669,7 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { *out = m.slot; return 1; }
     if (is(item, DV_KEY_CHEAT_HP)) { *out = m.cheat_hp; return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { *out = m.cheat_mp; return 1; }
+    if (is(item, DV_KEY_GALLERY)) { *out = m.gallery; return 1; }
     if (is(item, DV_KEY_GEM_EVERY)) { *out = m.gem_every; return 1; }
     if (is(item, DV_KEY_SCROLL_EVERY)) { *out = m.scroll_every; return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { *out = m.skip_intro; return 1; }
@@ -832,6 +836,7 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { m.slot = value; return 1; }
     if (is(item, DV_KEY_CHEAT_HP)) { m.cheat_hp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_CHEAT_MP)) { m.cheat_mp = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_mp", value ? "true" : "false"); return 1; }
+    if (is(item, DV_KEY_GALLERY)) { m.gallery = value ? 1 : 0; set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "unlock_gallery", value ? "true" : "false"); return 1; }
     if (is(item, DV_KEY_GEM_EVERY)) { m.gem_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", text); return 1; }
     if (is(item, DV_KEY_SCROLL_EVERY)) { m.scroll_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", text); return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
@@ -1495,6 +1500,7 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
     /* the committed selection is what the launcher left; mirror it */
     m.cheat_hp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_hp", 0);
     m.cheat_mp = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "infinite_mp", 0);
+    m.gallery = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "unlock_gallery", 0);
     m.gem_every = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", 0);
     m.scroll_every = opt_int(DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", 0);
     m.skip_intro = opt_int(DV_SKIP_PKG, DV_SKIP_FEAT, "movie", 0) ? 1 : 0;   /* 0 unless the feature is in the plan */

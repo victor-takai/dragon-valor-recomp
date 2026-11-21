@@ -51,7 +51,7 @@ STATE = """format_version = 2
 
 [[package]]
 id = "dragonvalor.cheats"
-version = "1.3.0"
+version = "1.4.0"
 
 [[feature]]
 package_id = "dragonvalor.cheats"
@@ -181,19 +181,19 @@ def run(port, attach, exe=None):
         check("Infinite HP off again (written HP stays)", hp == 5)
     wr16(HP, rd16(HPMAX))   # leave the hero healthy
 
-    # 3b. Val editor: fifth row of the Cheats page (after Infinite HP/MP and the two
-    #     drop-rate options), one step right = +100, written at once
+    # 3b. Val editor: sixth row of the Cheats page (after Infinite HP/MP, the two
+    #     drop-rate options and Unlock gallery), one step right = +100, written at once
     VAL = 0x800A2DD0
     wr16(VAL, 0); time.sleep(0.2)
-    key("Escape"); goto_section("Cheats"); key("Down", 4); key("Right"); close()
+    key("Escape"); goto_section("Cheats"); key("Down", 5); key("Right"); close()
     val = rd16(VAL)
     check("Val editor wrote 100 into RAM", val == 100)
     wr16(VAL, 0)
 
-    # 3c. STR editor: eighth row; +5 lands in the five attack entries (sum) and in STR
+    # 3c. STR editor: ninth row; +5 lands in the five attack entries (sum) and in STR
     STR, ATK = 0x8008A5B6, 0x80086324
     before = rd16(STR)
-    key("Escape"); goto_section("Cheats"); key("Down", 7); key("Right"); close()
+    key("Escape"); goto_section("Cheats"); key("Down", 8); key("Right"); close()
     comps = [rd16(ATK + 2 * i) for i in range(5)]
     check(f"STR editor wrote {before + 5} as attack entries {comps}",
           rd16(STR) == before + 5 and sum(comps) == before + 5 and min(comps) > 0)

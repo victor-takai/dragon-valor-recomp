@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the gem_every option of dragonvalor.cheats on a running debug build.
 
-Setup (same file as tests/test_cheats.py, package version 1.3.0):
+Setup (same file as tests/test_cheats.py, package version 1.4.0):
   1. In <build>/mods/state.toml set, under the cheats feature,
         [feature.values]
         gem_every = "1"          # "0" for the control run
