@@ -132,6 +132,18 @@ the native 60 Hz version.
   name and version (`patches/recomp-ui/0005-...`), current descriptions;
   title overrides of the framework's cd-speed, hd-textures and bezel
   packages for the texts.
+- **Cut prologue scene** (2026-11-21, branch `secret-stages`, the
+  player's request): Warp > Cut prologue scene takes the hero to 0/5, a
+  scene cut from the prologue that nothing in the game leads to (the
+  decomp's docs/SECRETS.md). The cheats plugin calls the game's own
+  ModeTransition at a quiet frame, as a stage exit would: no Game Over,
+  about a second. Its lines, left in Japanese, were read and translated
+  (the decomp's SECRETS.md) and show in English. The first version also
+  offered the corridor 1/24 (with its Celia draft in English) and the
+  Japanese world maps 1/14 / 1/16; the player had them taken out.
+  `tests/test_secret_stages.py` 6/6 (it loads a save state after the
+  trip: the first version's expansion-memory allocation changed the
+  save-state layout and refused older states).
 - **In-game menu redesigned** (2026-11-18, branch `hero-swap`, the player's
   request): the title draws its own menu (`dragonvalor_menu_view.cpp`: dark
   panel with a gold accent, the hero, HP / MP and stage on top, one line

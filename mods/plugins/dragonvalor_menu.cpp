@@ -69,6 +69,16 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_DISC1       "dv.disc.1"
 #define DV_KEY_DISC2       "dv.disc.2"
 #define DV_KEY_GO_NOW      "dv.warp.go"
+#define DV_KEY_SECRET_GO   "dv.warp.secret_go"
+/* Warp > Cut prologue scene: stage 0/5, a scene cut from the prologue that
+ * nothing in the game leads to (the decomp's tools/stages.py walks every way a
+ * stage is picked; its docs/SECRETS.md). Reached by a trip, the game's own
+ * ModeTransition called at a quiet frame (dragonvalor_cheats.c, kind 0). The
+ * other stages nothing reaches (the corridor 1/24, the Japanese world maps
+ * 1/14 and 1/16) were offered too until 2026-11-21 and taken out at the
+ * player's request. */
+#define DV_SECRET_AREA  0
+#define DV_SECRET_STAGE 5
 #define DV_KEY_PLAY_AS     "dv.heroswap.hero"
 #define DV_KEY_HERO_APPLY  "dv.heroswap.apply"
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
@@ -212,6 +222,9 @@ const RecompRuntimeUiItem kItems[] = {
     DV_ROW_ACTION(DV_KEY_GO_NOW, "Warp", "Go now",
                   "End the stage with a Game Over and Continue into the area and stage above, in about 10 "
                   "seconds. Make a save state first: skipped stages can leave items and keys behind."),
+    DV_ROW_ACTION(DV_KEY_SECRET_GO, "Warp", "Cut prologue scene",
+                  "Watch a scene cut from the prologue, left on disc 1, its Japanese lines in English. Leaves "
+                  "this stage as an exit would: no Game Over. Make a save state first."),
 
     DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_FULLSCREEN, "Video", "Fullscreen", "Fill the screen, or play in a window."),
     DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_LINEAR_FILTER, "Video", "Smooth picture",
@@ -568,6 +581,15 @@ const PSXModPadTransform kWarpTransform = {
 };
 
 bool warp_possible() { return !g_warp.phase && hero_loaded() && psx_mod_read_byte(DV_MODE) == 8; }
+
+/* ---- Warp > Cut prologue scene: a trip (dragonvalor_cheats.c) -------------- */
+extern "C" volatile int dv_trip_request, dv_trip_area, dv_trip_stage;
+/* dragonvalor.cheats is in the running plan: its hook makes the trip. */
+bool cheats_live() {
+    char v[16];
+    return psx_mod_option_value("dragonvalor.cheats", "cheats", "infinite_hp", v, sizeof v) != 0;
+}
+bool trip_possible() { return warp_possible() && !dv_trip_request && cheats_live(); }
 
 #define DV_ATTACK_TABLE 0x80086324u
 #define DV_STR          0x8008A5B6u
@@ -1015,6 +1037,17 @@ bool ask_first(Menu& m, const RecompRuntimeUiItem* item) {
                     "Warp", nullptr, false, 0);
         return true;
     }
+    if (is(item, DV_KEY_SECRET_GO)) {
+        if (m.host->netplay_active() || !trip_possible()) return false;
+        std::snprintf(title, sizeof title, "Go to the cut prologue scene?");
+        std::snprintf(body, sizeof body,
+                      "A forest scene cut from the prologue: Raimun finds Elena, Clovis's sister, dead, and a dragon "
+                      "offers him revenge. Its lines were left in Japanese; this recomp shows them in an English "
+                      "translation. About a minute long; then chapter 1 starts.%s Make a save state first.",
+                      psx_mod_read_half(DV_AREA) >= 7 ? " The game asks for disc 1 first." : "");
+        open_dialog(m, DV_DIALOG_ACTION, item, title, body, "Go", nullptr, false, 0);
+        return true;
+    }
     if (is(item, RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER)) {
         open_dialog(m, DV_DIALOG_ACTION, item, "Return to the launcher?",
                     "The game closes. Progress since your last save is lost.", "Leave the game", nullptr, true, 1);
@@ -1054,6 +1087,17 @@ int cb_run_action(void* ctx, const RecompRuntimeUiItem* item) {
         return 1;
     }
     if (is(item, RECOMP_RUNTIME_UI_KEY_QUIT)) { m.host->request_exit(PSX_MENU_EXIT_QUIT); return 1; }
+    if (is(item, DV_KEY_SECRET_GO)) {
+        if (m.host->netplay_active()) { recomp_runtime_ui_set_status(m.ui, "Not during netplay"); return 0; }
+        if (!cheats_live()) { recomp_runtime_ui_set_status(m.ui, "Needs the Cheats mod (launcher)"); return 0; }
+        if (!trip_possible()) { recomp_runtime_ui_set_status(m.ui, "Only in an action stage"); return 0; }
+        dv_trip_area = DV_SECRET_AREA;
+        dv_trip_stage = DV_SECRET_STAGE;
+        dv_trip_request = 1;   /* last: the emulation thread reads the two above once it sees this */
+        toast(m, "Cut prologue scene", "Stage 0/5");
+        set_open_locked(m, false);
+        return 0;
+    }
     if (is(item, DV_KEY_GO_NOW)) {
         if (m.host->netplay_active()) { recomp_runtime_ui_set_status(m.ui, "Not during netplay"); return 0; }
         if (!warp_possible()) { recomp_runtime_ui_set_status(m.ui, "Only in an action stage"); return 0; }
@@ -1099,6 +1143,7 @@ int cb_is_enabled(void* ctx, const RecompRuntimeUiItem* item) {
     }
     if (ram_row(item)) return hero_loaded() ? 1 : 0;
     if (is(item, DV_KEY_GO_NOW)) return warp_possible() && !m.host->netplay_active() ? 1 : 0;
+    if (is(item, DV_KEY_SECRET_GO)) return trip_possible() && !m.host->netplay_active() ? 1 : 0;
     if (is(item, DV_KEY_HERO_APPLY)) return hero_pending(m) ? 1 : 0;
     return 1;
 }

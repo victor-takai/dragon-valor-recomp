@@ -38,6 +38,7 @@ ending and the Linux / macOS builds are untested
 - Native 60 fps at 1080p, with PGXP
 - In-game menu with save states, cheats and settings
 - Play as any of the nine heroes
+- Watch a scene cut from the prologue, its Japanese lines in English
 - Widescreen
 - Skip Intro, rewind and turbo
 - Xbox, PlayStation and Switch pads, or the keyboard

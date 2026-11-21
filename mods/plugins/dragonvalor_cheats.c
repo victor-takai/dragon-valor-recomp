@@ -19,7 +19,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "cpu_state.h"
 #include "mod_plugins.h"
 
 #define DV_HP       0x8008A5AEu   /* u16 current HP            */
@@ -123,10 +125,13 @@ static void dv_drop_floor(uint32_t counter, uint32_t table, uint32_t collected,
         psx_mod_write_word(counter, (uint32_t)floor);
 }
 
+static void dv_cut_scene_english(void);
+
 static void dv_cheats_vblank(void)
 {
     if (!dv_cheats_hold_hp) g_hold_vblanks = 0;
     else if (++g_hold_vblanks > 3600u) dv_cheats_hold_hp = 0;
+    dv_cut_scene_english();
     if (!(g_infinite_hp || g_infinite_mp || g_gem_every || g_scroll_every)) return;
     if (!dv_hero_loaded()) return;
     if (g_infinite_hp && !dv_cheats_hold_hp) dv_top_up(DV_HP, DV_HP_MAX);
@@ -139,10 +144,237 @@ static void dv_cheats_vblank(void)
                       DV_SCROLL_CAP, g_scroll_every);
 }
 
+/* --- trips: the in-game menu's Warp > Cut prologue scene ---------------------
+ * The menu sets dv_trip_area / dv_trip_stage and then dv_trip_request. At the first quiet frame of an action stage (plain play:
+ * mode 8 sub-mode 7, no pause, no event script, no stage or area load, every
+ * load row idle) the hook below calls the game's own ModeTransition
+ * (0x80025264, object native 3 / event native 2), as a stage exit would:
+ * kind 0 (area and stage deltas, the module kept; kind 1, the stage delta
+ * alone, inside the area), for an action or scene stage (a world map would
+ * take kind 3, into MAP.BIN). The game then resets the
+ * stage, loads the area header and the stage, and asks for the other disc
+ * itself when the area needs it (decomp src/main/objscript.c).
+ *
+ * The call is made from the entry of ModelWeldReset (0x80021CE4, already in
+ * game.toml [recompiler] mod_function_entry_funcs: FrameDraw calls it each
+ * frame, after the frame's objects ran and before DrawOTag), which is where
+ * a script's exit would also have left the frame. The four argument bytes go
+ * to g_CdUnused8768 (0x80078768, 16 bytes of the CD object's .bss that no
+ * code, data or script touches: decomp docs/OBJECTS.md section 9) and are
+ * zeroed after the call. Not expansion memory: an allocation there changes
+ * the save-state layout cookie (psx_mod_memory_layout_cookie), and every
+ * state saved before it would be refused. A loaded save state cancels a
+ * pending trip. */
+#define DV_MODEL_WELD_RESET 0x80021CE4u
+#define DV_MODE_TRANSITION  0x80025264u
+#define DV_MODE             0x8008634Cu   /* g_GameFlow.mode, +1 subMode */
+#define DV_PAUSE_STATE      0x8007D826u   /* g_PauseState */
+#define DV_EVENT_RUNNING    0x8009F9F8u   /* g_EventVm.running */
+#define DV_AREA_PHASE       0x800A2D14u   /* g_GameState.areaPhase */
+#define DV_STAGE_PHASE      0x800A2D18u   /* g_GameState.stagePhase */
+#define DV_LOAD_ROWS        0x800A2B84u   /* g_GameState.row[10], 0x28 bytes each */
+#define DV_STAGE_AREA       0x800A2F18u   /* g_StageSelect.area (s16) */
+#define DV_STAGE_STAGE      0x800A2F1Au   /* g_StageSelect.stage (s16) */
+#define DV_TRIP_ARGS        0x80078768u   /* g_CdUnused8768: { kind, area delta, stage delta, 0 } */
+
+volatile int dv_trip_request = 0;   /* set by the menu; cleared when the trip starts */
+volatile int dv_trip_area = 0, dv_trip_stage = 0;
+
+static int dv_trip_quiet(void)
+{
+    uint32_t r, c;
+    if (psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_byte(DV_MODE + 1) != 7 ||
+        psx_mod_read_byte(DV_PAUSE_STATE) || psx_mod_read_word(DV_EVENT_RUNNING) ||
+        psx_mod_read_word(DV_AREA_PHASE) || psx_mod_read_word(DV_STAGE_PHASE) || !dv_hero_loaded())
+        return 0;
+    for (r = 0; r < 10; r++)
+        for (c = 0; c < 2; c++)
+            if (psx_mod_read_byte(DV_LOAD_ROWS + r * 0x28 + 0x10 + c)) return 0;
+    return 1;
+}
+
+static void dv_trip_frame(struct CPUState* cpu, uint32_t address)
+{
+    int da, ds, kind;
+    (void)address;
+    if (!dv_trip_request || !dv_trip_quiet()) return;
+    dv_trip_request = 0;
+    da = dv_trip_area - (int16_t)psx_mod_read_half(DV_STAGE_AREA);
+    ds = dv_trip_stage - (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
+    if (da < -128 || da > 127 || ds < -128 || ds > 127) return;
+    kind = da ? 0 : 1;
+    psx_mod_write_word(DV_TRIP_ARGS, (uint32_t)kind | (uint32_t)(uint8_t)(int8_t)da << 8 |
+                                     (uint32_t)(uint8_t)(int8_t)ds << 16);
+    fprintf(stderr, "%s: trip to %d/%d (ModeTransition kind %d)\n", DV_PLUGIN_ID, dv_trip_area, dv_trip_stage, kind);
+    psx_mod_call_guest(cpu, DV_MODE_TRANSITION, cpu->gpr[31], 0, DV_TRIP_ARGS, 0, 0);
+    psx_mod_write_word(DV_TRIP_ARGS, 0);
+}
+
+/* --- the cut prologue scene in English --------------------------------------
+ * 0/5 (Warp > Cut prologue scene) plays a scene cut from the prologue whose
+ * 22 messages (room 1 event pack, file 80, entries 4..25) are the Japanese
+ * release's: kana in the cells where the US font has its accented letters,
+ * kanji of a sheet the disc no longer has. They were read and translated on
+ * 2026-11-21 (the Japanese, rebuilt, is in the decomp's docs/SECRETS.md,
+ * with 1/24's Celia draft, whose English this plugin also showed until the
+ * corridor left the menu).
+ *
+ * While the room's message table (g_EventVm.messages, op 62) still points at
+ * the Japanese message 0, the VBlank below writes the English, in the US
+ * font's glyph code (decomp docs/EVENT_SCRIPT.md, "Text": glyph = advance
+ * << 10 | column << 5 | row, 21 cells a row; control words 0x8000 new line,
+ * 0x8800 speed, 0x9000 pen, 0x9800 colour, 0xA000 a question's answers,
+ * 0xFFFF end), at DV_TEXT_HOME and points the table at it. DV_TEXT_HOME is
+ * main RAM above the stage's heap: the stage buffers end where the second
+ * arena starts (GS_ARENA2, where the message window builds its display
+ * list: 0x80188698 in 1/24), and the RAM stack only uses the top of RAM
+ * under 0x801FFFF4 (the game runs on the scratchpad stack and switches there
+ * for the CD, sound and object-script calls); from 0x801D1698 to 0x801FF698
+ * RAM stayed zero in 1/24. The text is written only while the stage's arena
+ * starts 64 KB or more below it. The first version wrote over 0/5's
+ * description bank (a Japanese leftover there); a stage whose bank is the
+ * English one the magic menu reads could not spare it. Main RAM only, so a
+ * save state taken during the scene keeps the English and loads anywhere
+ * (no expansion memory: that changes the save-state layout). */
+#define DV_EVENT_MESSAGES   0x8009FA18u   /* g_EventVm.messages (u16 **) */
+#define DV_EVENT_MSG_COUNT  0x8009FA1Cu   /* g_EventVm.messageCount */
+#define DV_ARENA2           0x800A2CA0u   /* g_GameState.row[7].buffer[1] (GS_ARENA2) */
+#define DV_TEXT_HOME        0x801E0000u
+#define DV_TEXT_END         0x801F0000u   /* 64 KB clear of the RAM stack */
+
+/* Message text: plain lines get {pos 88,188} first (the band's second line)
+ * unless they set the pen themselves; "{color n}Name:" is a speaker's name.
+ * {speed n} {pos x,y} {instant x,y} {color n} are the game's controls (the
+ * decomp's evscript.py spells them the same way). */
+static const char* const kCutScene[22] = {
+    "...Elena?!",                                                            /* Raimun */
+    "Answer me!\nElenaaa!!",
+    "Who...\nWho could be so cruel...",
+    "Was it you?\nCalling me...",                                            /* the dragon */
+    "Wh-what is this thing?!",
+    "(Th-this thing?!\nSuch insolence, from a worm...)",
+    "I hear the voice of your heart.\n\"Kill, kill, kill...\" it says.\nDo you wish to avenge this girl?",
+    "You bastard! What do you know?!",
+    "(B-bastard, he calls me...)",
+    "They say this girl was killed by\nher own brother. She said so\nbefore she died, I believe...",
+    "C-Clovis did?!",
+    "Hmm...\nThat was the name, I believe...",
+    "......",
+    "Hmm... You can't believe it?",
+    "Clo...vis...",
+    "(He'll make a fine pawn\nfor a while...)",
+    "Tell me... Do you wish to\nkill Clovis?",
+    "......?!",
+    "If that is your heart's desire,\nI could lend you my power.\nI have my own score to settle...",
+    "Elena...\nIf it will avenge you...\nI would sell my soul to a demon...",
+    "{color 2}Raimun:",                                                      /* speaker names */
+    "{color 3}Dragon:",
+};
+
+/* The rooms, known by their Japanese message 0: {pos 88,188}...Elena?! in
+ * kana (0/5). */
+static const struct {
+    int16_t area, stage;
+    uint32_t count;
+    uint16_t jp0[4];
+    const char* const* text;
+} kScenes[] = {
+    {0, 5, 22, {0x90B2, 0x31EC, 0x3288, 0x320A}, kCutScene},
+};
+
+/* US font cells of ASCII 0x20..0x7E: {row x 21 + column, advance}; 0xFFFF none. */
+static const struct { uint16_t cell; uint8_t advance; } kAscii[95] = {
+    {0, 6}, {19, 5}, {14, 7}, {96, 12}, {97, 11}, {98, 12}, {99, 12}, {13, 4},
+    {1, 6}, {2, 6}, {31, 9}, {32, 12}, {11, 4}, {33, 12}, {12, 4}, {35, 13},
+    {21, 7}, {22, 6}, {23, 8}, {24, 8}, {25, 8}, {26, 8}, {27, 8}, {28, 8},
+    {29, 8}, {30, 8}, {15, 4}, {16, 4}, {101, 12}, {34, 12}, {102, 12}, {95, 7},
+    {42, 12}, {43, 10}, {44, 9}, {45, 10}, {46, 10}, {47, 9}, {48, 9}, {49, 10},
+    {50, 10}, {51, 5}, {52, 7}, {53, 10}, {54, 9}, {55, 12}, {56, 11}, {57, 11},
+    {58, 9}, {59, 11}, {60, 9}, {61, 8}, {62, 9}, {63, 10}, {64, 10}, {65, 12},
+    {66, 10}, {67, 9}, {68, 9}, {3, 5}, {0xFFFF, 0}, {4, 5}, {18, 6}, {103, 13},
+    {0xFFFF, 0}, {69, 8}, {70, 8}, {71, 7}, {72, 8}, {73, 7}, {74, 6}, {75, 8},
+    {76, 9}, {77, 5}, {78, 6}, {79, 8}, {80, 5}, {81, 11}, {82, 8}, {83, 7},
+    {84, 8}, {85, 8}, {86, 7}, {87, 6}, {88, 6}, {89, 7}, {90, 8}, {91, 10},
+    {92, 8}, {93, 9}, {94, 7}, {0xFFFF, 0}, {17, 4}, {0xFFFF, 0}, {36, 12},
+};
+
+/* A pen position as the {pos} / {instant} words hold it: (x / 8) << 4 | (y - 176) / 6. */
+static unsigned dv_pen(unsigned x, unsigned y)
+{
+    return (x / 8u & 0x3Fu) << 4 | ((y - 176u) / 6u & 0xFu);
+}
+
+/* One message as the game codes it, at addr (0: only measured); the end. */
+static uint32_t dv_encode_message(uint32_t addr, const char* s)
+{
+    uint32_t a = addr, n = 0;
+    const int name = strncmp(s, "{color", 6) == 0;
+#define DV_PUT(w) do { if (addr) psx_mod_write_half(a, (uint16_t)(w)); a += 2; n++; } while (0)
+    if (!name && strncmp(s, "{pos", 4) != 0) DV_PUT(0x90B2);   /* {pos 88,188} */
+    for (; *s; s++) {
+        const unsigned c = (unsigned char)*s;
+        unsigned cell, adv, x = 0, y = 0;
+        if (c == '{') {
+            const char* close = strchr(s, '}');
+            if (!close) break;
+            if (sscanf(s, "{speed %u}", &x) == 1) DV_PUT(0x8800 | (x & 0xFFu));
+            else if (sscanf(s, "{pos %u,%u}", &x, &y) == 2) DV_PUT(0x9000 | dv_pen(x, y));
+            else if (sscanf(s, "{instant %u,%u}", &x, &y) == 2) DV_PUT(0xA000 | dv_pen(x, y));
+            else if (sscanf(s, "{color %u}", &x) == 1) DV_PUT(0x9800 | (x & 7u));
+            s = close;
+            continue;
+        }
+        if (c == '\n') { DV_PUT(0x8000); continue; }
+        if (c < 0x20 || c > 0x7E || kAscii[c - 0x20].cell == 0xFFFF) continue;
+        cell = kAscii[c - 0x20].cell;
+        adv = (name && c == ':') ? 6u : kAscii[c - 0x20].advance;   /* the names' colon: {w6} */
+        DV_PUT(adv << 10 | (cell % 21) << 5 | cell / 21);
+    }
+    DV_PUT(0xFFFF);
+    if (n & 1) DV_PUT(0);                      /* 4-byte entries */
+#undef DV_PUT
+    return a;
+}
+
+static int dv_ram_pointer(uint32_t p) { return (p & 0xFFE00001u) == 0x80000000u; }
+
+static void dv_cut_scene_english(void)
+{
+    const int16_t area = (int16_t)psx_mod_read_half(DV_STAGE_AREA);
+    const int16_t stage = (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
+    const uint32_t count = psx_mod_read_word(DV_EVENT_MSG_COUNT);
+    const uint32_t scenes = sizeof kScenes / sizeof kScenes[0];
+    uint32_t table, m0, arena2, a, need = 0, i, k;
+    for (k = 0; k < scenes; k++)
+        if (kScenes[k].area == area && kScenes[k].stage == stage && kScenes[k].count == count) break;
+    if (k == scenes) return;
+    table = psx_mod_read_word(DV_EVENT_MESSAGES);
+    if (!dv_ram_pointer(table) || !dv_ram_pointer(m0 = psx_mod_read_word(table))) return;
+    for (i = 0; i < 4; i++)
+        if (psx_mod_read_half(m0 + 2u * i) != kScenes[k].jp0[i]) return;   /* another room, or done */
+    arena2 = psx_mod_read_word(DV_ARENA2);
+    if (!dv_ram_pointer(arena2) || arena2 > DV_TEXT_HOME - 0x10000u) return;   /* the stage's heap is that high */
+    for (i = 0; i < count; i++) need += dv_encode_message(0, kScenes[k].text[i]);
+    if (DV_TEXT_HOME + need > DV_TEXT_END) return;
+    for (a = DV_TEXT_HOME, i = 0; i < count; i++) {
+        psx_mod_write_word(table + 4u * i, a);
+        a = dv_encode_message(a, kScenes[k].text[i]);
+    }
+    fprintf(stderr, "%s: %d/%d's scene in English (%u bytes at %08X)\n", DV_PLUGIN_ID, area, stage,
+            (unsigned)(a - DV_TEXT_HOME), (unsigned)DV_TEXT_HOME);
+}
+
+static void dv_cheats_savestate_loaded(void)
+{
+    dv_trip_request = 0;
+}
+
 PSX_MOD_CONSTRUCTOR(dv_register_cheat_plugins)
 {
     int ok = psx_mod_register_activation_plugin(DV_PLUGIN_ID, dv_cheats_activate)
           && psx_mod_register_vblank_plugin(DV_PLUGIN_ID, dv_cheats_vblank)
-          && psx_mod_register_option_changed_plugin(DV_PLUGIN_ID, dv_cheats_option_changed);
+          && psx_mod_register_option_changed_plugin(DV_PLUGIN_ID, dv_cheats_option_changed)
+          && psx_mod_register_savestate_plugin(DV_PLUGIN_ID, dv_cheats_savestate_loaded)
+          && psx_mod_register_function_entry_plugin(DV_PLUGIN_ID, DV_MODEL_WELD_RESET, dv_trip_frame);
     if (!ok) fprintf(stderr, "dragonvalor.cheats: plugin failed to register\n");
 }
