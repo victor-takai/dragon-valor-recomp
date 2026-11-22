@@ -1863,6 +1863,40 @@ forest while the native `screenshot` kept the original artwork. The
 dump/replacement file names are hashes of the upload data, so dumps taken
 on one build match on the other.
 
+**The HUD and save states.** The HUD's art (the H.P. / M.P. frames and
+gauges, the digits, the spell icons) belongs to no stage: the title uploads
+it once from `\TITLE\DB_TITLE.TIP` (115×248 words at (832, 256), then 46×48
+at (960, 256), then 64×120 at (896, 280) over part of the first) and it stays
+in VRAM for the whole game. The mod knows a texture by the upload that put
+it there, and a loaded state restores VRAM without its uploads, so after a
+state load the HUD kept its original art until the title came back. The
+cheats plugin now sends the same three images again at the first action
+frame after a state load (`dragonvalor_cheats.c`, *HD texture packs: the HUD
+after a save state*; only while the HD Texture Packs feature is in the plan;
+the words are the ones VRAM already holds, so nothing changes on screen).
+`tests/test_hd_hud.py` checks it with an empty pack in dump mode: after
+state 10 the HUD's two sources are dumped, and with the cheats feature off
+(control) they are not. Stage and room textures still need a fresh upload
+after a state load (a stage or area change).
+
+**What a pack for this game needs** (learned making a local 4× pack from
+4,502 dumps, 2026-11-21/22; the art and the tooling stay local):
+- `config.yaml` at the pack root with `MaxVRAMWriteSplits: 64`. The game
+  writes over parts of some uploads (the third HUD image over the first, at
+  the title as in the plugin; parts of Raxis Castle's walls), and by default
+  an upload that is partly overwritten loses its identity: those textures
+  were never dumped nor replaced. With splits the untouched parts keep it.
+  `DumpTextureWidthThreshold` / `HeightThreshold: 8` also catch the HUD's
+  small text.
+- No two replacements of one texture, palette and convention where one's
+  rectangle lies inside the other's (dump sessions record different used
+  areas): two parts covering a draw make the renderer compose them on every
+  draw, and Raxis Castle fell from 60 to 42 guest frames/s. Keep the
+  biggest.
+- Switching replacements with the `hd_textures` debug command rebuilds the
+  session and forgets the uploads seen so far, the title's HUD included;
+  test from a state load (the plugin re-sends the HUD) or from the title.
+
 A human session from the title into Brize Forest (2026-10-14, release build,
 dump on) produced 563 PNGs (7.7 MB): 474 4-bit paletted (`P4`), 72
 semi-transparent 4-bit (`STP4`), 16 8-bit (`P8`), 1 `STP8`; the commonest
@@ -1960,7 +1994,10 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   takes test state 10 to the cut scene 0/5 through Warp > Cut prologue
   scene (the stage loads and keeps running, the room's messages are the
   English ones, test state 9 still loads after the trip; a picture goes
-  to `<build>/test_shots`).
+  to `<build>/test_shots`); `python tests/test_hd_hud.py` checks that the
+  HD Texture Packs mod knows the HUD again after a state load (an empty
+  temporary pack in dump mode: the HUD's sources are dumped after test
+  state 10, and not with the cheats feature off).
 
 ## Project layout (what is ours)
 
