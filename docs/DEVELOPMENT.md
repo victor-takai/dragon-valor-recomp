@@ -1934,7 +1934,10 @@ after a state load (a stage or area change).
   refused every draw from such a page, so they were never dumped nor
   replaced. `patches/psxrecomp/0004` checks only the texels a draw reads.
   They are painted art, not pixel art, and there the models do well: the
-  local pack gives them UltraSharp (all 49 portraits of both discs; their
+  local pack gives them UltraSharp, after peeling the near-black matte they
+  were painted over (28% of their contour texels are under 48 against 3%
+  inside, and the model turned them into black drops and specks around the
+  hair over the magic menu's panel) (all 49 portraits of both discs; their
   dump names were computed from the discs with the framework's own pack code,
   so no one had to open every dialogue). The gallery's illustrations are no
   help here: full-body pictures at 384×480, where a face is about 25 lines
