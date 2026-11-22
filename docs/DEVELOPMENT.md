@@ -1888,6 +1888,13 @@ after a state load (a stage or area change).
   were never dumped nor replaced. With splits the untouched parts keep it.
   `DumpTextureWidthThreshold` / `HeightThreshold: 8` also catch the HUD's
   small text.
+- `ConvertCopiesToWrites: true` in it too. The stages finish their floor and
+  wall textures with VRAM-to-VRAM copies into an uploaded area (1/7's
+  cobblestones, Raxis Castle's floor, carpet and walls: 37 textures in those
+  two stages alone), and without the option the copied area loses its
+  identity, so those textures were never dumped nor replaced (found
+  2026-11-22: the floors stayed native with the pack on). With it the
+  upload is captured again after each copy.
 - No two replacements of one texture, palette and convention where one's
   rectangle lies inside the other's (dump sessions record different used
   areas): two parts covering a draw make the renderer compose them on every
@@ -1912,7 +1919,15 @@ after a state load (a stage or area change).
   them (a 4 turns into a Q). The local pack draws them again as vector
   strokes instead (each white texel a point, neighbours joined, diagonals
   only where no square neighbour joins them, the edge as wider strokes),
-  over the model's output for the text inside larger images.
+  over the rest of the image for the text inside larger images.
+- The upscaling models lost to the texels themselves (2026-11-22): UltraSharp
+  and PixelPerfect smoothed the art (the coins' relief gone, the Namco ® a
+  blot, the spell icons blurred), and the local pack ended as nearest
+  everywhere (each texel a 4×4 block) with only the HUD text as strokes. Such
+  a pack looks like the renderer's `texture_filtering = "nearest"` (a
+  bilinear filter over 4×4 blocks blends only their edges), which needs no
+  pack and also covers what a state load leaves native; the pack's own gain
+  is the stroke text.
 
 A human session from the title into Brize Forest (2026-10-14, release build,
 dump on) produced 563 PNGs (7.7 MB): 474 4-bit paletted (`P4`), 72
