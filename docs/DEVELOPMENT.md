@@ -1896,6 +1896,23 @@ after a state load (a stage or area change).
 - Switching replacements with the `hd_textures` debug command rebuilds the
   session and forgets the uploads seen so far, the title's HUD included;
   test from a state load (the plugin re-sends the HUD) or from the title.
+- The HUD draws only the equipped spell: its 32×24 icon (one cell per spell
+  and level, each with its own palette) and its 40×8 name (all eight names
+  share a palette, at (128, 48) of the first HUD image), set by
+  HudSetSpellIcon (decomp `src/main/hud.c`). A play session therefore dumps
+  one icon and one name; the other 23 icons and the names need each spell
+  shown. The names' dump grows with each new name seen (40×8, 40×16 …
+  80×32), so keep the biggest (the rule above). The local pack got them all
+  in one session by writing the HUD's spell primitives through the debug
+  server (UV / CLUT words as HudSetSpellIcon computes them, with the group's
+  drawing offset parked off screen while the words are written, so that no
+  frame draws a half-written word).
+- The HUD's 8×8 font (digits) and its text (H.P., M.P., the spell names) are
+  white strokes one texel wide with a dark edge: the upscaling models blob
+  them (a 4 turns into a Q). The local pack draws them again as vector
+  strokes instead (each white texel a point, neighbours joined, diagonals
+  only where no square neighbour joins them, the edge as wider strokes),
+  over the model's output for the text inside larger images.
 
 A human session from the title into Brize Forest (2026-10-14, release build,
 dump on) produced 563 PNGs (7.7 MB): 474 4-bit paletted (`P4`), 72
