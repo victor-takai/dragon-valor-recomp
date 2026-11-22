@@ -1933,15 +1933,21 @@ after a state load (a stage or area change).
   texture page at x 960, which runs past VRAM's right edge; the framework
   refused every draw from such a page, so they were never dumped nor
   replaced. `patches/psxrecomp/0004` checks only the texels a draw reads.
-  They are painted art, not pixel art, and there the models do well: the
-  local pack gives them UltraSharp, after peeling the near-black matte they
-  were painted over (28% of their contour texels are under 48 against 3%
-  inside, and the model turned them into black drops and specks around the
-  hair over the magic menu's panel) (all 49 portraits of both discs; their
-  dump names were computed from the discs with the framework's own pack code,
-  so no one had to open every dialogue). The gallery's illustrations are no
-  help here: full-body pictures at 384×480, where a face is about 25 lines
-  tall against the portrait's 64, and drawn in other poses.
+  All 49 portraits of both discs can be replaced: their dump names were
+  computed from the discs with the framework's own pack code, so no one has
+  to open every dialogue. They are painted art over black (28% of their
+  contour texels are under 48 against 3% inside: a matte that models turn
+  into black drops, so peel it first). The local pack tried UltraSharp,
+  AnimeSharp, RealESRGAN (x4plus, anime 6B, animevideo v3),
+  IllustrationJaNai V3 and diffusion (Stable Diffusion 1.5 with ControlNet
+  tile, per-character prompts so a hero stays a man) and kept the original
+  texels (2026-11-22): at 80×64 every method either invents (another face,
+  a modern anime style, an "AI" finish) or shows no more detail than the
+  texels. Only higher-resolution source art would do better. The gallery has
+  none: two portraits (Gerome's, Anna's) are mirrored crops of its full-body
+  pictures, but there the face is about 60% of the portrait's size; the
+  others are drawings of their own (illustration: Taro Yamazaki, from the
+  staff credits).
 - The 12×12 font (64×256 words at (704, 256), uploaded by the title from
   `\BIN\OPENNING.BIN`: the menus' text, the hero's name on the magic menu,
   the dialogue) is the HUD's case again: after a state load the pack no
