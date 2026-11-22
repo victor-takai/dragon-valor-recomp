@@ -469,6 +469,50 @@ static int dv_hud_read(void)
     return 1;
 }
 
+/* The font sheet (12 x 12 glyphs, 64 x 256 words at (704, 256)) has the same
+ * story: the title uploads it from \BIN\OPENNING.BIN and no action stage
+ * writes there, so after a state load the pack no longer knew the hero's
+ * name on the menu's name plate, the dialogue text and the HUD's counter.
+ * The only TIM of either disc that covers it besides the gallery's is a
+ * 144 x 256 one of 11/24 (disc 2), so that stage is skipped. */
+#define DV_FONT_FILE "BIN/OPENNING.BIN"
+static const struct { uint16_t x, y, w, h; } kFontTim = {704, 256, 64, 256};
+static uint8_t* g_font_pixels;
+static int g_font_read;         /* 0 not yet, 1 read, -1 failed */
+
+static int dv_font_read(void)
+{
+    uint32_t size = 0, off;
+    uint8_t* file;
+    if (g_font_read) return g_font_read > 0;
+    g_font_read = -1;
+    if (!psx_mod_read_disc_file(DV_FONT_FILE, NULL, 0, &size) || size < 64u || size > (4u << 20)) return 0;
+    if (!(file = (uint8_t*)malloc(size))) return 0;
+    if (!psx_mod_read_disc_file(DV_FONT_FILE, file, size, &size)) { free(file); return 0; }
+    for (off = 0; off + 20u <= size && !g_font_pixels; off += 4u) {
+        uint32_t p = off + 8u, bytes, flags;
+        if (dv_le32(file + off) != 0x10u || ((flags = dv_le32(file + off + 4u)) & ~0xBu)) continue;
+        if (flags & 8u) {
+            bytes = dv_le32(file + p);
+            if (bytes != 12u + 2u * dv_le16(file + p + 8u) * dv_le16(file + p + 10u) || p + bytes + 12u > size) continue;
+            p += bytes;
+        }
+        bytes = dv_le32(file + p);
+        if (bytes != 12u + 2u * kFontTim.w * kFontTim.h || p + bytes > size ||
+            dv_le16(file + p + 4u) != kFontTim.x || dv_le16(file + p + 6u) != kFontTim.y ||
+            dv_le16(file + p + 8u) != kFontTim.w || dv_le16(file + p + 10u) != kFontTim.h) continue;
+        if ((g_font_pixels = (uint8_t*)malloc(2u * kFontTim.w * kFontTim.h)))
+            memcpy(g_font_pixels, file + p + 12u, 2u * kFontTim.w * kFontTim.h);
+    }
+    free(file);
+    if (!g_font_pixels) {
+        fprintf(stderr, "%s: %s: the font sheet not found\n", DV_PLUGIN_ID, DV_FONT_FILE);
+        return 0;
+    }
+    g_font_read = 1;
+    return 1;
+}
+
 /* The HD Texture Packs feature is in the plan (its options resolve), loading
  * replacements or dumping: a dump made after a state load gets the HUD too. */
 static int dv_hd_textures_on(void)
@@ -481,6 +525,7 @@ static void dv_hud_frame(void)
 {
     static uint8_t saved[DV_HUD_BYTES];
     uint32_t i, k;
+    int font;
     if (!g_hud_refresh || psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_word(DV_AREA_PHASE) ||
         psx_mod_read_word(DV_STAGE_PHASE) || !dv_hero_loaded())
         return;
@@ -494,8 +539,14 @@ static void dv_hud_frame(void)
         psx_mod_host_write_ram(DV_HUD_SCRATCH, g_hud_pixels[k], 2u * kHudTims[k].w * kHudTims[k].h);
         psx_mod_psyq_load_image(kHudTims[k].x, kHudTims[k].y, kHudTims[k].w, kHudTims[k].h, DV_HUD_SCRATCH);
     }
+    font = !(psx_mod_read_half(DV_STAGE_AREA) == 11 && psx_mod_read_half(DV_STAGE_STAGE) == 24) && dv_font_read();
+    if (font) {                     /* 32,768 bytes: inside the scratch the HUD saved */
+        psx_mod_host_write_ram(DV_HUD_SCRATCH, g_font_pixels, 2u * kFontTim.w * kFontTim.h);
+        psx_mod_psyq_load_image(kFontTim.x, kFontTim.y, kFontTim.w, kFontTim.h, DV_HUD_SCRATCH);
+    }
     psx_mod_host_write_ram(DV_HUD_SCRATCH, saved, DV_HUD_BYTES);
-    fprintf(stderr, "%s: the HUD's images sent again for the HD texture pack\n", DV_PLUGIN_ID);
+    fprintf(stderr, "%s: the HUD's images sent again for the HD texture pack%s\n", DV_PLUGIN_ID,
+            font ? ", and the font sheet" : "");
 }
 
 static void dv_frame(struct CPUState* cpu, uint32_t address)

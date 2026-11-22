@@ -13,7 +13,8 @@ test points the mod at an empty temporary pack with Dump textures on (and
 MaxVRAMWriteSplits in its config.yaml, as a real pack has), launches the
 build from test state 10 (muted, hidden window), lets the HUD draw, quits the
 game cleanly (the dumps are written then) and looks at the dumped names:
-  1. the plugin logs that it sent the images again;
+  1. the plugin logs that it sent the images again, the font sheet
+     (\\BIN\\OPENNING.BIN, (704, 256)) with them;
   2. the dumps hold the HUD's two sources, the frames / gauges / spell icons
      (1CF9981FCCDB5A1C) and the digits (7DF5DD761498BFD9): drawn from uploads
      the mod knows;
@@ -40,6 +41,7 @@ DV = str(ROOT / "tools" / "dvdbg.py")
 MODE = 0x8008634C
 HUD_SOURCES = {"1CF9981FCCDB5A1C": "frames, gauges, spell icons", "7DF5DD761498BFD9": "digits"}
 LOG_LINE = "the HUD's images sent again"
+FONT_LOG = ", and the font sheet"
 STATE_TOML = """format_version = 2
 
 [[package]]
@@ -120,9 +122,10 @@ def run(port, bdir, state, cheats):
         print(f"cheats plugin {'on' if cheats else 'off (control)'}, state 10, dump into {pack}")
         print("  launch:", cli("launch", "--state", "10", "--build", str(bdir)).splitlines()[-1])
         log = bdir / f"dvdbg_{port}.log"
-        t0, sent = time.time(), False
+        t0, sent, text = time.time(), False, ""
         while time.time() - t0 < 30:
-            sent = LOG_LINE in log.read_text(encoding="utf-8", errors="replace")
+            text = log.read_text(encoding="utf-8", errors="replace")
+            sent = LOG_LINE in text
             if sent or (not cheats and time.time() - t0 > 12):
                 break
             time.sleep(0.5)
@@ -144,6 +147,7 @@ def run(port, bdir, state, cheats):
         print(f"  mode {mode} after the state load; {len(names)} dumps")
         if cheats:
             check(f"the plugin sent the HUD's images again ({LOG_LINE!r} in the log)", sent)
+            check(f"and the font sheet ({FONT_LOG!r} in the log)", FONT_LOG in text)
             for s, what in HUD_SOURCES.items():
                 check(f"the HUD's {what} ({s}) were drawn from a known upload ({found[s]} dumps)", found[s] > 0)
         else:

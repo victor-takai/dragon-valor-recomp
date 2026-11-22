@@ -1928,6 +1928,30 @@ after a state load (a stage or area change).
   bilinear filter over 4×4 blocks blends only their edges), which needs no
   pack and also covers what a state load leaves native; the pack's own gain
   is the stroke text.
+- The portraits (80×64, 8 bpp at (960, 432), CLUT (0, 500): the magic menu's
+  hero picture, drawn mirrored, and every dialogue speaker) sit in an 8-bit
+  texture page at x 960, which runs past VRAM's right edge; the framework
+  refused every draw from such a page, so they were never dumped nor
+  replaced. `patches/psxrecomp/0004` checks only the texels a draw reads.
+  They are painted art, not pixel art, and there the models do well: the
+  local pack gives them UltraSharp (all 49 portraits of both discs; their
+  dump names were computed from the discs with the framework's own pack code,
+  so no one had to open every dialogue). The gallery's illustrations are no
+  help here: full-body pictures at 384×480, where a face is about 25 lines
+  tall against the portrait's 64, and drawn in other poses.
+- The 12×12 font (64×256 words at (704, 256), uploaded by the title from
+  `\BIN\OPENNING.BIN`: the menus' text, the hero's name on the magic menu,
+  the dialogue) is the HUD's case again: after a state load the pack no
+  longer knew it, so the cheats plugin now sends it again with the HUD's
+  images (except in 11/24, disc 2, whose 144×256 TIM covers it). Its glyphs
+  are flat colour, one CLUT row per colour; the local pack draws them as
+  strokes too, each covered pixel in its glyph's colour, over the whole sheet
+  for the six rows of the font's own CLUT (the cyan of the name, the white of
+  the text). Other rows (the grey of the spell descriptions) come from the
+  palettes of the menus and only get what a dump has seen. The magic menu's
+  yellow labels in the first HUD image (LEVEL, the 8×16 level digits, STR.,
+  DEF., VAL, M.P.) are redrawn like the white text, each colour with its own
+  edge.
 
 A human session from the title into Brize Forest (2026-10-14, release build,
 dump on) produced 563 PNGs (7.7 MB): 474 4-bit paletted (`P4`), 72

@@ -142,9 +142,16 @@ the native 60 Hz version.
   without its uploads, so the HD Texture Packs mod drew the original HUD
   until the title came back. The cheats plugin now sends the title's three
   HUD images again at the first action frame after a state load (the same
-  words, nothing changes on screen without a pack). `tests/test_hd_hud.py`
-  7/7. What a pack for this game needs (MaxVRAMWriteSplits, no nested
-  duplicate rectangles): `DEVELOPMENT.md`, *HD texture packs on this game*.
+  words, nothing changes on screen without a pack), and the title's 12×12
+  font sheet with them (the menus' text, the hero's name, the dialogue).
+  `tests/test_hd_hud.py` 8/8. What a pack for this game needs
+  (MaxVRAMWriteSplits, ConvertCopiesToWrites, no nested duplicate
+  rectangles): `DEVELOPMENT.md`, *HD texture packs on this game*.
+- **HD texture packs reach the portraits** (2026-11-22, the player's
+  request): the framework refused textures whose 8-bit page runs past VRAM's
+  right edge, where every portrait lives (the magic menu's hero, the
+  dialogue speakers); `patches/psxrecomp/0004` checks only the texels a draw
+  reads (a unit test fails without it).
 - **Cut prologue scene** (2026-11-21, branch `secret-stages`, the
   player's request): Warp > Cut prologue scene takes the hero to 0/5, a
   scene cut from the prologue that nothing in the game leads to (the
