@@ -6,6 +6,8 @@
 /build-*/
 /out/
 /.happypath/
+# tools/make_bezel.py's default output: the game's art, never committed
+/bezel/
 
 # generated/ is COMMITTED: releases ship the compiled game, and CI builds it
 # from the game C in this repo (psxrecomp_cli.py generate, then git add

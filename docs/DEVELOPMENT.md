@@ -1217,7 +1217,17 @@ worked examples this one follows.
   picture with the bezel off, the bezel at the sides with it on. Checked
   from a New Game with a 1920 × 1080 bezel: the prologue's card framed by
   it, the dragon fight after it still wide; `tests/test_widescreen.py on`
-  11/11. The bezel image is the player's own (game art stays local).
+  11/11. The bezel image is the player's own (game art stays local):
+  `tools/make_bezel.py` (shipped at the zip root by
+  `scripts/package_release.sh`, standard library only) reads
+  `ILLUST/ILLUST_U.CDR` from the player's disc (the `[disc]` path of
+  `settings.toml`), takes the gallery's 16-bit TIMs in file order (96, 384 ×
+  480) and builds two 1920 × 1080 pictures from 240-pixel strips of
+  paintings 36 / 38 (heroes) and 42 / 41 (dragons), cut above or below
+  their "Image illustration" captions, 0.85 brightness, a 48-pixel shadow
+  by the game picture; `--install DIR` writes them to `DIR/bezel/` and
+  turns the bezel on in `DIR/mods/state.toml`. Its default output, `bezel/`,
+  is ignored by git.
 - **Dialogue border** (2026-11-17, "the dialogue bar does not span the
   screen"). The message window's black band is a 384-wide TILE the renderer
   already extends; its top border is six identical 64 × 8 sprites from x 0

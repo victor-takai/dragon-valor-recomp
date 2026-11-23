@@ -65,6 +65,25 @@ Keys and buttons: [`CONTROLS.md`](CONTROLS.md). Memory card saves live in
 Found a bug? [`docs/PLAYTESTING.md`](docs/PLAYTESTING.md) says what to test
 and what to attach.
 
+### Art in the side bars
+
+With widescreen on, the screens made for 4:3 (the chapter title cards, the
+menus, the world map, the movies) keep black bars at the sides. The
+launcher's **Mods > Bezel Artwork** draws a picture there instead.
+`make_bezel.py` (in the zip, next to the game; `tools/` here) makes two
+from the paintings of the game's illustration gallery, read from your own
+disc: the heroes, or the dragons. With Python 3 installed, close the game
+and run, in the game's folder:
+
+```
+python make_bezel.py --install .                 # the heroes
+python make_bezel.py --install . --use dragons   # the dragons
+```
+
+It writes the pictures to `bezel/` and turns the bezel on; the launcher
+can switch it off or pick the other picture. The pictures are the game's
+art: keep them to yourself.
+
 ## Documentation
 
 | | |
