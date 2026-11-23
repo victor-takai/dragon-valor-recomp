@@ -1202,6 +1202,22 @@ worked examples this one follows.
   edges the colour step is no larger than between any two neighbouring
   columns; `tests/test_widescreen.py on` 11/11. The blur in play is still
   left out as above.
+- **Title cards at 4:3 for the bezel** (2026-11-23). With the event blur
+  wide, the side bars left in a playthrough are the 2D screens made for
+  4:3: stage 0 of every area (the chapter's title card and narration, the
+  prologue's "Only the magic sword…" among them), the menus, the world map
+  and its screens, the movies. The player chose to fill them with the
+  framework's Bezel Artwork (`psx.presentation.bezel`, off by default, an
+  image picked in the launcher), but the renderer draws it only around a
+  4:3 present (`present_bezel` skips a frame that covers the window), and
+  the world predicate keeps mode 8 wide, so a title card sat in a wide
+  frame with black margins of its own and the bezel never showed there.
+  The native-scene predicate now also asks for 4:3 in mode 8 at stage 0
+  (`g_StageSelect.stage` `0x800A2F1A`, `dv_ws_title_card`): the same
+  picture with the bezel off, the bezel at the sides with it on. Checked
+  from a New Game with a 1920 × 1080 bezel: the prologue's card framed by
+  it, the dragon fight after it still wide; `tests/test_widescreen.py on`
+  11/11. The bezel image is the player's own (game art stays local).
 - **Dialogue border** (2026-11-17, "the dialogue bar does not span the
   screen"). The message window's black band is a 384-wide TILE the renderer
   already extends; its top border is six identical 64 × 8 sprites from x 0

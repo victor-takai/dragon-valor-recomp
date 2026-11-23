@@ -143,6 +143,7 @@
 #define DV_BLUR_ON      0x8009F8A8u   /* u8 g_Render.blurOn (g_Render + 0x1068) */
 #define DV_SUBMODE      0x8008634Du   /* u8 sub-mode: 5 = event script, 7 = play */
 #define DV_SUB_EVENT    5u
+#define DV_STAGE        0x800A2F1Au   /* u16 g_StageSelect.stage: 0 = the area's title card */
 
 /* Renderer services of psxrecomp's gpu.h (runtime/include/gpu.h) that
  * mod_plugins.h does not re-export; mod activation clears the native-scene
@@ -189,9 +190,20 @@ static int dv_ws_wide_transition(void)
     return psx_mod_read_word(DV_TRANSITION) != 0u && effect < 32u && ((DV_WIDE_EFFECTS >> effect) & 1u);
 }
 
+/* Stage 0 of every area is the chapter's title card and narration: a 2D
+ * picture made for 4:3, drawn by the action module (mode 8). The world
+ * predicate keeps mode 8 wide, so the card sat in a wide frame with black
+ * margins of its own, and the bezel artwork (psx.presentation.bezel, drawn
+ * only around a 4:3 present) never showed there. Presented at 4:3 it looks
+ * the same with the bezel off, and the bezel fills the sides when it is on. */
+static int dv_ws_title_card(void)
+{
+    return psx_mod_read_byte(DV_MODE) == DV_MODE_ACTION && psx_mod_read_half(DV_STAGE) == 0u;
+}
+
 static int dv_ws_native_live(void)
 {
-    return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_MENU ||
+    return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_MENU || dv_ws_title_card() ||
                          (psx_mod_read_word(DV_TRANSITION) != 0u && !dv_ws_wide_transition()));
 }
 
