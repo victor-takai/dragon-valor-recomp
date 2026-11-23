@@ -1,6 +1,6 @@
 # Dragon Valor (USA) Recompiled — status
 
-Last updated: 2026-10-15. Framework: psxrecomp @ f9c287f5 (submodule, bumped from 54abcb70 the same day; see [`framework_pin_history.md`](framework_pin_history.md)), recomp-ui @ 41c88ff, OpenBIOS only.
+Last updated: 2026-11-23. Framework: psxrecomp @ f9c287f5 (submodule, bumped from 54abcb70 the same day; see [`framework_pin_history.md`](framework_pin_history.md)), recomp-ui @ 41c88ff, OpenBIOS only.
 The project started on the PAL release (SCES-01705, 50 Hz) and moved to this
 USA version on 2026-10-14; the PAL tree was deleted. What that bring-up
 established (controller, dissolve rendering, first play session, framework
@@ -98,10 +98,10 @@ the native 60 Hz version.
   edge of the castle corridor (1/19) is fixed (2026-11-16): off-frame lens
   sprites of prim record 16, collapsed by the plugin (`BACKLOG.md`,
   section F). After the player's play test (2026-11-17): the magic / item
-  menu, the screen transitions and the event motion blur present at 4:3
-  with side bars (they only cover the 4:3 frame; the blur only in event
-  scenes: in play, where the hero's specials switch it on, the frame stays
-  wide and the blur is left out), and the dialogue
+  menu and the screen transitions present at 4:3 with side bars (they only
+  cover the 4:3 frame), and so did the event motion blur until 2026-11-23
+  (in play, where the hero's specials switch it on, the frame stays wide
+  and the blur is left out), and the dialogue
   window's top border runs to both edges; the streaks in the left margin
   (town of 1/7) were the left-side twin of the noise block (off-frame
   lens sprites drawn inverted) and are collapsed by the same hook. Black
@@ -114,12 +114,28 @@ the native 60 Hz version.
   black). The melt (soft reset, attract demo) and the ending title's
   shatter stay 4:3. The fade between two rooms of a stage keeps the HUD at
   the edges too (its tags are renewed every VBlank: they had gone stale
-  while the next room loaded). `tests/test_widescreen.py on|off` 11/11 and 4/4 (test
+  while the next room loaded). Since 2026-11-23 the event scenes' blur (the
+  prologue's red flashback, the dragon fight's trails; the player saw black
+  bars there) stays wide too: its two sprites draw the previous frame, and
+  the plugin tags them as frame-buffer copies like the transitions'. The
+  chapter title cards (stage 0 of each area) present at 4:3 instead of
+  wide with black margins, so that side-bar art frames them (below).
+  `tests/test_widescreen.py on|off` 11/11 and 4/4 (test
   state 10);
   chapter 2's first stage (the player's Kodel save, 2026-10-16) is wide and
   clean too; see
   `DEVELOPMENT.md`, *This project's package:
   dragonvalor.enhancement.widescreen*.
+- **Side-bar art** (2026-11-23, the player's request): with widescreen on,
+  the screens made for 4:3 (title cards, menus, world map, movies) keep
+  side bars, which the framework's Bezel Artwork (launcher, Mods) fills
+  with a picture. `tools/make_bezel.py` (standard-library Python, shipped
+  at the zip root) cuts two 1920×1080 pictures from the paintings of the
+  illustration gallery (`ILLUST/ILLUST_U.CDR`, disc 1), the heroes or the
+  dragons, read from the player's disc, and `--install` turns the bezel on
+  with one of them. The same disc gives the same bytes on every run. The
+  pictures are the game's art and stay on the player's machine (`/bezel/`
+  is gitignored); README, *Art in the side bars*.
 - **Bilinear seam fixed** (2026-11-17): with bilinear texture filtering the
   OpenGL renderer drew a line at x 256, two thirds across the screen (a
   coloured stripe in the transitions and the blur, a dark line on the title
@@ -164,7 +180,11 @@ the native 60 Hz version.
   request): the framework refused textures whose 8-bit page runs past VRAM's
   right edge, where every portrait lives (the magic menu's hero, the
   dialogue speakers); `patches/psxrecomp/0004` checks only the texels a draw
-  reads (a unit test fails without it).
+  reads (a unit test fails without it). A computed portrait name needs its
+  semi-transparent twin too: without it the framework drew a story scene's
+  semi-transparent portrait with the plain image, opaque, and a black
+  silhouette sat in the prologue's dragon scene (player report on 0.3.0
+  with the local pack, 2026-11-23; `DEVELOPMENT.md`).
 - **Cut prologue scene** (2026-11-21, branch `secret-stages`, the
   player's request): Warp > Cut prologue scene takes the hero to 0/5, a
   scene cut from the prologue that nothing in the game leads to (the
@@ -277,7 +297,9 @@ the native 60 Hz version.
   scene's text as garbage after the jump (the scene still plays). The
   warp does not give a free hero choice (the hero still comes with the
   area, BACKLOG M), so at the player's request the three rows moved to
-  a last menu section, **Experimental**, with a save-state warning.
+  a last menu section, **Experimental**, with a save-state warning. (Play
+  as, 2026-11-17, now gives any hero anywhere; since the menu's redesign
+  of 2026-11-18 these rows are its Warp section.)
 - **In-game menu with the mouse** (2026-10-15): hover, click, -/+ buttons,
   wheel, right button = back. Shorter row texts; Magic and Items rows carry
   the game's own descriptions; the Items page now edits the right slots
@@ -293,8 +315,8 @@ the native 60 Hz version.
 
 ## Open items
 
-1. Human play session: the player has reached the castle of chapter 1 on
-   2026-10-15; still open are Load Game after a restart, reaching disc 2
+1. Human play session: the player finished chapter 1 and played into
+   chapter 2 (Kodel, 2026-10-16); still open are Load Game after a restart, reaching disc 2
    in-game, and whether the Xbox pad actually rumbles with Vibration ON. Also watch
    what the title does after a Start during the intro movie: in scripted
    runs it sometimes goes to the menu and sometimes plays the story demo
@@ -302,15 +324,15 @@ the native 60 Hz version.
    with a real press.
 2. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale (see [`HISTORY.md`](HISTORY.md)).
-3. Hero/weapon swap: the hero-selecting field is not identified; needs a
-   later-chapter save to diff against (see `DEVELOPMENT.md`, *Character and
-   weapon*). Inventory, stats, Val, magic, area/stage ids, play time and the
-   save-block layout are mapped. The only public save (GameFAQs, post-clear
-   prologue) was loaded and is Clovis again, so the reference must come from
-   a human play session.
+3. Play as (hero and weapon, done 2026-11-17/18, above) is still open on
+   long play, on 9/10's scene (not watched) and on a scene pack installed
+   right after a save-state load (not watched). It needed no
+   hero-selecting field after all: the hero follows the area, and the
+   plugin rebuilds each stage's files as they load.
 4. The framework's freeze watchdog writes a ~35 MB `psx_freeze_dump_*.json`
    beside the exe on every boot (false positive on statically compiled code).
-   Upstream PR #646 fixes it; until the pin includes it, `DragonValor.bat` and
+   Upstream PR #646 fixes it (merged 2026-10-19, after the pin of
+   2026-10-15); until a bump brings it in, `DragonValor.bat` and
    `tools/dvdbg.py launch` delete the existing dumps before each start (no
    config switch exists; 58 of them, 2 GB, had piled up in one afternoon of
    scripted runs).

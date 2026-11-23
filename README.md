@@ -41,7 +41,7 @@ ending and the Linux / macOS builds are untested
 - Watch a scene cut from the prologue, its Japanese lines in English
 - Unlock the title menu's illustration gallery
 - HD texture packs (DuckStation format)
-- Widescreen
+- Widescreen, with the game's own art in the side bars if you like
 - Skip Intro, rewind and turbo
 - Xbox, PlayStation and Switch pads, or the keyboard
 
