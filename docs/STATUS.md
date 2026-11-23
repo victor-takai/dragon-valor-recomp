@@ -77,6 +77,16 @@ the native 60 Hz version.
   trigger reads the workflow from the tagged commit); the release text
   was then replaced with the short `RELEASE_NOTES.md` of `89bf7a9`
   (`gh release edit --notes-file`), the zips keep the tag's longer notes.
+  **v0.3.0 was published on 2026-11-23** (pre-release, four zips of the
+  same sizes as 0.2.0), with PR #2 (Warp > Cut prologue scene), PR #3
+  (Cheats > Unlock gallery) and PR #4 (HD texture packs: portraits, and
+  the HUD and font after a state load); PR #5 wrote its notes and VERSION.
+  Started the same way, by pushing the tag `v0.3.0` at `c010ba4` (the run
+  took 12 min). The workflow's `generate_release_notes` appends a list of
+  the merged PRs to the release text; it was replaced with
+  `RELEASE_NOTES.md` alone, as for 0.2.0. The Windows zip was checked:
+  `psx_game_version.txt` 0.3.0, cheats package 1.4.0, the new plugin code
+  in the exe, no `texture-packs/` folder.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
