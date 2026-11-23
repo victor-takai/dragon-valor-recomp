@@ -144,7 +144,10 @@ the native 60 Hz version.
   HUD images again at the first action frame after a state load (the same
   words, nothing changes on screen without a pack), and the title's 12×12
   font sheet with them (the menus' text, the hero's name, the dialogue).
-  `tests/test_hd_hud.py` 8/8. What a pack for this game needs
+  The third image's CLUT block (the floor items' palettes) lies inside the
+  first image and is sent again last: without it the coins and the chalice
+  lost their icons after a state load (player report). `tests/test_hd_hud.py`
+  10/10. What a pack for this game needs
   (MaxVRAMWriteSplits, ConvertCopiesToWrites, no nested duplicate
   rectangles): `DEVELOPMENT.md`, *HD texture packs on this game*.
 - **HD texture packs reach the portraits** (2026-11-22, the player's

@@ -1948,6 +1948,17 @@ after a state load (a stage or area change).
   pictures, but there the face is about 60% of the portrait's size; the
   others are drawings of their own (illustration: Taro Yamazaki, from the
   staff credits).
+- The HUD's re-send after a state load must also send the third image's
+  CLUT block (48×16 at (896, 488), the floor items' palettes): it lies
+  inside the first image (115×248 at (832, 256)) and the title writes it
+  after that image. Sending the images alone erased it, and the coins and
+  the chalice lost their icons after every state load, pack or no pack
+  (found 2026-11-22 by saving and loading a state with the cheats plugin on
+  and off). Room 0 of 0/8, 2/15, 2/16 and 7/33 puts a 65-row CLUT at
+  (880, 192) whose last row is the first image's top row; there the HUD is
+  not sent again. A pack also gets dumps with no opaque texel (a palette
+  read as zeros); a replacement made from one only hides the texture, so
+  the local pack skips them.
 - The 12×12 font (64×256 words at (704, 256), uploaded by the title from
   `\BIN\OPENNING.BIN`: the menus' text, the hero's name on the magic menu,
   the dialogue) is the HUD's case again: after a state load the pack no

@@ -416,7 +416,14 @@ static void dv_cut_scene_english(void)
  * Skipped when the HD Texture Packs feature is not in the plan. The third
  * image covers part of the first, at the title as here, so the pack needs
  * MaxVRAMWriteSplits in its config.yaml for the first one's other parts to
- * keep their identity (without it neither path gets the HUD's frames). */
+ * keep their identity (without it neither path gets the HUD's frames). The
+ * third image's CLUT block (48 x 16 at (896, 488): the floor items' palettes,
+ * pickup.c SET_ICON) also lies inside the first image, written after it at
+ * the title, so it is sent again last: sending the first image alone erased
+ * it, and after a state load the coins and the chalice lost their icons
+ * (player report, 2026-11-22). Rooms whose 65-row CLUT at (880, 192) reaches
+ * the first image's top row (room 0 of 0/8, 2/15, 2/16, 7/33) skip the HUD's
+ * images: sending them would break that palette's last row. */
 #define DV_HUD_FILE    "TITLE/DB_TITLE.TIP"
 #define DV_HUD_SCRATCH 0x801E0000u       /* main RAM above the stage heap (see DV_TEXT_HOME) */
 #define DV_HUD_BYTES   (115u * 248u * 2u) /* the biggest of the three: 57,040 bytes */
@@ -424,6 +431,8 @@ static void dv_cut_scene_english(void)
 static const struct { uint16_t x, y, w, h; } kHudTims[3] = {
     {832, 256, 115, 248}, {960, 256, 46, 48}, {896, 280, 64, 120}};
 static uint8_t* g_hud_pixels[3];
+static const struct { uint16_t x, y, w, h; } kHudClut = {896, 488, 48, 16};   /* the third TIM's CLUT block */
+static uint8_t* g_hud_clut;
 static int g_hud_read;          /* 0 not yet, 1 the three images in g_hud_pixels, -1 failed */
 static int g_hud_refresh;       /* a state was loaded: send them at the next action frame */
 
@@ -444,11 +453,17 @@ static int dv_hud_read(void)
         uint32_t p = off + 8u, bytes, flags;
         uint16_t x, y, w, h;
         if (dv_le32(file + off) != 0x10u || ((flags = dv_le32(file + off + 4u)) & ~0xBu)) continue;
+        uint32_t clut = 0;
         if (flags & 8u) {                                   /* the CLUT block */
             bytes = dv_le32(file + p);
             if (bytes != 12u + 2u * dv_le16(file + p + 8u) * dv_le16(file + p + 10u) || p + bytes + 12u > size) continue;
+            clut = p;
             p += bytes;
         }
+        if (clut && !g_hud_clut && dv_le16(file + clut + 4u) == kHudClut.x && dv_le16(file + clut + 6u) == kHudClut.y &&
+            dv_le16(file + clut + 8u) == kHudClut.w && dv_le16(file + clut + 10u) == kHudClut.h &&
+            (g_hud_clut = (uint8_t*)malloc(2u * kHudClut.w * kHudClut.h)))
+            memcpy(g_hud_clut, file + clut + 12u, 2u * kHudClut.w * kHudClut.h);
         bytes = dv_le32(file + p);
         x = (uint16_t)dv_le16(file + p + 4u); y = (uint16_t)dv_le16(file + p + 6u);
         w = (uint16_t)dv_le16(file + p + 8u); h = (uint16_t)dv_le16(file + p + 10u);
@@ -461,8 +476,9 @@ static int dv_hud_read(void)
             }
     }
     free(file);
-    if (found != 3) {
-        fprintf(stderr, "%s: %s: the HUD's images not found (%u of 3)\n", DV_PLUGIN_ID, DV_HUD_FILE, (unsigned)found);
+    if (found != 3 || !g_hud_clut) {
+        fprintf(stderr, "%s: %s: the HUD's images not found (%u of 3, CLUT %s)\n", DV_PLUGIN_ID, DV_HUD_FILE,
+                (unsigned)found, g_hud_clut ? "found" : "missing");
         return 0;
     }
     g_hud_read = 1;
@@ -525,7 +541,7 @@ static void dv_hud_frame(void)
 {
     static uint8_t saved[DV_HUD_BYTES];
     uint32_t i, k;
-    int font;
+    int font, hud, area, stage;
     if (!g_hud_refresh || psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_word(DV_AREA_PHASE) ||
         psx_mod_read_word(DV_STAGE_PHASE) || !dv_hero_loaded())
         return;
@@ -535,18 +551,25 @@ static void dv_hud_frame(void)
         const uint32_t v = psx_mod_read_word(DV_HUD_SCRATCH + i);
         memcpy(saved + i, &v, 4);
     }
-    for (k = 0; k < 3; k++) {
+    area = psx_mod_read_half(DV_STAGE_AREA);
+    stage = psx_mod_read_half(DV_STAGE_STAGE);
+    hud = !((area == 0 && stage == 8) || (area == 2 && (stage == 15 || stage == 16)) || (area == 7 && stage == 33));
+    for (k = 0; hud && k < 3; k++) {
         psx_mod_host_write_ram(DV_HUD_SCRATCH, g_hud_pixels[k], 2u * kHudTims[k].w * kHudTims[k].h);
         psx_mod_psyq_load_image(kHudTims[k].x, kHudTims[k].y, kHudTims[k].w, kHudTims[k].h, DV_HUD_SCRATCH);
     }
-    font = !(psx_mod_read_half(DV_STAGE_AREA) == 11 && psx_mod_read_half(DV_STAGE_STAGE) == 24) && dv_font_read();
+    if (hud) {                      /* the floor items' palettes, inside the first image: last, as at the title */
+        psx_mod_host_write_ram(DV_HUD_SCRATCH, g_hud_clut, 2u * kHudClut.w * kHudClut.h);
+        psx_mod_psyq_load_image(kHudClut.x, kHudClut.y, kHudClut.w, kHudClut.h, DV_HUD_SCRATCH);
+    }
+    font = !(area == 11 && stage == 24) && dv_font_read();
     if (font) {                     /* 32,768 bytes: inside the scratch the HUD saved */
         psx_mod_host_write_ram(DV_HUD_SCRATCH, g_font_pixels, 2u * kFontTim.w * kFontTim.h);
         psx_mod_psyq_load_image(kFontTim.x, kFontTim.y, kFontTim.w, kFontTim.h, DV_HUD_SCRATCH);
     }
     psx_mod_host_write_ram(DV_HUD_SCRATCH, saved, DV_HUD_BYTES);
-    fprintf(stderr, "%s: the HUD's images sent again for the HD texture pack%s\n", DV_PLUGIN_ID,
-            font ? ", and the font sheet" : "");
+    fprintf(stderr, "%s: the HUD's images %s for the HD texture pack%s\n", DV_PLUGIN_ID,
+            hud ? "sent again" : "left alone (this room's CLUT reaches them)", font ? ", and the font sheet" : "");
 }
 
 static void dv_frame(struct CPUState* cpu, uint32_t address)

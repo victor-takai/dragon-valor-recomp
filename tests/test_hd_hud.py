@@ -21,7 +21,10 @@ game cleanly (the dumps are written then) and looks at the dumped names:
   3. control run, the cheats feature off (no plugin): neither source is dumped
      (the same state, so without the plugin the HUD stays unknown);
   4. in both runs the mod was active and dumping, looking up the draws
-     (the hd_textures command).
+     (the hd_textures command);
+  5. in both runs the floor items' palettes (48 x 16 at (896, 488), inside
+     the first HUD image) are in VRAM after the load: sending the first image
+     again without them erased them (the coins lost their icons).
 The temporary pack (dumps are game art) is deleted afterwards. The player's
 settings.toml, dragonvalor_settings.toml and mods/state.toml are backed up
 and restored. Exit code 0 on PASS.
@@ -130,6 +133,9 @@ def run(port, bdir, state, cheats):
                 break
             time.sleep(0.5)
         mode = int.from_bytes(bytes.fromhex(rpc(port, "read_ram", addr=f"{MODE:08X}", len=1)["hex"]), "little")
+        time.sleep(1)
+        pickup_clut = rpc(port, "vram_peek", x=896, y=488, w=48, h=16)["hex"]
+        zero_rows = [488 + r for r in range(16) if set(pickup_clut[r * 192:(r + 1) * 192]) == {"0"}]
         time.sleep(6)                                    # the HUD draws; the dump tracks its use
         diag = rpc(port, "hd_textures")
         try:
@@ -153,6 +159,8 @@ def run(port, bdir, state, cheats):
         else:
             check("no plugin, no images sent", not sent)
             check(f"no plugin, the HUD stays unknown ({sum(found.values())} HUD dumps)", sum(found.values()) == 0)
+        check(f"the floor items' palettes are in VRAM after the load (zero rows: {zero_rows or 'none'})",
+              not zero_rows)
         check(f"the mod was capturing (active {diag.get('active')}, dump {diag.get('dump')}, "
               f"{diag.get('draw_queries')} draws looked up)",
               diag.get("active") and diag.get("dump") and (diag.get("draw_queries") or 0) > 0)
