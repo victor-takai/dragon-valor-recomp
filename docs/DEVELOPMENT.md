@@ -1975,7 +1975,18 @@ after a state load (a stage or area change).
   a pack looks like the renderer's `texture_filtering = "nearest"` (a
   bilinear filter over 4×4 blocks blends only their edges), which needs no
   pack and also covers what a state load leaves native; the pack's own gain
-  is the stroke text.
+  is the stroke text. The next day the scenery went back to UltraSharp (the
+  player missed the HD floors and walls); the characters, the menus and the
+  HUD stayed nearest.
+- A nearest copy changes nothing over the nearest filter but still costs:
+  the framework swaps every draw it matches for the same picture. In the
+  local pack 2091 of 3797 files were such copies (2026-11-23), 96% of the
+  matched draws: 316 000 in the first minute of a new game, 11 000 without
+  them. Without them three stages took 0.3 to 2 ms less GPU a frame (60 fps
+  either way) and the title menu matched a run with no pack. So the local
+  pack holds no nearest-only file: a texture with nothing better than its
+  texels is left to the renderer. (A plain-named copy is also drawn opaque
+  by a semi-transparent draw: the portraits' silhouette below.)
 - The portraits (80×64, 8 bpp at (960, 432), CLUT (0, 500): the magic menu's
   hero picture, drawn mirrored, and every dialogue speaker) sit in an 8-bit
   texture page at x 960, which runs past VRAM's right edge; the framework
