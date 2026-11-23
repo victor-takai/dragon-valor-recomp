@@ -10,19 +10,20 @@ Dragon Valor (PlayStation, USA) running natively on PC, statically recompiled wi
 
 No BIOS is needed. Controls are in `CONTROLS.md`.
 
-## New in 0.2.0
+## New in 0.3.0
 
-- Play as any of the nine heroes, with any weapon
-- New in-game menu and save-state screen
-- Widescreen fixes
-- Smoother play with many enemies on screen
-- Clearer Mods page in the launcher
+- Warp > Cut prologue scene: a scene cut from the prologue, its Japanese lines in English
+- Cheats > Unlock gallery: the title menu's illustration gallery, all of it
+- HD texture packs: the portraits can now be replaced, and the HUD and the font keep their replacements after a save state is loaded
 
 ## Features
 
 - Native 60 fps at 1080p, with PGXP
 - In-game menu with save states, cheats and settings
 - Play as any of the nine heroes
+- Watch a scene cut from the prologue, its Japanese lines in English
+- Unlock the title menu's illustration gallery
+- HD texture packs (DuckStation format)
 - Widescreen
 - Skip Intro, rewind and turbo
 - Xbox, PlayStation and Switch pads, and the keyboard
