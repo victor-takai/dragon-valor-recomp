@@ -44,7 +44,7 @@ STATE_ON = """format_version = 2
 
 [[package]]
 id = "dragonvalor.cheats"
-version = "1.3.0"
+version = "1.4.0"
 
 [[feature]]
 package_id = "dragonvalor.cheats"

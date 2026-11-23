@@ -132,6 +132,11 @@ the native 60 Hz version.
   name and version (`patches/recomp-ui/0005-...`), current descriptions;
   title overrides of the framework's cd-speed, hd-textures and bezel
   packages for the texts.
+- **Unlock gallery** (2026-11-21, the player's request): a Cheats option
+  (`dragonvalor.cheats` 1.4.0, launcher and in-game menu) that shows the
+  title menu's fourth item, the illustration gallery the game only offers
+  after an ending, with all 95 pictures; the save's ending flags are not
+  touched. `tests/test_gallery.py` 5/5, `--off` 2/2.
 - **Cut prologue scene** (2026-11-21, branch `secret-stages`, the
   player's request): Warp > Cut prologue scene takes the hero to 0/5, a
   scene cut from the prologue that nothing in the game leads to (the
@@ -309,8 +314,8 @@ and magic-kill tests); both are kept in `tests/states/` (local, out of git since
 into `saves/openbios/` by `python tools/dvdbg.py launch --state N`. RAM addresses for HP/MP/STR/DEF, Val and
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
 
-Mods: the project ships `dragonvalor.cheats` 1.3.0 (Infinite HP, Infinite MP,
-gem / scroll every N kills, added 2026-10-15) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
+Mods: the project ships `dragonvalor.cheats` 1.4.0 (Infinite HP, Infinite MP,
+gem / scroll every N kills, added 2026-10-15; Unlock gallery, 2026-11-21) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
 own Start path through a function-entry hook on the pad copy) as bundled
 packages backed by plugins in `mods/plugins/`, verified on and off
 (2026-10-14). The cheats feature is on by default with every option off, so
