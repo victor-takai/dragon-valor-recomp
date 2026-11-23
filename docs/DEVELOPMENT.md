@@ -1953,11 +1953,18 @@ after a state load (a stage or area change).
   the dialogue) is the HUD's case again: after a state load the pack no
   longer knew it, so the cheats plugin now sends it again with the HUD's
   images (except in 11/24, disc 2, whose 144×256 TIM covers it). Its glyphs
-  are flat colour, one CLUT row per colour; the local pack draws them as
-  strokes too, each covered pixel in its glyph's colour, over the whole sheet
-  for the six rows of the font's own CLUT (the cyan of the name, the white of
-  the text). Other rows (the grey of the spell descriptions) come from the
-  palettes of the menus and only get what a dump has seen. The magic menu's
+  are a flat face (index 0) with two grey edge levels, one CLUT row per
+  colour (x 960, rows 506..511; a stage rewrites row 511, the dialogue's
+  white). Strokes over 12-pixel glyphs only rounded their corners (under 1%
+  of the pixels changed on screen), so the local pack redraws the sheet with
+  a TrueType face (Rockwell Bold, the player's pick over Century Schoolbook
+  and Bookman): each cell's character (`tools/evscript.py`'s table) fitted to
+  the original glyph's bounding box, in the palette's face colour. A pack
+  needs the whole sheet (0-0-256x256: some draws read up to u 255) for every
+  CLUT row the game uses, or a colour shows only the glyphs a dump has seen;
+  the local pack read the rows from VRAM with the debug server (`vram_peek`,
+  title, a dialogue, the magic menu: 8 distinct rows) and dumped the sheet
+  with each through the framework's pack code. The magic menu's
   yellow labels in the first HUD image (LEVEL, the 8×16 level digits, STR.,
   DEF., VAL, M.P.) are redrawn like the white text, each colour with its own
   edge.
