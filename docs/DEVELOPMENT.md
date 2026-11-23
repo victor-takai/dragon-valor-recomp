@@ -1948,6 +1948,14 @@ after a state load (a stage or area change).
   pictures, but there the face is about 60% of the portrait's size; the
   others are drawings of their own (illustration: Taro Yamazaki, from the
   staff credits).
+  A computed name needs its semi-transparent twin too (`STP8`, alpha 143
+  on the texels whose colour has bit 15): the story scenes also draw a
+  portrait semi-transparent and black, which adds nothing on a PS1. With
+  only the plain name, the framework uses that image for the
+  semi-transparent draw as opaque, and a black silhouette sat at the bottom
+  left of the prologue's dragon scene (player report on 0.3.0,
+  2026-11-23). The local pack's portraits were nearest, the same as the
+  original texels with the nearest filter, so it now leaves them out.
 - The HUD's re-send after a state load must also send the third image's
   CLUT block (48×16 at (896, 488), the floor items' palettes): it lies
   inside the first image (115×248 at (832, 256)) and the title writes it
