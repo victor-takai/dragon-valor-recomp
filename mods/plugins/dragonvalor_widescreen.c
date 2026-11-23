@@ -59,14 +59,12 @@
  *     screen transitions (g_Transition 0x800A2EF8, src/main/r2B_transitions.c
  *     in the decomp) freeze, move and fade copies of the frame buffer's
  *     384 columns, so in a wide frame they ran inside the 4:3 area while
- *     the live stage went on at the sides. The motion blur some event
- *     scripts switch on (g_Render.blurOn, FrameDraw) is the same kind of
- *     copy: a lighter 4:3 rectangle in a wide frame. A native-scene
- *     predicate (gpu_ws_set_native_scene_predicate: nonzero = present this
- *     frame at 4:3 with side bars) says so for mode 7, while a transition
- *     other than the wide ones below runs (g_Transition.state != 0) and while
- *     the blur is on in an event scene (sub-mode 5), sampled once per VBlank
- *     like the world predicate.
+ *     the live stage went on at the sides. A native-scene predicate
+ *     (gpu_ws_set_native_scene_predicate: nonzero = present this frame at
+ *     4:3 with side bars) says so for mode 7 and while a transition other
+ *     than the wide ones below runs (g_Transition.state != 0), sampled once
+ *     per VBlank like the world predicate. (Until 2026-11-23 it also did for
+ *     the blur of an event scene: see "Wide event blur" below.)
  *
  *   - Wide transitions (2026-11-19; the player saw the HP / MP block jump to
  *     its 4:3 place at every scene change, because the frame went 4:3 with
@@ -97,6 +95,19 @@
  *     the blur's four packets out of this frame's ordering table (the
  *     table is rebuilt every frame; the packets themselves are untouched).
  *     The slow motion stays.
+ *
+ *   - Wide event blur (2026-11-23; the player found the side bars of the
+ *     prologue's scenes ugly). The blur that event scripts switch on
+ *     (g_Render.blurOn, event op 0x2A / timed command 8) is two 15-bit
+ *     copies of the other buffer, 256 + 128 columns from x 0, one line up
+ *     (blurY -1), at half weight, modulated by blurRgb: 128 / 128 / 128 in
+ *     the dragon fight (trails only), 180 / 0 / 0 in the flashback after
+ *     it (the red is this tint fed back every frame, not the stage's
+ *     lighting: with blurOn held at 0 the flashback is in plain colours).
+ *     It was presented at 4:3 because the copy could not reach the margins;
+ *     the hook now tags both copies as feedback rectangles like the wide
+ *     transitions' (dv_ws_tag_event_blur), so the scene stays wide, tint and
+ *     trails at full width, no seam at the 4:3 edges.
  *
  *   - The dialogue window's top border (src/main/exeE_msgwin.c): six
  *     identical 64 x 8 sprites from x 0 to 383 along the top of the black
@@ -162,12 +173,13 @@ static int dv_ws_scene_live(void)
     return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_ACTION || dv_ws_hud_linked());
 }
 
-/* The blur of an event scene (sub-mode 5): present at 4:3. Anywhere else in
- * the stage (the hero's specials, enemy moves) the frame stays wide and the
- * hook below leaves the blur out. */
+/* The blur of an event scene (sub-mode 5): the frame stays wide and the hook
+ * below tags its two copies as feedback rectangles. Anywhere else in the
+ * stage (the hero's specials, enemy moves) the hook leaves the blur out. */
 static int dv_ws_event_blur(void)
 {
-    return psx_mod_read_byte(DV_BLUR_ON) != 0u && psx_mod_read_byte(DV_SUBMODE) == DV_SUB_EVENT;
+    return psx_mod_read_byte(DV_BLUR_ON) != 0u && psx_mod_read_byte(DV_MODE) == DV_MODE_ACTION &&
+           psx_mod_read_byte(DV_SUBMODE) == DV_SUB_EVENT;
 }
 
 /* A transition runs that is drawn at full width (header). */
@@ -180,8 +192,7 @@ static int dv_ws_wide_transition(void)
 static int dv_ws_native_live(void)
 {
     return s_enabled && (psx_mod_read_byte(DV_MODE) == DV_MODE_MENU ||
-                         (psx_mod_read_word(DV_TRANSITION) != 0u && !dv_ws_wide_transition()) ||
-                         dv_ws_event_blur());
+                         (psx_mod_read_word(DV_TRANSITION) != 0u && !dv_ws_wide_transition()));
 }
 
 static int dv_ws_scene(void)
@@ -298,6 +309,20 @@ static void dv_ws_hide_play_blur(uint32_t frame)
         p = next | 0x80000000u;
         if (!dv_ws_ram_ptr(p)) return;
     }
+}
+
+/* An event scene's blur (the red of the prologue's flashback is its tint,
+ * 180 / 0 / 0, fed back every frame) is two full-width 15-bit copies of the
+ * other buffer, 256 + 128 columns from x 0, one line up (blurY -1), drawn at
+ * half weight: the same kind of copy as the wide transitions. Tagged as
+ * feedback rectangles, they continue into the margins from that buffer's
+ * wide surface, so the scene stays wide with its tint and trails. */
+static void dv_ws_tag_event_blur(uint32_t frame)
+{
+    uint32_t k;
+    if (!dv_ws_event_blur() || psx_mod_read_word(DV_TRANSITION) != 0u) return;
+    for (k = 0; k < 2u; k++) gpu_ws_tag_feedback_rect(DV_BLUR_SPRT + (frame * 2u + k) * 0x14u);
+    psx_mod_counter_add("dv.ws.event_blur_tagged", 1);
 }
 
 /* The HUD at the wide frame's edges (the player, 2026-11-18: in widescreen
@@ -479,6 +504,7 @@ static void dv_ws_refresh_tags(void)
 {
     if (dv_ws_hud_linked()) dv_ws_tag_hud(1);
     dv_ws_tag_transition(psx_mod_read_byte(DV_RENDER_FRAME) & 1u);
+    dv_ws_tag_event_blur(psx_mod_read_byte(DV_RENDER_FRAME) & 1u);
 }
 
 static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
@@ -492,6 +518,7 @@ static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)
     dv_ws_tag_hud(0);
     dv_ws_tag_transition(frame);
     dv_ws_hide_play_blur(frame);
+    dv_ws_tag_event_blur(frame);
     for (list = 0; list < 2u; list++) {
         uint32_t count = psx_mod_read_word(DV_RENDER_COUNTS + list * 4u);
         if (count > DV_RENDER_LIST_SLOTS) continue;

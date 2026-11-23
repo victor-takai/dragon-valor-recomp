@@ -1151,8 +1151,9 @@ worked examples this one follows.
   runtime's `gpu.h`, not re-exported by `mod_plugins.h`; nonzero = present
   this frame at 4:3 with side bars; activation clears it, so it belongs to
   the session's plugin) that says so for mode 7, while
-  `g_Transition.state != 0` and while the blur is on in an event scene
-  (sub-mode 5, `0x8008634D`), sampled per VBlank like the world predicate.
+  `g_Transition.state != 0` and (until 2026-11-23, see "Wide event blur"
+  below) while the blur is on in an event scene (sub-mode 5,
+  `0x8008634D`), sampled per VBlank like the world predicate.
   The pause screen (Start) stays wide: its darkening tile is extended by
   the renderer. The world map and its Status screen (modes 10 / 13) were
   already 4:3 (2D, no projection).
@@ -1180,6 +1181,27 @@ worked examples this one follows.
   `tests/test_widescreen.py on` 9/9. The special's exact input was not
   reproduced here (the script tests the held Attack and Magic actions and
   a pressed Jump).
+- **Wide event blur** (2026-11-23, the player: the side bars of the
+  prologue's scenes look ugly). An event script's blur (event op `0x2A` /
+  timed command 8: `blurOn`, `blurRgb`, `blurY`) is the two copies above,
+  15-bit, of the other buffer (`blurTpage` `E1000300` / `…04` / `…10` /
+  `…14`), one line up (`blurY` -1), at half weight (semi-transparency
+  mode 0), modulated by `blurRgb`. The prologue (0/1) has two: the dragon
+  fight, `128 / 128 / 128` (trails, no tint), and the flashback after it,
+  `180 / 0 / 0`. That red is the tint fed back every frame, not the
+  stage's lighting: with `blurOn` held at 0 the flashback is in plain
+  colours. The copies are the same kind as the wide transitions', so the
+  predicate no longer asks for 4:3 in event scenes: the `ModelWeldReset`
+  hook (and the VBlank refresh, the blur's frame takes three VBlanks) tags
+  both as feedback rectangles (`dv_ws_tag_event_blur`,
+  `gpu_ws_tag_feedback_rect`), and the renderer continues them into the
+  margins from the source buffer's wide surface. Checked from a New Game
+  (debug build, Cross every 2 s): both blurs wide in all 11 samples
+  (`present_native_43` 0, 128 extra columns, `dv.ws.event_blur_tagged`
+  rising), tint and trails across the full width, and at the old 4:3
+  edges the colour step is no larger than between any two neighbouring
+  columns; `tests/test_widescreen.py on` 11/11. The blur in play is still
+  left out as above.
 - **Dialogue border** (2026-11-17, "the dialogue bar does not span the
   screen"). The message window's black band is a 384-wide TILE the renderer
   already extends; its top border is six identical 64 × 8 sprites from x 0
