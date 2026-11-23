@@ -137,6 +137,24 @@ the native 60 Hz version.
   title menu's fourth item, the illustration gallery the game only offers
   after an ending, with all 95 pictures; the save's ending flags are not
   touched. `tests/test_gallery.py` 5/5, `--off` 2/2.
+- **HD texture packs keep the HUD after a save state** (2026-11-22): the
+  HUD's art is uploaded once, by the title, and a loaded state restores VRAM
+  without its uploads, so the HD Texture Packs mod drew the original HUD
+  until the title came back. The cheats plugin now sends the title's three
+  HUD images again at the first action frame after a state load (the same
+  words, nothing changes on screen without a pack), and the title's 12×12
+  font sheet with them (the menus' text, the hero's name, the dialogue).
+  The third image's CLUT block (the floor items' palettes) lies inside the
+  first image and is sent again last: without it the coins and the chalice
+  lost their icons after a state load (player report). `tests/test_hd_hud.py`
+  10/10. What a pack for this game needs
+  (MaxVRAMWriteSplits, ConvertCopiesToWrites, no nested duplicate
+  rectangles): `DEVELOPMENT.md`, *HD texture packs on this game*.
+- **HD texture packs reach the portraits** (2026-11-22, the player's
+  request): the framework refused textures whose 8-bit page runs past VRAM's
+  right edge, where every portrait lives (the magic menu's hero, the
+  dialogue speakers); `patches/psxrecomp/0004` checks only the texels a draw
+  reads (a unit test fails without it).
 - **Cut prologue scene** (2026-11-21, branch `secret-stages`, the
   player's request): Warp > Cut prologue scene takes the hero to 0/5, a
   scene cut from the prologue that nothing in the game leads to (the

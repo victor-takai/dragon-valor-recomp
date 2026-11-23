@@ -396,9 +396,192 @@ static void dv_cut_scene_english(void)
             (unsigned)(a - DV_TEXT_HOME), (unsigned)DV_TEXT_HOME);
 }
 
+/* --- HD texture packs: the HUD after a save state -----------------------------
+ * The HUD's art (the H.P. / M.P. frames and gauges, the digits, the spell
+ * icons and names) is not part of any stage: the title uploads it once from
+ * \TITLE\DB_TITLE.TIP (decomp src/openning/titlemenu.c, TitlePackUploadTims:
+ * 115 x 248 words at (832, 256), then 46 x 48 at (960, 256), then 64 x 120 at
+ * (896, 280) over part of the first) and it stays in VRAM for the whole game.
+ * The HD Texture Packs mod knows a texture by the upload that put it in VRAM
+ * (DuckStation "texupload" names hash the uploaded rectangle), and a loaded
+ * save state restores VRAM without its uploads, so after a state load the HUD
+ * drew its original art until the title was shown again. After a state load,
+ * at the first frame of an action stage (mode 8, no stage or area load) the
+ * hook below sends the same three images again, in the title's order. The
+ * words are the ones VRAM already holds there (no action stage writes that
+ * area, or the HUD would break), so the picture does not change; the pack
+ * just sees the uploads again. The images pass through main RAM at
+ * DV_HUD_SCRATCH, whose bytes are read before and written back right after:
+ * psx_mod_psyq_load_image is synchronous and no guest code runs in between.
+ * Skipped when the HD Texture Packs feature is not in the plan. The third
+ * image covers part of the first, at the title as here, so the pack needs
+ * MaxVRAMWriteSplits in its config.yaml for the first one's other parts to
+ * keep their identity (without it neither path gets the HUD's frames). The
+ * third image's CLUT block (48 x 16 at (896, 488): the floor items' palettes,
+ * pickup.c SET_ICON) also lies inside the first image, written after it at
+ * the title, so it is sent again last: sending the first image alone erased
+ * it, and after a state load the coins and the chalice lost their icons
+ * (player report, 2026-11-22). Rooms whose 65-row CLUT at (880, 192) reaches
+ * the first image's top row (room 0 of 0/8, 2/15, 2/16, 7/33) skip the HUD's
+ * images: sending them would break that palette's last row. */
+#define DV_HUD_FILE    "TITLE/DB_TITLE.TIP"
+#define DV_HUD_SCRATCH 0x801E0000u       /* main RAM above the stage heap (see DV_TEXT_HOME) */
+#define DV_HUD_BYTES   (115u * 248u * 2u) /* the biggest of the three: 57,040 bytes */
+
+static const struct { uint16_t x, y, w, h; } kHudTims[3] = {
+    {832, 256, 115, 248}, {960, 256, 46, 48}, {896, 280, 64, 120}};
+static uint8_t* g_hud_pixels[3];
+static const struct { uint16_t x, y, w, h; } kHudClut = {896, 488, 48, 16};   /* the third TIM's CLUT block */
+static uint8_t* g_hud_clut;
+static int g_hud_read;          /* 0 not yet, 1 the three images in g_hud_pixels, -1 failed */
+static int g_hud_refresh;       /* a state was loaded: send them at the next action frame */
+
+static uint32_t dv_le32(const uint8_t* p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
+static uint32_t dv_le16(const uint8_t* p) { return p[0] | p[1] << 8; }
+
+/* The three images out of the title's TIM file (once; the same file on both discs). */
+static int dv_hud_read(void)
+{
+    uint32_t size = 0, off, k, found = 0;
+    uint8_t* file;
+    if (g_hud_read) return g_hud_read > 0;
+    g_hud_read = -1;
+    if (!psx_mod_read_disc_file(DV_HUD_FILE, NULL, 0, &size) || size < 64u || size > (1u << 20)) return 0;
+    if (!(file = (uint8_t*)malloc(size))) return 0;
+    if (!psx_mod_read_disc_file(DV_HUD_FILE, file, size, &size)) { free(file); return 0; }
+    for (off = 0; off + 20u <= size; off += 4u) {
+        uint32_t p = off + 8u, bytes, flags;
+        uint16_t x, y, w, h;
+        if (dv_le32(file + off) != 0x10u || ((flags = dv_le32(file + off + 4u)) & ~0xBu)) continue;
+        uint32_t clut = 0;
+        if (flags & 8u) {                                   /* the CLUT block */
+            bytes = dv_le32(file + p);
+            if (bytes != 12u + 2u * dv_le16(file + p + 8u) * dv_le16(file + p + 10u) || p + bytes + 12u > size) continue;
+            clut = p;
+            p += bytes;
+        }
+        if (clut && !g_hud_clut && dv_le16(file + clut + 4u) == kHudClut.x && dv_le16(file + clut + 6u) == kHudClut.y &&
+            dv_le16(file + clut + 8u) == kHudClut.w && dv_le16(file + clut + 10u) == kHudClut.h &&
+            (g_hud_clut = (uint8_t*)malloc(2u * kHudClut.w * kHudClut.h)))
+            memcpy(g_hud_clut, file + clut + 12u, 2u * kHudClut.w * kHudClut.h);
+        bytes = dv_le32(file + p);
+        x = (uint16_t)dv_le16(file + p + 4u); y = (uint16_t)dv_le16(file + p + 6u);
+        w = (uint16_t)dv_le16(file + p + 8u); h = (uint16_t)dv_le16(file + p + 10u);
+        if (bytes != 12u + 2u * w * h || p + bytes > size) continue;
+        for (k = 0; k < 3; k++)
+            if (!g_hud_pixels[k] && x == kHudTims[k].x && y == kHudTims[k].y &&
+                w == kHudTims[k].w && h == kHudTims[k].h && (g_hud_pixels[k] = (uint8_t*)malloc(2u * w * h))) {
+                memcpy(g_hud_pixels[k], file + p + 12u, 2u * w * h);
+                found++;
+            }
+    }
+    free(file);
+    if (found != 3 || !g_hud_clut) {
+        fprintf(stderr, "%s: %s: the HUD's images not found (%u of 3, CLUT %s)\n", DV_PLUGIN_ID, DV_HUD_FILE,
+                (unsigned)found, g_hud_clut ? "found" : "missing");
+        return 0;
+    }
+    g_hud_read = 1;
+    return 1;
+}
+
+/* The font sheet (12 x 12 glyphs, 64 x 256 words at (704, 256)) has the same
+ * story: the title uploads it from \BIN\OPENNING.BIN and no action stage
+ * writes there, so after a state load the pack no longer knew the hero's
+ * name on the menu's name plate, the dialogue text and the HUD's counter.
+ * The only TIM of either disc that covers it besides the gallery's is a
+ * 144 x 256 one of 11/24 (disc 2), so that stage is skipped. */
+#define DV_FONT_FILE "BIN/OPENNING.BIN"
+static const struct { uint16_t x, y, w, h; } kFontTim = {704, 256, 64, 256};
+static uint8_t* g_font_pixels;
+static int g_font_read;         /* 0 not yet, 1 read, -1 failed */
+
+static int dv_font_read(void)
+{
+    uint32_t size = 0, off;
+    uint8_t* file;
+    if (g_font_read) return g_font_read > 0;
+    g_font_read = -1;
+    if (!psx_mod_read_disc_file(DV_FONT_FILE, NULL, 0, &size) || size < 64u || size > (4u << 20)) return 0;
+    if (!(file = (uint8_t*)malloc(size))) return 0;
+    if (!psx_mod_read_disc_file(DV_FONT_FILE, file, size, &size)) { free(file); return 0; }
+    for (off = 0; off + 20u <= size && !g_font_pixels; off += 4u) {
+        uint32_t p = off + 8u, bytes, flags;
+        if (dv_le32(file + off) != 0x10u || ((flags = dv_le32(file + off + 4u)) & ~0xBu)) continue;
+        if (flags & 8u) {
+            bytes = dv_le32(file + p);
+            if (bytes != 12u + 2u * dv_le16(file + p + 8u) * dv_le16(file + p + 10u) || p + bytes + 12u > size) continue;
+            p += bytes;
+        }
+        bytes = dv_le32(file + p);
+        if (bytes != 12u + 2u * kFontTim.w * kFontTim.h || p + bytes > size ||
+            dv_le16(file + p + 4u) != kFontTim.x || dv_le16(file + p + 6u) != kFontTim.y ||
+            dv_le16(file + p + 8u) != kFontTim.w || dv_le16(file + p + 10u) != kFontTim.h) continue;
+        if ((g_font_pixels = (uint8_t*)malloc(2u * kFontTim.w * kFontTim.h)))
+            memcpy(g_font_pixels, file + p + 12u, 2u * kFontTim.w * kFontTim.h);
+    }
+    free(file);
+    if (!g_font_pixels) {
+        fprintf(stderr, "%s: %s: the font sheet not found\n", DV_PLUGIN_ID, DV_FONT_FILE);
+        return 0;
+    }
+    g_font_read = 1;
+    return 1;
+}
+
+/* The HD Texture Packs feature is in the plan (its options resolve), loading
+ * replacements or dumping: a dump made after a state load gets the HUD too. */
+static int dv_hd_textures_on(void)
+{
+    char text[8];
+    return psx_mod_option_value("psx.enhancement.hd-textures", "hd-textures", "replacements", text, sizeof text);
+}
+
+static void dv_hud_frame(void)
+{
+    static uint8_t saved[DV_HUD_BYTES];
+    uint32_t i, k;
+    int font, hud, area, stage;
+    if (!g_hud_refresh || psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_word(DV_AREA_PHASE) ||
+        psx_mod_read_word(DV_STAGE_PHASE) || !dv_hero_loaded())
+        return;
+    g_hud_refresh = 0;
+    if (!dv_hd_textures_on() || !dv_hud_read()) return;
+    for (i = 0; i < DV_HUD_BYTES; i += 4u) {
+        const uint32_t v = psx_mod_read_word(DV_HUD_SCRATCH + i);
+        memcpy(saved + i, &v, 4);
+    }
+    area = psx_mod_read_half(DV_STAGE_AREA);
+    stage = psx_mod_read_half(DV_STAGE_STAGE);
+    hud = !((area == 0 && stage == 8) || (area == 2 && (stage == 15 || stage == 16)) || (area == 7 && stage == 33));
+    for (k = 0; hud && k < 3; k++) {
+        psx_mod_host_write_ram(DV_HUD_SCRATCH, g_hud_pixels[k], 2u * kHudTims[k].w * kHudTims[k].h);
+        psx_mod_psyq_load_image(kHudTims[k].x, kHudTims[k].y, kHudTims[k].w, kHudTims[k].h, DV_HUD_SCRATCH);
+    }
+    if (hud) {                      /* the floor items' palettes, inside the first image: last, as at the title */
+        psx_mod_host_write_ram(DV_HUD_SCRATCH, g_hud_clut, 2u * kHudClut.w * kHudClut.h);
+        psx_mod_psyq_load_image(kHudClut.x, kHudClut.y, kHudClut.w, kHudClut.h, DV_HUD_SCRATCH);
+    }
+    font = !(area == 11 && stage == 24) && dv_font_read();
+    if (font) {                     /* 32,768 bytes: inside the scratch the HUD saved */
+        psx_mod_host_write_ram(DV_HUD_SCRATCH, g_font_pixels, 2u * kFontTim.w * kFontTim.h);
+        psx_mod_psyq_load_image(kFontTim.x, kFontTim.y, kFontTim.w, kFontTim.h, DV_HUD_SCRATCH);
+    }
+    psx_mod_host_write_ram(DV_HUD_SCRATCH, saved, DV_HUD_BYTES);
+    fprintf(stderr, "%s: the HUD's images %s for the HD texture pack%s\n", DV_PLUGIN_ID,
+            hud ? "sent again" : "left alone (this room's CLUT reaches them)", font ? ", and the font sheet" : "");
+}
+
+static void dv_frame(struct CPUState* cpu, uint32_t address)
+{
+    dv_hud_frame();
+    dv_trip_frame(cpu, address);
+}
+
 static void dv_cheats_savestate_loaded(void)
 {
     dv_trip_request = 0;
+    g_hud_refresh = 1;
 }
 
 PSX_MOD_CONSTRUCTOR(dv_register_cheat_plugins)
@@ -407,6 +590,6 @@ PSX_MOD_CONSTRUCTOR(dv_register_cheat_plugins)
           && psx_mod_register_vblank_plugin(DV_PLUGIN_ID, dv_cheats_vblank)
           && psx_mod_register_option_changed_plugin(DV_PLUGIN_ID, dv_cheats_option_changed)
           && psx_mod_register_savestate_plugin(DV_PLUGIN_ID, dv_cheats_savestate_loaded)
-          && psx_mod_register_function_entry_plugin(DV_PLUGIN_ID, DV_MODEL_WELD_RESET, dv_trip_frame);
+          && psx_mod_register_function_entry_plugin(DV_PLUGIN_ID, DV_MODEL_WELD_RESET, dv_frame);
     if (!ok) fprintf(stderr, "dragonvalor.cheats: plugin failed to register\n");
 }

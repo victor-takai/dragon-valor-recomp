@@ -15,7 +15,7 @@ Setup (see docs/DEVELOPMENT.md, "This project's package"):
         [feature.values]
         infinite_hp = "true"
         infinite_mp = "true"
-  2. python tools/dvdbg.py launch --state 0
+  2. python tools/dvdbg.py launch --state 10   (a test state; slot 0 is the player's)
   3. python tests/test_cheats.py on      # or: off  (control run)
 
 Writes HP=5, MP=3, Val=12 through the debug server and reads them back half
@@ -50,7 +50,7 @@ def main(argv):
 
     hpmax, mpmax = rd16(HPMAX), rd16(MPMAX)
     if hpmax == 0:
-        sys.exit("no hero loaded (HPmax = 0): start from a gameplay state, e.g. launch --state 0")
+        sys.exit("no hero loaded (HPmax = 0): start from a gameplay state, e.g. launch --state 10")
     print(f"before: HP {rd16(HP)}/{hpmax} MP {rd16(MP)}/{mpmax} Val {rd16(VAL)} frame {rpc(port, 'frame').get('frame')}")
     wr16(HP, 5); wr16(MP, 3); wr16(VAL, 12)
     time.sleep(0.5)

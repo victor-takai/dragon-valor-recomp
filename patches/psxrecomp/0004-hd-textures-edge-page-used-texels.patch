@@ -1,0 +1,73 @@
+diff --git a/runtime/src/duckstation_texture_pack.cpp b/runtime/src/duckstation_texture_pack.cpp
+index 12c5e730..af15c82f 100644
+--- a/runtime/src/duckstation_texture_pack.cpp
++++ b/runtime/src/duckstation_texture_pack.cpp
+@@ -119,8 +119,10 @@ bool query_rect(const HdTextureDrawQuery* q, Rect& r) {
+         q->page_x >= 1024 || q->page_x % 64 || q->page_y > 256 || q->page_y % 256)
+         return false;
+     const unsigned ppw = expansion(q->depth);
+-    /* A page that wraps in X is outside the initial safe subset. */
+-    if (q->page_x + 256 / ppw > 1024) return false;
++    /* Only the texels the draw uses must not wrap in X: an 8-bit page at
++     * x 960 (or a 15-bit one past x 768) runs past VRAM's right edge, but a
++     * draw that stays left of it reads no wrapped word (valid_rect below).
++     * Whole-page reads (page dumps, page keys) check the page themselves. */
+     r = {q->page_x + q->u_first / ppw, unsigned(q->page_y) + q->v_first,
+          unsigned(q->u_last / ppw - q->u_first / ppw + 1),
+          unsigned(q->v_last - q->v_first + 1)};
+@@ -1146,6 +1148,8 @@ int duck_texture_pack_dump_draw(DuckTexturePack* p, const HdTextureDrawQuery* q,
+             }
+         } else {
+             const Rect page{q->page_x,q->page_y,256/expansion(q->depth),256};
++            /* A page past VRAM's right edge cannot be captured whole. */
++            if (!valid_rect(page)) return HD_TEXTURE_LOOKUP_NONE;
+             auto existing = std::find_if(p->pages.begin(),p->pages.end(),[&](const PageSource& value) {
+                 return value.depth == q->depth && value.source->rect.x == page.x && value.source->rect.y == page.y &&
+                     (q->depth == 2 || (value.clut_x == q->clut_x && value.clut_y == q->clut_y));
+diff --git a/runtime/tests/test_duckstation_texture_pack.cpp b/runtime/tests/test_duckstation_texture_pack.cpp
+index f7f57639..a834f125 100644
+--- a/runtime/tests/test_duckstation_texture_pack.cpp
++++ b/runtime/tests/test_duckstation_texture_pack.cpp
+@@ -202,6 +202,33 @@ void upload(const fs::path& root) {
+     check(!duck_texture_pack_track_upload(pack.get(),1023,0,2,1,vram.data(),vram.size()),"wrapped upload explicitly falls back");
+ }
+ 
++void edge_page(const fs::path& root) {
++    /* An 8-bit page at x 960 runs past VRAM's right edge (960 + 128 words);
++     * a draw that only reads words 960..999 does not wrap, so it is dumped
++     * and replaced from its upload. A draw past the edge and a page dump of
++     * that page still fall back. */
++    config(root,"DumpTextureWidthThreshold: 1\nDumpTextureHeightThreshold: 1\nReducePaletteRange: false\n");
++    std::vector<uint16_t> vram(1024*512); place(vram,960,432,40,words(40*64)); place(vram,0,500,256,words(256));
++    auto q = query(vram,960,256,1,0,79,176,239,0,500); char error[512]{};
++    auto pack = create(root);
++    check(duck_texture_pack_track_upload(pack.get(),960,432,40,64,vram.data(),vram.size()) == 1,"track an upload in the 8-bit edge page");
++    check(duck_texture_pack_dump_draw(pack.get(),&q,0,error,sizeof(error)) == HD_TEXTURE_LOOKUP_FOUND,"edge-page 8-bit draw inside VRAM is dumped");
++    pack.reset();
++    fs::path dumped;
++    if (fs::is_directory(root/"dumps")) for (const auto& entry : fs::directory_iterator(root/"dumps")) dumped = entry.path();
++    check(!dumped.empty() && dumped.filename().u8string().rfind("texupload-P8-",0) == 0,"edge-page dump is a P8 texupload");
++    if (dumped.empty()) return;
++    png(root/"replace"/"replacements"/dumped.filename(),160,128);
++    pack = create(root/"replace"); DuckTextureMatch match{};
++    check(duck_texture_pack_track_upload(pack.get(),960,432,40,64,vram.data(),vram.size()) == 1,"track the upload again for the replacement");
++    check(duck_texture_pack_match(pack.get(),&q,&match) == HD_TEXTURE_LOOKUP_FOUND,"edge-page 8-bit draw inside VRAM is replaced");
++    q.u_last = 255;   /* words 960..1087: past the edge */
++    check(duck_texture_pack_match(pack.get(),&q,&match) == HD_TEXTURE_LOOKUP_NONE,"edge-page draw past VRAM's edge falls back");
++    config(root/"pages","DumpTexturePages: true\nDumpTextureWidthThreshold: 1\nDumpTextureHeightThreshold: 1\n");
++    pack = create(root/"pages"); q.u_last = 79;
++    check(duck_texture_pack_dump_draw(pack.get(),&q,0,error,sizeof(error)) == HD_TEXTURE_LOOKUP_NONE,"no page dump of a page past VRAM's edge");
++}
++
+ void reload_tracking(const fs::path& root) {
+     std::vector<uint16_t> vram(1024*512); place(vram,66,257,4,words(8));
+     auto old = create(root);
+@@ -600,7 +627,7 @@ int main(int argc, char** argv) {
+     const fs::path root = fs::temp_directory_path()/fs::u8path("psx-duck-texture-\xCE\xA9-"+
+         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+     try {
+-        fixed_hash_vectors(); names(); page_and_decode(root/"page"); upload(root/"upload"); reload_tracking(root/"reload");
++        fixed_hash_vectors(); names(); page_and_decode(root/"page"); upload(root/"upload"); edge_page(root/"edge-page"); reload_tracking(root/"reload");
+         palettes(root/"palettes"); st_alias_duplicates(root/"keys"); failed_payloads(root/"invalid"); dumping(root/"dump");
+         official_binary_oracle(root/"official-oracle"); defaults_and_options(root/"defaults");
+         immutable_palettes_and_pages(root/"snapshots"); split_coalesce_copy_parts(root/"lifecycle"); copied_pack_ownership(root/"ownership");

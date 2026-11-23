@@ -1863,6 +1863,126 @@ forest while the native `screenshot` kept the original artwork. The
 dump/replacement file names are hashes of the upload data, so dumps taken
 on one build match on the other.
 
+**The HUD and save states.** The HUD's art (the H.P. / M.P. frames and
+gauges, the digits, the spell icons) belongs to no stage: the title uploads
+it once from `\TITLE\DB_TITLE.TIP` (115×248 words at (832, 256), then 46×48
+at (960, 256), then 64×120 at (896, 280) over part of the first) and it stays
+in VRAM for the whole game. The mod knows a texture by the upload that put
+it there, and a loaded state restores VRAM without its uploads, so after a
+state load the HUD kept its original art until the title came back. The
+cheats plugin now sends the same three images again at the first action
+frame after a state load (`dragonvalor_cheats.c`, *HD texture packs: the HUD
+after a save state*; only while the HD Texture Packs feature is in the plan;
+the words are the ones VRAM already holds, so nothing changes on screen).
+`tests/test_hd_hud.py` checks it with an empty pack in dump mode: after
+state 10 the HUD's two sources are dumped, and with the cheats feature off
+(control) they are not. Stage and room textures still need a fresh upload
+after a state load (a stage or area change).
+
+**What a pack for this game needs** (learned making a local 4× pack from
+4,502 dumps, 2026-11-21/22; the art and the tooling stay local):
+- `config.yaml` at the pack root with `MaxVRAMWriteSplits: 64`. The game
+  writes over parts of some uploads (the third HUD image over the first, at
+  the title as in the plugin; parts of Raxis Castle's walls), and by default
+  an upload that is partly overwritten loses its identity: those textures
+  were never dumped nor replaced. With splits the untouched parts keep it.
+  `DumpTextureWidthThreshold` / `HeightThreshold: 8` also catch the HUD's
+  small text.
+- `ConvertCopiesToWrites: true` in it too. The stages finish their floor and
+  wall textures with VRAM-to-VRAM copies into an uploaded area (1/7's
+  cobblestones, Raxis Castle's floor, carpet and walls: 37 textures in those
+  two stages alone), and without the option the copied area loses its
+  identity, so those textures were never dumped nor replaced (found
+  2026-11-22: the floors stayed native with the pack on). With it the
+  upload is captured again after each copy.
+- No two replacements of one texture, palette and convention where one's
+  rectangle lies inside the other's (dump sessions record different used
+  areas): two parts covering a draw make the renderer compose them on every
+  draw, and Raxis Castle fell from 60 to 42 guest frames/s. Keep the
+  biggest.
+- Switching replacements with the `hd_textures` debug command rebuilds the
+  session and forgets the uploads seen so far, the title's HUD included;
+  test from a state load (the plugin re-sends the HUD) or from the title.
+- The HUD draws only the equipped spell: its 32×24 icon (one cell per spell
+  and level, each with its own palette) and its 40×8 name (all eight names
+  share a palette, at (128, 48) of the first HUD image), set by
+  HudSetSpellIcon (decomp `src/main/hud.c`). A play session therefore dumps
+  one icon and one name; the other 23 icons and the names need each spell
+  shown. The names' dump grows with each new name seen (40×8, 40×16 …
+  80×32), so keep the biggest (the rule above). The local pack got them all
+  in one session by writing the HUD's spell primitives through the debug
+  server (UV / CLUT words as HudSetSpellIcon computes them, with the group's
+  drawing offset parked off screen while the words are written, so that no
+  frame draws a half-written word).
+- The HUD's 8×8 font (digits) and its text (H.P., M.P., the spell names) are
+  white strokes one texel wide with a dark edge: the upscaling models blob
+  them (a 4 turns into a Q). The local pack draws them again as vector
+  strokes instead (each white texel a point, neighbours joined, diagonals
+  only where no square neighbour joins them, the edge as wider strokes),
+  over the rest of the image for the text inside larger images.
+- The upscaling models lost to the texels themselves (2026-11-22): UltraSharp
+  and PixelPerfect smoothed the art (the coins' relief gone, the Namco ® a
+  blot, the spell icons blurred), and the local pack ended as nearest
+  everywhere (each texel a 4×4 block) with only the HUD text as strokes. Such
+  a pack looks like the renderer's `texture_filtering = "nearest"` (a
+  bilinear filter over 4×4 blocks blends only their edges), which needs no
+  pack and also covers what a state load leaves native; the pack's own gain
+  is the stroke text.
+- The portraits (80×64, 8 bpp at (960, 432), CLUT (0, 500): the magic menu's
+  hero picture, drawn mirrored, and every dialogue speaker) sit in an 8-bit
+  texture page at x 960, which runs past VRAM's right edge; the framework
+  refused every draw from such a page, so they were never dumped nor
+  replaced. `patches/psxrecomp/0004` checks only the texels a draw reads.
+  All 49 portraits of both discs can be replaced: their dump names were
+  computed from the discs with the framework's own pack code, so no one has
+  to open every dialogue. They are painted art over black (28% of their
+  contour texels are under 48 against 3% inside: a matte that models turn
+  into black drops, so peel it first). The local pack tried UltraSharp,
+  AnimeSharp, RealESRGAN (x4plus, anime 6B, animevideo v3),
+  IllustrationJaNai V3 and diffusion (Stable Diffusion 1.5 with ControlNet
+  tile, per-character prompts so a hero stays a man) and kept the original
+  texels (2026-11-22): at 80×64 every method either invents (another face,
+  a modern anime style, an "AI" finish) or shows no more detail than the
+  texels. Only higher-resolution source art would do better. The gallery has
+  none: two portraits (Gerome's, Anna's) are mirrored crops of its full-body
+  pictures, but there the face is about 60% of the portrait's size; the
+  others are drawings of their own (illustration: Taro Yamazaki, from the
+  staff credits).
+- The HUD's re-send after a state load must also send the third image's
+  CLUT block (48×16 at (896, 488), the floor items' palettes): it lies
+  inside the first image (115×248 at (832, 256)) and the title writes it
+  after that image. Sending the images alone erased it, and the coins and
+  the chalice lost their icons after every state load, pack or no pack
+  (found 2026-11-22 by saving and loading a state with the cheats plugin on
+  and off). Room 0 of 0/8, 2/15, 2/16 and 7/33 puts a 65-row CLUT at
+  (880, 192) whose last row is the first image's top row; there the HUD is
+  not sent again. A pack also gets dumps with no opaque texel (a palette
+  read as zeros); a replacement made from one only hides the texture, so
+  the local pack skips them.
+- The 12×12 font (64×256 words at (704, 256), uploaded by the title from
+  `\BIN\OPENNING.BIN`: the menus' text, the hero's name on the magic menu,
+  the dialogue) is the HUD's case again: after a state load the pack no
+  longer knew it, so the cheats plugin now sends it again with the HUD's
+  images (except in 11/24, disc 2, whose 144×256 TIM covers it). Its glyphs
+  are a flat face (index 0) with two grey edge levels, one CLUT row per
+  colour (x 960, rows 506..511; a stage rewrites row 511, the dialogue's
+  white). Strokes over 12-pixel glyphs only rounded their corners (under 1%
+  of the pixels changed on screen), so the local pack redraws the sheet with
+  a TrueType face (Rockwell Bold, the player's pick over Century Schoolbook
+  and Bookman): each cell's character (`tools/evscript.py`'s table) fitted to
+  the original glyph's bounding box, in the palette's face colour (the
+  quotes as the curly ’ and ”, like the game's, and thin marks such as ! :
+  | in their own proportions: the box, widened by the grey edge texels,
+  made them fat). A pack
+  needs the whole sheet (0-0-256x256: some draws read up to u 255) for every
+  CLUT row the game uses, or a colour shows only the glyphs a dump has seen;
+  the local pack read the rows from VRAM with the debug server (`vram_peek`,
+  title, a dialogue, the magic menu: 8 distinct rows) and dumped the sheet
+  with each through the framework's pack code. The magic menu's
+  yellow labels in the first HUD image (LEVEL, the 8×16 level digits, STR.,
+  DEF., VAL, M.P.) are redrawn like the white text, each colour with its own
+  edge.
+
 A human session from the title into Brize Forest (2026-10-14, release build,
 dump on) produced 563 PNGs (7.7 MB): 474 4-bit paletted (`P4`), 72
 semi-transparent 4-bit (`STP4`), 16 8-bit (`P8`), 1 `STP8`; the commonest
@@ -1960,7 +2080,10 @@ Start `DragonValorDebug.bat`, then `python tools/session_monitor.py <out_dir>`: 
   takes test state 10 to the cut scene 0/5 through Warp > Cut prologue
   scene (the stage loads and keeps running, the room's messages are the
   English ones, test state 9 still loads after the trip; a picture goes
-  to `<build>/test_shots`).
+  to `<build>/test_shots`); `python tests/test_hd_hud.py` checks that the
+  HD Texture Packs mod knows the HUD again after a state load (an empty
+  temporary pack in dump mode: the HUD's sources are dumped after test
+  state 10, and not with the cheats feature off).
 
 ## Project layout (what is ours)
 
