@@ -87,6 +87,14 @@ the native 60 Hz version.
   `RELEASE_NOTES.md` alone, as for 0.2.0. The Windows zip was checked:
   `psx_game_version.txt` 0.3.0, cheats package 1.4.0, the new plugin code
   in the exe, no `texture-packs/` folder.
+  **v0.4.0 was published on 2026-11-23** (pre-release, four zips about
+  5 KB larger than 0.3.0's), with PR #8 (the wide event blur, the 4:3
+  chapter title cards, `tools/make_bezel.py`); PR #10 wrote its notes and
+  VERSION. Tag `v0.4.0` at `fcb6ad6`, the run took 14 min; the release
+  text was replaced with `RELEASE_NOTES.md`, as before. The Windows zip
+  was checked: `psx_game_version.txt` 0.4.0, `make_bezel.py` at its root
+  (the same bytes as `tools/`), the event blur's counter in the exe, no
+  `texture-packs/` folder.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
