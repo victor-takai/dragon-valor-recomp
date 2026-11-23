@@ -42,8 +42,9 @@ else
   EXTRA+=(--ship-without-overlay-cache-because \
     "no disc at package time: the committed static AOT shard is compiled in and overlay_toolchain/ autocompiles the rest on the player's machine")
 fi
-# Extra docs shipped at the zip root (DISC.md tells players which dump works).
-for _doc in DISC.md CONTROLS.md THIRD_PARTY_NOTICES.md RELEASE_NOTES.md LICENSE launcher_assets/img/BOXART_SOURCE.txt; do
+# Extra docs shipped at the zip root (DISC.md tells players which dump works;
+# make_bezel.py builds the side-bar artwork from the player's own disc, README).
+for _doc in DISC.md CONTROLS.md THIRD_PARTY_NOTICES.md RELEASE_NOTES.md LICENSE launcher_assets/img/BOXART_SOURCE.txt tools/make_bezel.py; do
   if [[ -f "${ROOT}/${_doc}" ]]; then
     EXTRA+=(--doc "${_doc}")
   fi

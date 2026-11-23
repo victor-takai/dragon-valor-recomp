@@ -1151,8 +1151,9 @@ worked examples this one follows.
   runtime's `gpu.h`, not re-exported by `mod_plugins.h`; nonzero = present
   this frame at 4:3 with side bars; activation clears it, so it belongs to
   the session's plugin) that says so for mode 7, while
-  `g_Transition.state != 0` and while the blur is on in an event scene
-  (sub-mode 5, `0x8008634D`), sampled per VBlank like the world predicate.
+  `g_Transition.state != 0` and (until 2026-11-23, see "Wide event blur"
+  below) while the blur is on in an event scene (sub-mode 5,
+  `0x8008634D`), sampled per VBlank like the world predicate.
   The pause screen (Start) stays wide: its darkening tile is extended by
   the renderer. The world map and its Status screen (modes 10 / 13) were
   already 4:3 (2D, no projection).
@@ -1180,6 +1181,53 @@ worked examples this one follows.
   `tests/test_widescreen.py on` 9/9. The special's exact input was not
   reproduced here (the script tests the held Attack and Magic actions and
   a pressed Jump).
+- **Wide event blur** (2026-11-23, the player: the side bars of the
+  prologue's scenes look ugly). An event script's blur (event op `0x2A` /
+  timed command 8: `blurOn`, `blurRgb`, `blurY`) is the two copies above,
+  15-bit, of the other buffer (`blurTpage` `E1000300` / `…04` / `…10` /
+  `…14`), one line up (`blurY` -1), at half weight (semi-transparency
+  mode 0), modulated by `blurRgb`. The prologue (0/1) has two: the dragon
+  fight, `128 / 128 / 128` (trails, no tint), and the flashback after it,
+  `180 / 0 / 0`. That red is the tint fed back every frame, not the
+  stage's lighting: with `blurOn` held at 0 the flashback is in plain
+  colours. The copies are the same kind as the wide transitions', so the
+  predicate no longer asks for 4:3 in event scenes: the `ModelWeldReset`
+  hook (and the VBlank refresh, the blur's frame takes three VBlanks) tags
+  both as feedback rectangles (`dv_ws_tag_event_blur`,
+  `gpu_ws_tag_feedback_rect`), and the renderer continues them into the
+  margins from the source buffer's wide surface. Checked from a New Game
+  (debug build, Cross every 2 s): both blurs wide in all 11 samples
+  (`present_native_43` 0, 128 extra columns, `dv.ws.event_blur_tagged`
+  rising), tint and trails across the full width, and at the old 4:3
+  edges the colour step is no larger than between any two neighbouring
+  columns; `tests/test_widescreen.py on` 11/11. The blur in play is still
+  left out as above.
+- **Title cards at 4:3 for the bezel** (2026-11-23). With the event blur
+  wide, the side bars left in a playthrough are the 2D screens made for
+  4:3: stage 0 of every area (the chapter's title card and narration, the
+  prologue's "Only the magic sword…" among them), the menus, the world map
+  and its screens, the movies. The player chose to fill them with the
+  framework's Bezel Artwork (`psx.presentation.bezel`, off by default, an
+  image picked in the launcher), but the renderer draws it only around a
+  4:3 present (`present_bezel` skips a frame that covers the window), and
+  the world predicate keeps mode 8 wide, so a title card sat in a wide
+  frame with black margins of its own and the bezel never showed there.
+  The native-scene predicate now also asks for 4:3 in mode 8 at stage 0
+  (`g_StageSelect.stage` `0x800A2F1A`, `dv_ws_title_card`): the same
+  picture with the bezel off, the bezel at the sides with it on. Checked
+  from a New Game with a 1920 × 1080 bezel: the prologue's card framed by
+  it, the dragon fight after it still wide; `tests/test_widescreen.py on`
+  11/11. The bezel image is the player's own (game art stays local):
+  `tools/make_bezel.py` (shipped at the zip root by
+  `scripts/package_release.sh`, standard library only) reads
+  `ILLUST/ILLUST_U.CDR` from the player's disc (the `[disc]` path of
+  `settings.toml`), takes the gallery's 16-bit TIMs in file order (96, 384 ×
+  480) and builds two 1920 × 1080 pictures from 240-pixel strips of
+  paintings 36 / 38 (heroes) and 42 / 41 (dragons), cut above or below
+  their "Image illustration" captions, 0.85 brightness, a 48-pixel shadow
+  by the game picture; `--install DIR` writes them to `DIR/bezel/` and
+  turns the bezel on in `DIR/mods/state.toml`. Its default output, `bezel/`,
+  is ignored by git.
 - **Dialogue border** (2026-11-17, "the dialogue bar does not span the
   screen"). The message window's black band is a 384-wide TILE the renderer
   already extends; its top border is six identical 64 × 8 sprites from x 0
