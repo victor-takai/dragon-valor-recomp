@@ -1959,7 +1959,10 @@ after a state load (a stage or area change).
   of the pixels changed on screen), so the local pack redraws the sheet with
   a TrueType face (Rockwell Bold, the player's pick over Century Schoolbook
   and Bookman): each cell's character (`tools/evscript.py`'s table) fitted to
-  the original glyph's bounding box, in the palette's face colour. A pack
+  the original glyph's bounding box, in the palette's face colour (the
+  quotes as the curly ’ and ”, like the game's, and thin marks such as ! :
+  | in their own proportions: the box, widened by the grey edge texels,
+  made them fat). A pack
   needs the whole sheet (0-0-256x256: some draws read up to u 255) for every
   CLUT row the game uses, or a colour shows only the glyphs a dump has seen;
   the local pack read the rows from VRAM with the debug server (`vram_peek`,
