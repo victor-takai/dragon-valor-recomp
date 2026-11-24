@@ -2022,6 +2022,42 @@ the table in RAM can hold a body's.
   1 7 --prune --body NAME`; the test now also reads the Status screen's
   name from RAM): 21/21 each for the Dragon Valor, the skeleton (named Clovis), Lodonya and Fannah with the prologue Clovis's moves, Shalya and Fannah with Anna's, Jeanne with Anita's, Raimun with Arlen's, and Kodel (the game's table back); the Status screen shows each body's name ("Dragon Valor" runs a little past the name plate).
 
+**The bodies' sword trails and voices (2026-11-24, the player: "each model
+has its own colour effect on the sword", "and the voices").**
+
+- *Trails.* The light ribbon of a swing is started by the hero's behaviour
+  script (the entry op 3 names at +8) with native 6, `TrailStartTwoNodes`:
+  an 8-word instruction whose words 3 / 4 and 6 / 7 are the two edge colours
+  (0xBBGGRR) and the steps they fade by over 7 segments. Every hero's script
+  has its own pair (decomp `docs/targets/hero-swap.md`, *Sword trails*), so a
+  body swung with its kit's. `retrail` gives the calls with the script's
+  most common pair (the swing; special moves keep theirs) the body's
+  `kBodies[].trail`: Raimun gold -> white, the grown Clovis blue -> green,
+  the skeleton white (their own scripts' colours), Phillip (Kadum) Kadum's
+  red -> white (Mihael's), the Dragon Valor flame orange, Lodonya crimson ->
+  violet, Shalya cyan, Fannah violet -> gold, Jeanne crystal pink; fades a
+  ninth of each channel (a whole-word subtraction: a channel must hold 7).
+- *Voices.* Every hero's bank (VAB_CODE: an SE table, then a whole VAB)
+  keeps its voice in SE 32..44 (program 2, SPU voice 23), played by role
+  (from where the script plays them): attack 32 34 35 40 42 43, hurt 33,
+  heavy 37, death 39, special 36 38 41 44. The enemies' banks keep theirs
+  in program 1 (SE 16..20, SPU voice 20). `kBodies[].voice` names the
+  body's SE for each role (first picks, from its own script, to be checked by
+  ear: Raimun, the grown Clovis, Lodonya; the others have no voice of their
+  own and keep the kit's), and `revoice` (a port of the decomp's
+  `tools/vab.py revoice`) transplants them into both copies of the kit's
+  bank (file 0's whole one, the pack's header-only one): each body VAG
+  appended once, the hero tones repointed with the body tone's centre, shift
+  and ADSR (the pitch and envelope the body's had), hero VAGs no tone uses
+  any more made one silent block, sizes, VAG count and `fsize` updated. The
+  body's bank (the whole VAB_CODE of its pair file) is kept by `body_bake`
+  and cached in `body_<value>.bin` (version 2). `tools/vab.py export` in the
+  decomp writes every bank's SEs as WAV files to listen to.
+- **Checked** on build-debug with `tests/test_heroswap.py NAME --ref`, which
+  now also reads every native-6 instruction of the pack in RAM, the bank
+  header in the pack and the bank body in SPU RAM (`spu_ram` at
+  `g_SoundSpuAddr[1]`) against the reference: 24/24 each for Raimun, the grown Clovis and Lodonya (their voices: the bank body in SPU RAM byte for byte the reference's, 95520 / 118640 / 85776 bytes), Jeanne, Phillip (Kadum), Fannah, Shalya with Anna's moves and Kodel (the kits' own banks), every trail colour the reference's; the bank header in the pack is compared but for each ProgAtr's reserved bytes (+8..+15), where libsnd keeps words of its own.
+
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
 itself for every stage.

@@ -1063,8 +1063,13 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
  * 3) of the character, its texture in the file before (file - 1), its
  * portrait (a scene pack's image set: file, entry, k-th TIM; BODY_POR_STAGE:
  * the body's stage hero's, from its file 0; BODY_POR_NONE: the kit's stays),
- * the hero node each of its parts goes to, and the weapon held when the
- * `weapon` option is the hero's own (-1: its own part 2). */
+ * the hero node each of its parts goes to, the weapon held when the
+ * `weapon` option is the hero's own (-1: its own part 2), and its sword
+ * trail's colours (retrail; 2026-11-24, the player: "each model has its own
+ * colour effect on the sword"): its own script's where it swings with a trail
+ * (the grown Clovis, the skeleton, Raimun), Kadum's for Phillip (Kadum)
+ * (Mihael's, 8/1), the others chosen after their look; the fades a ninth of
+ * each channel where its script gives none. */
 #define BODY_COUNT (HERO_COUNT - BODY_FIRST)
 #define BODY_POR_STAGE (-2)
 #define BODY_POR_NONE  (-1)
@@ -1075,26 +1080,28 @@ static const struct {
     int area, stage, file, obj, por_file, por_entry, por_k;
     uint8_t order[14];
     int weapon;
+    uint32_t trail[4];   /* sword trail: colour_a, fade_a, colour_b, fade_b (0xBBGGRR; retrail) */
+    int8_t voice[5];     /* its bank's SE for each voice role (attack, hurt, heavy, death, special), -1 none */
 } kBodies[BODY_COUNT] = {
-    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1},                /* the Dragon Valor: 0/1's opening scene */
-    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1},                 /* the grown Clovis: 3/17's enemy group */
-    {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1},    /* a skeleton of chapter 1 */
-    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1},                 /* Raimun, chapter 1's boss */
-    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1},               /* Lodonya, chapter 2's black knight */
-    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1},                /* Shalya */
-    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS},      /* Fannah (part 2: a thing on her back) */
-    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1},                  /* Princess Jeanne */
+    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1}},                /* the Dragon Valor: 0/1's opening scene */
+    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {17, 18, 19, 16, 20}},                 /* the grown Clovis: 3/17's enemy group */
+    {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},    /* a skeleton of chapter 1 */
+    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 19, 19, 17}},                 /* Raimun, chapter 1's boss */
+    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 19, 19, 16}},               /* Lodonya, chapter 2's black knight */
+    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},                /* Shalya */
+    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS, {0xE040A0, 0x180711, 0x40E0FF, 0x07181C}, {-1, -1, -1, -1, -1}},      /* Fannah (part 2: a thing on her back) */
+    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1, {0xFF70E0, 0x1C0C18, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},                  /* Princess Jeanne */
     /* Phillip in 5/19's scene where the Guardian gives him Kadum: Phillip's
      * parts but his hips (Kadum on his back) and the sword in his hand. (Felippe
      * as 4/1's scene draws him was here: the hero Felippe's look, out on the
      * player's word, 2026-11-24; the Guardian itself is another, armoured
      * figure: file 80 object 1, not on the heroes' joints.) */
-    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1},
+    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1, {0x0000FF, 0x00001C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},
 };
 /* A body as kit_dress takes it: its parts in hero node order, their prims
  * pointed at its baked hero page (body_bake; until then `tex` holds its
  * texture file), the page TIM, its portrait (empty: the kit's stays). */
-typedef struct { int ready; Buf prims[14], verts[14], tex, page, portrait; } Body;
+typedef struct { int ready; Buf prims[14], verts[14], tex, page, portrait, bank; } Body;
 static Body s_bodies[BODY_COUNT];
 static Kit s_prologue;   /* the prologue Clovis's kit (0/1): the bodies' moves by default */
 static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
@@ -1280,7 +1287,7 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
 #define DV_KIT_VER     1u
 #define DV_BODY_MAGIC  0x42485644u   /* "DVHB" */
-#define DV_BODY_VER    1u
+#define DV_BODY_VER    2u   /* 2: the body's sound bank (its voice) */
 #define DV_PROLOGUE_ID 100u          /* the prologue Clovis's kit's id in its file */
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
@@ -1359,7 +1366,8 @@ static void body_save(int b)
     if (!(f = fopen(path, "wb"))) return;
     ok = w32(f, DV_BODY_MAGIC) && w32(f, DV_BODY_VER) && w32(f, (uint32_t)b);
     for (i = 0; ok && i < 14; i++) ok = wbuf(f, y->prims[i].p, y->prims[i].n) && wbuf(f, y->verts[i].p, y->verts[i].n);
-    ok = ok && wbuf(f, y->page.p, y->page.n) && wbuf(f, y->portrait.p, y->portrait.n);
+    ok = ok && wbuf(f, y->page.p, y->page.n) && wbuf(f, y->portrait.p, y->portrait.n) &&
+         wbuf(f, y->bank.p, y->bank.n);
     fclose(f);
     if (!ok) remove(path);
 }
@@ -1378,7 +1386,8 @@ static int body_load(int b)
     for (i = 0; ok && i < 14; i++)
         ok = rbuf(f, &y->prims[i], 0x100000) && y->prims[i].n >= 17 * 16 && rbuf(f, &y->verts[i], 0x100000) &&
              y->verts[i].n;
-    ok = ok && rbuf(f, &y->page, 0x100000) && y->page.n && rbuf(f, &y->portrait, 0x10000);
+    ok = ok && rbuf(f, &y->page, 0x100000) && y->page.n && rbuf(f, &y->portrait, 0x10000) &&
+         rbuf(f, &y->bank, 0x100000);
     fclose(f);
     y->ready = ok;
     return ok;
@@ -2525,6 +2534,149 @@ static void vram_load(const uint8_t* b, uint32_t len)
     }
 }
 
+/* --- a body's voice -------------------------------------------------------
+ * Port of the decomp's tools/vab.py `revoice` (heroswap.py: same bytes). A
+ * "VAB_CODE" section (decomp include/dv/exeD_sound.h) is an SE table (s32
+ * count, then 16-byte records: voice, prog, tone, note, fine, volL, volR,
+ * noRestart: SsUtKeyOnV's arguments) and a whole Sony VAB: VabHdr ("pBAV";
+ * fsize +0xC, ps +0x12, vs +0x16), 128 ProgAtr of 0x10 (tones at +0), ps x 16
+ * VagAtr of 0x20 (centre +4, shift +5, ADSR +0x10 / +0x12, vag +0x16), the
+ * VAG size table (256 u16, sizes >> 3), then the body. The kit has it twice:
+ * whole (file 0, k->vab) and header-only (the pack entry op 52 kind 0 names).
+ * Every hero's voice is SE 32..44 (program 2, SPU voice 23), played by role
+ * (decomp hero-swap.md, Sound banks): attack 32 34 35 40 42 43, hurt 33,
+ * heavy 37, death 39, special 36 38 41 44. A body with a voice (an enemy
+ * group's bank: program 1, SE 16..20) names the SE of its bank for each role
+ * (kBodies voice, picked from where its own script plays them). Each named
+ * body SE's VAG is appended once; the hero tones of the role's SEs point to
+ * it with the body tone's centre (+ the SEs' note difference), shift and
+ * ADSR; a hero VAG no tone uses any more becomes one silent block; the size
+ * table, vs and fsize follow; the SE table stays (the voices, volumes). */
+typedef struct {
+    uint32_t h, ps, vs, vagatr, sizes_at, header_end, nse;
+    uint32_t tone_at[128 * 16];   /* [prog * 16 + tone] -> offset of its VagAtr, 0 = none */
+    uint32_t size[256], off[256];
+    int has_body;
+} VabInfo;
+
+static int vab_info(const uint8_t* e, uint32_t len, VabInfo* v)
+{
+    uint32_t p, t, k = 0, o = 0, n;
+    int32_t cnt;
+    if (len < 12 || memcmp(e, "VAB_CODE", 8)) return 0;
+    cnt = (int32_t)le32(e + 8);
+    if (cnt < 0 || cnt > 4096 || 12u + 16u * (uint32_t)cnt + 0x20u > len) return 0;
+    v->nse = (uint32_t)cnt;
+    v->h = 12u + 16u * (uint32_t)cnt;
+    if (memcmp(e + v->h, "pBAV", 4)) return 0;
+    v->ps = le16u(e + v->h + 0x12);
+    v->vs = le16u(e + v->h + 0x16);
+    v->vagatr = v->h + 0x20 + 0x800;
+    v->sizes_at = v->vagatr + 0x200 * v->ps;
+    v->header_end = v->sizes_at + 0x200;
+    if (v->ps > 128 || v->vs > 255 || v->header_end > len) return 0;
+    memset(v->tone_at, 0, sizeof v->tone_at);
+    for (p = 0; p < 128 && k < v->ps; p++) {
+        if (!e[v->h + 0x20 + 0x10 * p]) continue;         /* ProgAtr tones */
+        for (t = 0; t < 16; t++) v->tone_at[p * 16 + t] = v->vagatr + 0x200 * k + 0x20 * t;
+        k++;
+    }
+    for (n = 0; n < 256; n++) v->size[n] = (uint32_t)le16u(e + v->sizes_at + 2 * n) << 3;
+    for (n = 1; n <= v->vs; n++) { v->off[n] = o; o += v->size[n]; }
+    v->has_body = len > v->header_end;
+    return 1;
+}
+
+static const uint8_t kSilentVag[16] = {0, 1};
+
+static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* bank, uint32_t blen,
+                   const int8_t* roles)
+{
+    static const uint8_t kRole[52] = {   /* hero SE -> role + 1 (attack 1, hurt 2, heavy 3, death 4, special 5) */
+        [32] = 1, [34] = 1, [35] = 1, [40] = 1, [42] = 1, [43] = 1, [33] = 2, [37] = 3, [39] = 4,
+        [36] = 5, [38] = 5, [41] = 5, [44] = 5};
+    static VabInfo v, b;
+    static uint8_t hdr[0x8000], silenced[256];
+    uint32_t size[256], vs, n, se, fsize = 0;
+    int newvag[64], i;
+    if (!vab_info(code, len, &v) || !vab_info(bank, blen, &b) || !b.has_body || v.header_end > sizeof hdr) return 0;
+    memcpy(hdr, code, v.header_end);
+    memcpy(size, v.size, sizeof size);
+    vs = v.vs;
+    for (i = 0; i < 64; i++) newvag[i] = 0;
+    for (se = 0; se < 52 && se < v.nse; se++) {          /* sorted by hero SE, as the decomp's */
+        const uint8_t *e, *be;
+        int r = kRole[se], bse;
+        uint32_t at, bat, bvag;
+        if (!r || roles[r - 1] < 0) continue;
+        bse = roles[r - 1];
+        if ((uint32_t)bse >= b.nse || bse >= 64) return 0;
+        e = code + 12 + 16 * se;
+        be = bank + 12 + 16 * (uint32_t)bse;
+        if (le16u(e + 2) >= 128 || le16u(e + 4) >= 16 || le16u(be + 2) >= 128 || le16u(be + 4) >= 16) return 0;
+        at = v.tone_at[le16u(e + 2) * 16 + le16u(e + 4)];
+        bat = b.tone_at[le16u(be + 2) * 16 + le16u(be + 4)];
+        if (!at || !bat) return 0;
+        if (!newvag[bse]) {
+            if (++vs > 255) return 0;
+            newvag[bse] = (int)vs;
+            bvag = le16u(bank + bat + 0x16);
+            if (!bvag || bvag > b.vs) return 0;
+            size[vs] = b.size[bvag];
+        }
+        {
+            int c = (int)bank[bat + 4] + (int16_t)le16u(e + 6) - (int16_t)le16u(be + 6);
+            hdr[at + 4] = (uint8_t)(c < 0 ? 0 : c > 127 ? 127 : c);
+        }
+        hdr[at + 5] = bank[bat + 5];
+        memcpy(hdr + at + 0x10, bank + bat + 0x10, 4);    /* ADSR 1, 2 */
+        hdr[at + 0x16] = (uint8_t)newvag[bse];
+        hdr[at + 0x17] = (uint8_t)(newvag[bse] >> 8);
+    }
+    {   /* hero VAGs no tone names any more: silent */
+        static uint8_t used[256];
+        memset(used, 0, sizeof used);
+        for (n = 0; n < 128 * 16; n++)
+            if (v.tone_at[n]) used[le16u(hdr + v.tone_at[n] + 0x16) & 0xFF] = 1;
+        memset(silenced, 0, sizeof silenced);
+        for (n = 1; n <= v.vs; n++)
+            if (!used[n]) { size[n] = sizeof kSilentVag; silenced[n] = 1; }
+    }
+    hdr[v.h + 0x16] = (uint8_t)vs;
+    hdr[v.h + 0x17] = (uint8_t)(vs >> 8);
+    for (n = 1; n <= vs; n++) {
+        hdr[v.sizes_at + 2 * n] = (uint8_t)(size[n] >> 3);
+        hdr[v.sizes_at + 2 * n + 1] = (uint8_t)(size[n] >> 11);
+        fsize += size[n];
+    }
+    put32(hdr + v.h + 12, (v.header_end - v.h) + fsize);
+    out->n = 0;
+    if (!buf_put(out, hdr, v.header_end)) return 0;
+    if (!v.has_body) return 1;
+    for (n = 1; n <= vs; n++) {
+        const uint8_t* src;
+        if (n <= v.vs && silenced[n]) {
+            src = kSilentVag;
+        } else if (n <= v.vs) {
+            src = code + v.header_end + v.off[n];
+            if (v.header_end + v.off[n] + size[n] > len) return 0;
+        } else {
+            int bse;
+            uint32_t bvag = 0;
+            for (bse = 0; bse < 64; bse++)
+                if (newvag[bse] == (int)n) {
+                    const uint8_t* be = bank + 12 + 16 * (uint32_t)bse;
+                    bvag = le16u(bank + b.tone_at[le16u(be + 2) * 16 + le16u(be + 4)] + 0x16);
+                    break;
+                }
+            if (!bvag || b.header_end + b.off[bvag] + b.size[bvag] > blen) return 0;
+            src = bank + b.header_end + b.off[bvag];
+        }
+        if (!buf_put(out, src, size[n])) return 0;
+    }
+    return 1;
+}
+
 /* The body's hero page, baked from its texture file, and its prims pointed
  * there; the texture file is let go. */
 static int body_bake(Body* body)
@@ -2564,6 +2716,12 @@ static int body_bake(Body* body)
     memset(s_vram, 0, sizeof s_vram);
     if (!ct_parse(&ctx, body->tex.p, body->tex.n)) return 0;
     for (i = 0; i < ctx.n; i++) vram_load(CT_E(&ctx, i), CT_L(&ctx, i));
+    body->bank.n = 0;                                  /* its sound bank: the VAB_CODE with a body */
+    for (i = 0; i < ctx.n && !body->bank.n; i++) {
+        static VabInfo vi;
+        if (vab_info(CT_E(&ctx, i), CT_L(&ctx, i), &vi) && vi.has_body && !buf_put(&body->bank, CT_E(&ctx, i), CT_L(&ctx, i)))
+            return 0;
+    }
     body->page.n = 0;
     {
         uint8_t hd[0x1C];
@@ -2628,7 +2786,43 @@ static int body_bake(Body* body)
  * order (the weld lists' own entries go), the body's parts in the hero
  * nodes' entries, its page as the kit's only hero-page TIM, its portrait if
  * it has one; the VAB (the voice) stays the kit's. */
-static int kit_dress(Kit* k, const Kit* d, const Body* b)
+/* The sword trail (decomp heroswap.py retrail; src/main/trail.c,
+ * objscript.c): the hero's behaviour script (the entry op 3 names at +8)
+ * starts it with native 6, TrailStartTwoNodes, an 8-word instruction whose
+ * words 3 / 4 and 6 / 7 are the two edge colours (0xBBGGRR) and the steps
+ * they fade by over the ribbon's 7 segments. Every hero's script has its own
+ * pair (Clovis red -> yellow, Arlen purple -> pale...), so a body swung with
+ * its kit's: the calls with the script's most common pair (the hero's swing;
+ * special moves keep theirs; ties: the larger pair) get the body's. The
+ * script is swept as the decomp's tools/objscript.py does (a word whose
+ * length or opcode cannot be an instruction is data). */
+#define DV_TRAIL_NATIVE (0x08u | 34u << 8 | 6u << 16 | 8u << 24)
+static void retrail(uint8_t* sc, uint32_t len, const uint32_t* trail)
+{
+    static uint32_t calls[1024];
+    uint32_t n = len / 4, pc = 0, nc = 0, i, j, best = 0, ma = 0, mb = 0;
+    while (pc < n) {
+        uint32_t w0 = le32(sc + 4 * pc), ln = w0 & 0xFF, op = (w0 >> 8) & 0xFF;
+        if (op > 54 || ln == 0 || pc + ln > n) { pc++; continue; }
+        if (w0 == DV_TRAIL_NATIVE && nc < 1024) calls[nc++] = pc;
+        pc += ln;
+    }
+    for (i = 0; i < nc; i++) {
+        uint32_t a = le32(sc + 4 * (calls[i] + 3)), b = le32(sc + 4 * (calls[i] + 6)), c = 0;
+        for (j = 0; j < nc; j++) c += le32(sc + 4 * (calls[j] + 3)) == a && le32(sc + 4 * (calls[j] + 6)) == b;
+        if (c > best || (c == best && (a > ma || (a == ma && b > mb)))) { best = c; ma = a; mb = b; }
+    }
+    for (i = 0; i < nc; i++) {
+        uint8_t* w = sc + 4 * calls[i];
+        if (le32(w + 12) != ma || le32(w + 24) != mb) continue;
+        put32(w + 12, trail[0]);
+        put32(w + 16, trail[1]);
+        put32(w + 24, trail[2]);
+        put32(w + 28, trail[3]);
+    }
+}
+
+static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail, const int8_t* voice)
 {
     static Prog p;
     static Buf ops;
@@ -2688,6 +2882,26 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b)
                  b->portrait.n ? b->portrait.n : d->portrait.n))
         goto fail;
     k->npage = 1;
+    {
+        uint32_t se = le32(k->ops.p + 8);              /* op 3's behaviour script */
+        if (trail && se && se <= k->nent) retrail(k->ent[se - 1], k->entlen[se - 1], trail);
+    }
+    if (voice && b->bank.n && (voice[0] >= 0 || voice[1] >= 0 || voice[2] >= 0 || voice[3] >= 0 || voice[4] >= 0)) {
+        /* the body's voice in both copies of the kit's bank */
+        static Buf nv;
+        uint32_t hb = 0;
+        for (j = 0; j + 1 < p.nops; j++)
+            if (p.ops[j].op == 52 && le32(k->ops.p + p.ops[j].pos + 4) == 0 && p.ops[j].nref)
+                hb = le32(k->ops.p + p.refs[p.ops[j].ref0]);
+        if (!hb || hb > k->nent || !revoice(&nv, k->vab.p, k->vab.n, b->bank.p, b->bank.n, voice)) goto fail;
+        k->vab.n = 0;
+        if (!buf_put(&k->vab, nv.p, nv.n)) goto fail;
+        if (!revoice(&nv, k->ent[hb - 1], k->entlen[hb - 1], b->bank.p, b->bank.n, voice)) goto fail;
+        free(k->ent[hb - 1]);
+        if (!(k->ent[hb - 1] = (uint8_t*)malloc(nv.n))) goto fail;
+        memcpy(k->ent[hb - 1], nv.p, nv.n);
+        k->entlen[hb - 1] = nv.n;
+    }
     k->ready = 1;
     return 1;
 fail:
@@ -2710,7 +2924,7 @@ static void body_kits_refresh(void)
     if (want == built_for && n == built_n) return;
     for (b = 0; b < BODY_COUNT; b++) {
         Kit* k = &s_kits[BODY_FIRST + b];
-        if (!n || !s_bodies[b].ready || !kit_dress(k, d, &s_bodies[b])) {
+        if (!n || !s_bodies[b].ready || !kit_dress(k, d, &s_bodies[b], kBodies[b].trail, kBodies[b].voice)) {
             kit_free(k);
             if (n && s_bodies[b].ready) fprintf(stderr, "%s: no kit for %s\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + b]);
         }

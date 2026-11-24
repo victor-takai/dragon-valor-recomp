@@ -96,6 +96,14 @@ def hname(value):
 MOVES = None              # --moves: the hero whose kit the bodies wear (None: the prologue Clovis's)
 
 
+def trails(pack):
+    """(colour_a, fade_a, colour_b, fade_b) of every native-6 instruction
+    (TrailStartTwoNodes, 8 words) in a pack's bytes, sorted."""
+    n = len(pack) // 4
+    ws = struct.unpack(f"<{n}I", pack[:4 * n])
+    return sorted((ws[i + 3], ws[i + 4], ws[i + 6], ws[i + 7]) for i in range(n - 7) if ws[i] == 0x08062208)
+
+
 def gindex(hero):
     """g_Hero.index for a HEROES index: a body plays its moves' hero's part
     (Clovis's 0 for the prologue Clovis's)."""
@@ -126,6 +134,15 @@ def container(b):
     n = struct.unpack_from("<I", b)[0]
     offs = struct.unpack_from(f"<{n + 1}I", b, 4)
     return [b[offs[i]:offs[i + 1]] for i in range(n)]
+
+
+def vab_split(code):
+    """(header part, body) of a VAB_CODE section (decomp tools/vab.py)."""
+    count = struct.unpack_from("<i", code, 8)[0]
+    h = 12 + 16 * count
+    ps = struct.unpack_from("<H", code, h + 0x12)[0]
+    end = h + 0x20 + 0x800 + 0x200 * ps + 0x200
+    return code[:end], code[end:]
 
 
 def tims(b):
@@ -196,12 +213,21 @@ def main(argv):
     if default and ref:
         sys.exit("--ref compares a swapped stage: not with `default`")
 
-    expect_head, expect_vram = None, {}
+    expect_head, expect_vram, expect_pack, expect_bank = None, {}, None, None
     if ref:
         spec = (ref / "heroswap.txt").read_text(encoding="utf-8")
         files = {int(n): name for n, name in re.findall(r"^file (\d+) (\S+) ", spec, re.M)}
         pack = (ref / files[1]).read_bytes()
         expect_head = pack[:4 * (int.from_bytes(pack[:4], "little") + 2)]
+        expect_pack = pack
+        # the hero's sound bank: its header in the pack (the entry that starts
+        # VAB_CODE), its body in file 0's whole copy (uploaded to the SPU)
+        offs = struct.unpack_from(f"<{struct.unpack_from('<I', pack)[0] + 1}I", pack, 4)
+        bank_at = next((offs[i], offs[i + 1]) for i in range(len(offs) - 1)
+                       if pack[offs[i]:offs[i] + 8] == b"VAB_CODE")
+        whole = next(e for e in container((ref / files[0]).read_bytes())
+                     if e[:8] == b"VAB_CODE" and len(vab_split(e)[1]))
+        expect_bank = (bank_at, vab_split(whole)[1])
         chain = [t for e in container((ref / files[0]).read_bytes()) for t in tims(e)]
         page = [t for t in chain if any(r and overlaps(r, HERO_PAGE) for r in (t[0], t[2]))]
         portrait = [t for t in chain if t[2] == PORTRAIT]
@@ -399,6 +425,39 @@ hero = "{hero_name}"
             check(f"the Status screen's name is {want_name}", letters(glyphs) == want_name, letters(glyphs))
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
+        if expect_pack:
+            # the sword trails (native 6 instructions: colours and fades),
+            # every one in the pack, against the reference's (a body's own
+            # colours, the hero's otherwise)
+            ram = b"".join(rd(PACK + o, min(0x8000, len(expect_pack) - o)) for o in range(0, len(expect_pack), 0x8000))
+            got, want = trails(ram), trails(expect_pack)
+            main = max(set(want), key=want.count) if want else None
+            check("sword trail colours = the reference's", got == want,
+                  f"{len(got)} trails, main " + (" ".join(f"{v:06X}" for v in main) if main else "none"))
+        if expect_bank:
+            (b0, b1), body = expect_bank
+            # libsnd keeps its own words in each ProgAtr's reserved bytes
+            # (+8..+15 of the 128 records after the VabHdr): left out
+            h = 12 + 16 * struct.unpack_from("<i", expect_pack, b0 + 8)[0]
+            prog = range(h + 0x20, h + 0x20 + 0x800)
+            diff = [i for i in range(b1 - b0) if ram[b0 + i] != expect_pack[b0 + i]
+                    and not (i in prog and (i - prog.start) % 16 >= 8)]
+            spans, start = [], None
+            for k, i in enumerate(diff):
+                if start is None:
+                    start = i
+                if k + 1 == len(diff) or diff[k + 1] != i + 1:
+                    spans.append(f"0x{start:X}-0x{i:X}")
+                    start = None
+            check("hero sound bank header in the pack = the reference's (ProgAtr reserved words aside)", not diff,
+                  f"{b1 - b0} bytes; differ at " + ", ".join(spans[:12]))
+            # the body as the SPU holds it: slot 1's address (g_SoundSpuAddr[1])
+            spu = int.from_bytes(rd(0x800ADB84, 4), "little")
+            got_body = b"".join(bytes.fromhex(rpc(port, "spu_ram", addr=spu + o, len=min(4096, len(body) - o))["hex"])
+                                for o in range(0, len(body), 4096))
+            same = sum(a == b for a, b in zip(got_body, body))
+            check("hero sound bank body in SPU RAM = the reference's (the voice)", got_body == body,
+                  f"SPU 0x{spu:05X}, {same} of {len(body)} bytes")
         for label, (rect, data) in expect_vram.items():
             x, y, w, h = rect
             rows = []

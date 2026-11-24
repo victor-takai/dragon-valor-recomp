@@ -270,6 +270,10 @@ the native 60 Hz version.
   free: the hero's CLUT block grows up into the page's unused rows. Each
   matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
   raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
+  **Trails and voices** (2026-11-24, the player's request): each body
+  swings with its own sword-trail colours, and Raimun, the grown Clovis and
+  Lodonya shout with their own voices (first picks of their sounds, to be
+  checked by ear); both match the decomp tool byte for byte.
   **Moves** (2026-11-24, the player's request): the bodies can wear any
   hero's moves and voice (Hero > Moves; Anna's or Anita's for Shalya,
   Fannah and Jeanne), and the Status screen names the body played instead
