@@ -756,7 +756,7 @@ row read "CD Speed / CD Speed 1.0.0" or "Cheats / Dragon Valor Cheats
 1.3.0", and nine features sat in seven groups (Cheats, Display,
 Experimental, Convenience, Advanced, Quality of Life, Visual). Now:
 
-- two groups, **Game** (Cheats, Faster loading, Play as, Skip intro movie)
+- two groups, **Game** (Cheats, Faster loading, Play as, Skip intro)
   and **Graphics** (Bezel artwork, HD texture packs, Steady 3D (PGXP),
   Widescreen); the list sorts by group, then name;
 - every feature description opens with a short sentence the row shows as
@@ -979,7 +979,7 @@ builder plus extras with its generic drawer:
 | Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
 | Warp (experimental; Area, Stage and Go now moved out of Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys; the section was called Experimental until 2026-11-18) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time. **Cut prologue scene** (2026-11-21, the player asked for an easy way into the stages nothing in the game leads to, found by the decomp's `tools/stages.py`, its docs/SECRETS.md; the first version offered all four of disc 1 through a Secret stage choice row and a Go to secret stage action, and the marble corridor 1/24 and the Japanese release's chapter 1 world maps 1/14 / 1/16 were taken out the same day at the player's request, leaving the one action): the scene cut from the prologue, stage 0/5. No Game Over: the action, asked in a dialog, sets `dv_trip_area` / `dv_trip_stage` and `dv_trip_request` and closes the menu; the cheats plugin's entry hook on ModelWeldReset (`0x80021CE4`, FrameDraw, after the frame's objects and before DrawOTag) waits for a quiet frame (mode 8 sub-mode 7, no pause, no event script, area and stage phases 0, load rows idle, the same test as Play as's restart) and calls the game's own ModeTransition (`0x80025264`, object native 3) through `psx_mod_call_guest`, with { kind, area delta, stage delta } in `g_CdUnused8768` (`0x80078768`, 16 bytes of the CD object's .bss that nothing touches, the decomp's docs/OBJECTS.md section 9; zeroed after the call): kind 0 (kind 1 inside the area; a world map would need kind 3, into MAP.BIN). Not `psx_mod_alloc_guest_memory`: the first version put the four bytes there, and an allocation changes the save-state header's layout cookie (`psx_mod_memory_layout_cookie`, `boot_state.c`), so every state saved before the first trip of a session was refused afterwards (found before release; `tests/test_secret_stages.py` loads test state 9 after the trip). The game resets the stage, loads it, and asks for disc 1 itself when the player is on disc 2. 0/5 plays its scene (about a minute) and goes on to chapter 1. Its 22 messages, left in the Japanese release's code (kana where the US font has its accented letters, kanji of a sheet no longer on the disc), are shown in English: while the room's message table (`g_EventVm.messages`, `0x8009FA18`) still points at the Japanese message 0, the cheats plugin's VBlank encodes the English lines (`kCutScene`, the US font's glyph code; the encoder also knows the speed, pen, colour and question controls) at `0x801E0000` and points the table at them. That RAM is above the stage's heap: the stage buffers end where the second arena starts (GS_ARENA2, `0x800A2CA0`, where the message window builds), the RAM stack only uses the top of RAM, and `0x801D1698`‥`0x801FF698` stayed zero in 1/24, the largest of the secret stages; the text is written only while GS_ARENA2 is 64 KB or more below it. The first version wrote the lines over 0/5's description bank (a Japanese leftover there); the corridor's English translation (an early draft of Clovis finding Princess Celia, 1/24 room 1) needed the RAM above the heap, since its bank is the English one the magic menu reads, and left with the corridor (git history: `5c65d83`; the Japanese and the English stay in the decomp's SECRETS.md). Main RAM only, so a state saved during the scene keeps the English. A loaded state cancels a pending trip; the row is greyed out without the Cheats mod | Area and Stage are RAM rows like the editors (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform, asked in a dialog first; Cut prologue scene is an action asked in a dialog and made by `dragonvalor_cheats.c` |
 | Video | Fullscreen, Smooth picture (the linear filter of the final image), Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`) |
-| Options | Volume, Pause in menu, Skip intro movie, Game dimming, Menu opacity | `host_volume_set`; Skip intro is a `mod_set` feature switch (next start); the rest are the menu's own (`dragonvalor_settings.toml`, below) |
+| Options | Volume, Pause in menu, Skip intro, Game dimming, Menu opacity | `host_volume_set`; Skip intro is a `mod_set` feature switch (next start); the rest are the menu's own (`dragonvalor_settings.toml`, below) |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu
 (`psx_menu_host.h`: pause, live video, mod changes, disc tray, exit) and
@@ -1051,56 +1051,62 @@ the settings file (`BACKLOG.md`).
 #### This project's package: `dragonvalor.skip-intro`
 
 `mods/preloaded/packages/dragonvalor.skip-intro/1.0.0/manifest.toml`: one
-feature, off by default, that presses Start for the player as soon as the
-intro movie starts, the skip the game itself offers, so power-on reaches the
-title with no button. Plugin: `mods/plugins/dragonvalor_skip_intro.c`.
+feature, off by default, that takes power-on straight to the title menu
+with no button: options `logo`, `movie` and `title` (all on). Plugin:
+`mods/plugins/dragonvalor_skip_intro.c`.
 
-How the boot sequences (intro module at `0x800BBEF0`, mode byte
-`0x8008634C`, sub-state `0x8008634D`, traced with `wtrace_arm`):
+How the boot runs (OPENNING.BIN, decomp `src/openning/logo.c`, `intro.c`,
+`titlemenu.c`; `g_GameFlow.mode` at `0x8008634C`, `subMode` `0x8008634D`;
+the logic runs at 30 Hz, two VBlanks a frame). Corrected 2026-11-24 from
+the decomp: the table this section had (traced in 2026-10 without it) took
+mode 5, the attract demo, for the menu.
 
-| Mode | What | Transition |
+| Mode | What | Length |
 |---|---|---|
-| 0 | boot | |
-| 1 sub 0‥5 | Namco logo: loads, fade in, hold, hold, fade out (~6 s from frame ~490) | the fade-out handler does `mode++; sub = 0` when its stage timer (`*(0x800D8DD0)+4`) runs out |
-| 2 | intro movie `MOVIE/MOVIE1.STR` (~31 s) | Start → `func_800BD038` tears the movie down and does `mode++` |
-| 3 sub 0‥1 | title logo animation | by itself after ~26 s, or earlier |
-| 5 sub 0 → 17 sub 0 → 5 sub 2 | title still (~5 s) → menu load → **menu ready** (New Game / Load Game / Configuration) | |
-| 17 sub 1 → 8 sub 1‥ / 4 sub 16‥13 → 17 → 8 | story demo and attract gameplay (DEMO.BIN) | back to the menu later |
-| 6 | New Game (prologue text) | from the ready menu |
+| 0 | boot: `GameInit` (CD, memory card, sound, pads...), OPENNING.BIN read | from the game's entry (VBlank ~150, after the BIOS boot, which runs unpaced) to ~380: ~3.8 s, ~2.5 s of it with the CD idle (its `CdInit` at VBlank 153, its first read at 305), in the libraries' init |
+| 1 | Namco logo (`g_LogoState`, pointer at `0x800D8DD0`: `+4` timer): sub 0 load the boot TIMs, 1 the logo's prims (black), 2 fade in (32 frames), 3 `LogoLoadTitlePack` (`\TITLE\DB_TITLE.TIP` into `g_FileBuffer`: `CdLoadDiscFile` blocks until read), 4 hold (64 frames), 5 fade out (32) | ~5.2 s |
+| 2 | intro movie `MOVIE/MOVIE1.STR`; Start (a press edge) ends it | ~31 s |
+| 3 | title: sub 0 `TitleEnter` (the title pack's TIMs and sounds), sub 1 `TitleLoop`, which keeps control: `g_TitleWork.screen` (`0x80156F32`) 0 = main, `state` (`0x80156F33`) 1 logo flight, 2 ring burst, 3 menu fade-in, 4/5 **the menu** (New Game / Load Game / Configuration); Start in states 1..3 jumps to 4 | ~1 s load, ~1.4 s flight |
+| 5 | attract demo (DEMO.BIN), after 1500 idle frames (~25 s) on the menu | |
+| 17 | New Game (from the menu: Start or Cross) | |
 
-Start cannot be injected from a VBlank callback: the game runs its own SIO
-pad exchange inside its per-frame pad routine (`func_80069F0C`, driver
-`func_8006A330`) and only then copies the response (pad struct `+0x3C`,
-`0x800BBC78` for pad 1: id `0x73`, `0x5A`, buttons active-low, sticks) into
-its pad struct (`+0x30`, `0x800A2F20`; buttons at `0x800A2F22`, held word
-`0x800A2F66`) through `func_8006C250`. That copy is listed in `game.toml`
-`[recompiler] mod_function_entry_funcs`, which makes the recompiler emit
-`psx_mod_function_entry()` at its entry (one line in
-`generated/SLUS_010.92_full_34.c`; regenerate after editing the list), and
-the plugin's function-entry hook clears the Start bit in the response (a0 =
-pad struct) there. Details that cost a day:
+The plugin does it all at the entry of the pad-response copy
+(`func_8006C250`, listed in `game.toml` `[recompiler]
+mod_function_entry_funcs`, which makes the recompiler emit
+`psx_mod_function_entry()` there): the game's per-frame pad routine
+(`func_80069F0C`, driver `func_8006A330`) runs its own SIO exchange, then
+calls the copy (a0 = pad struct, `+0x3C` the response: id `0x73`, `0x5A`,
+buttons active-low, sticks; `0x800BBC78` for pad 1), and only then does the
+frame's mode handler run. So Start is set in the response there (a VBlank
+callback cannot: the game refreshes the response itself), and the logo's
+sub-state and timer are set there too, before `ModeLogo` reads them (a
+sub-state written at a VBlank can land between a handler's read and its own
+`subMode++`):
 
-- The movie player reacts to a press **edge**: a response that always
-  carries Start never skips. The plugin presses 4 frames every 24.
-- Without a controller the SIO response is not refreshed every frame, so
-  the plugin also writes Start *released* in its off phases and during the
-  first 60 frames of mode 3.
-- The Namco logo is not skippable: ending it early (poking `mode = 2`, or
-  expiring its stage timers from sub 2 or 3) sends the title into the story
-  demo; cutting only sub 4 stalls the title animation. Its stages evidently
-  cover loads the title depends on.
-- After the skip the title behaves exactly as after a manual Start: in
-  some runs it goes title still → menu, in others it plays the story demo
-  first (`17/1 → 8/1`, or `4/16 → … → 17/0 → 8/1`) and reaches the menu
-  afterwards. Which one happens looks like a race in the game's own title
-  logic (same with a debug-server press); worth watching during the human
-  session.
-- On the ready menu (mode 5 sub 2) Start = New Game (mode 6). A Start on the
-  title still (5 sub 0) or on the animation starts the story demo instead.
+- `logo`: at sub 2 the fade-in is not run (sub 3, the hold's timer 0), so
+  the logo stays black as sub 1 made it; the title-pack read runs as ever;
+  the hold ends in one frame; at sub 5 the timer is set to -1 (level 0, then
+  mode 2). The read was the reason the logo "could not be skipped".
+- `movie`: Start is released for 4 VBlanks from the movie's start, pressed
+  for 4, and so on: the player polls at the movie's rate and reacts to an
+  edge (a Start always held never skips).
+- `title`: Start pressed in states 1..3 (the game's skip to the menu, with
+  the title music); released at sub 0 / state 0 (nothing left over from the
+  movie) and for 60 VBlanks after the menu opens, since a Start reaching the
+  menu picks New Game.
 
-`tests/test_skip_intro.py` (fresh boot, feature enabled in `state.toml`)
-checks that the title animation starts within 14 s and that the title then
-moves on; `--off` checks the movie keeps playing.
+Measured on build-debug with Faster loading on (2026-11-24): the menu was up
+9.75 s after the debug server answered with the old plugin (movie only),
+3.84 s now; the screen is black until the menu but for one dim frame as the
+movie starts (the old one showed the Namco logo again for a moment). Left:
+the ~2.5 s of mode 0 and the ~1 s of `TitleEnter`.
+
+`tests/test_skip_intro.py` writes its own `state.toml` (the feature on with
+every option; `--off` without it; the player's file restored), launches the
+build and checks: the menu within 8 s, the logo's fade-in never run, the
+movie under 1.5 s, the menu still waiting 4 s later, and a Start there
+starting a new game (mode 17); `--off`: the movie still playing at 20 s.
+5/5 and 1/1 (2026-11-24; its runs have no Faster loading: menu at 7.7 s).
 
 #### This project's package: `dragonvalor.enhancement.widescreen` (2026-10-15)
 

@@ -264,8 +264,9 @@ const RecompRuntimeUiItem kItems[] = {
     DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_VOLUME, "Options", "Volume", "The game's volume.", 0, 100, 5),
     DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU, "Options", "Pause in menu",
                 "Hold the game while this menu is open."),
-    DV_ROW_BOOL(DV_KEY_SKIP_INTRO, "Options", "Skip intro movie",
-                "Press Start for you when the intro movie starts. From the next start of the game."),
+    DV_ROW_BOOL(DV_KEY_SKIP_INTRO, "Options", "Skip intro",
+                "Power-on straight to the title menu: no Namco logo, intro movie or title animation. "
+                "From the next start of the game."),
     DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_MENU_DIM, "Options", "Game dimming",
                "How dark the game gets behind this menu.", 0, 100, 10),
     DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_MENU_OPACITY, "Options", "Menu opacity",

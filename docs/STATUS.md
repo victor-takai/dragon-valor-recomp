@@ -359,11 +359,10 @@ the native 60 Hz version.
 
 1. Human play session: the player finished chapter 1 and played into
    chapter 2 (Kodel, 2026-10-16); still open are Load Game after a restart, reaching disc 2
-   in-game, and whether the Xbox pad actually rumbles with Vibration ON. Also watch
-   what the title does after a Start during the intro movie: in scripted
-   runs it sometimes goes to the menu and sometimes plays the story demo
-   first (see `DEVELOPMENT.md`, *skip-intro*); the same race may show up
-   with a real press.
+   in-game, and whether the Xbox pad actually rumbles with Vibration ON. (The
+   "story demo race" after the intro skip noted here until 2026-11-24 was
+   the attract demo, which starts after 25 s idle on the menu: the decomp
+   shows mode 5 is the demo, not the menu.)
 2. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale (see [`HISTORY.md`](HISTORY.md)).
 3. Play as (hero and weapon, done 2026-11-17/18, above) is still open on
@@ -407,8 +406,10 @@ into `saves/openbios/` by `python tools/dvdbg.py launch --state N`. RAM addresse
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
 
 Mods: the project ships `dragonvalor.cheats` 1.4.0 (Infinite HP, Infinite MP,
-gem / scroll every N kills, added 2026-10-15; Unlock gallery, 2026-11-21) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
-own Start path through a function-entry hook on the pad copy) as bundled
+gem / scroll every N kills, added 2026-10-15; Unlock gallery, 2026-11-21) and `dragonvalor.skip-intro` (power-on straight to the title menu since
+2026-11-24: the Namco logo keeps only the title-data read it covers, the
+movie and the title's logo flight get the game's own Start skip, all from
+a function-entry hook on the pad copy; the menu in 3.8 s instead of 9.8 s) as bundled
 packages backed by plugins in `mods/plugins/`, verified on and off
 (2026-10-14). The cheats feature is on by default with every option off, so
 the **in-game menu** (Escape / Select+Start; `mods/plugins/dragonvalor_menu.cpp`
