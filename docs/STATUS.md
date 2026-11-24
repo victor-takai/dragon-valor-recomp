@@ -274,7 +274,10 @@ the native 60 Hz version.
   swings with its own sword-trail colours, and Raimun, the grown Clovis and
   Lodonya shout with their own voices (attack, hurt, jump and death cries,
   their roles read from the scripts after the player's first listen); both
-  match the decomp tool byte for byte.
+  match the decomp tool byte for byte. At the player's word they cry only
+  on the standing combo's third hit and the charged attack (the other
+  attacks are silent), the grown Clovis also on his strong attack and his
+  jumps back, and the jump, hurt and death cries stay.
   **Other looks** (2026-11-24, the player's request): Mihael's green look
   of area 10 and Gerome's look of area 12 are Play as choices of their own,
   each with that area's kit (moves, weapon, portrait); a red Mihael picked

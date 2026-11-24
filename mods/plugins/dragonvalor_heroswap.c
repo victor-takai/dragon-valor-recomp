@@ -1115,8 +1115,8 @@ static const struct {
     int weapon;
     uint32_t trail[4];   /* sword trail: colour_a, fade_a, colour_b, fade_b (0xBBGGRR; retrail) */
     int8_t voice[7];     /* its bank's SE for each voice role (attack, hurt, jump, death, strong,
-                          * back-jump, tired): DV_VOICE_KIT the kit's own (strong, back-jump: the
-                          * attack's), DV_VOICE_MUTE silent */
+                          * back-jump, tired): DV_VOICE_KIT the kit's own (strong, back-jump:
+                          * silent), DV_VOICE_MUTE silent */
     uint8_t special[2];  /* its slots of the special's tired end (tired, recovery), 0 none */
 } kBodies[BODY_COUNT] = {
     {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
@@ -2655,17 +2655,16 @@ static void vram_load(const uint8_t* b, uint32_t len)
  * (the hit reaction), jump 43, death 44. A body with a voice (an enemy
  * group's bank: program 1, SE 16..20) names the SE of its bank for each role
  * (kBodies voice: its hit reaction's SE above 0 hp and at 0, its attack cry,
- * a second short cry for the jump; all ten attacks take the one cry, as the
- * enemy has it). A body whose script has a cry for its strong attack (power
- * 8 under the screen blur: the grown Clovis's 17) gives it to SE 37, every
- * hero's strong attack (power 8, the blur, in all nine kits); the others'
- * 37 takes their attack cry. DV_VOICE_MUTE is silent (the skeleton has no
- * voice: it says nothing, the player's pick; the enemy's hit on it still
- * sounds, from the enemy's bank). The back-jump: in the Clovis kits (the
- * prologue's, chapter 1's) SE 38 plays only with anims 127 / 128, the jump
- * back, and the grown Clovis jumps back with the same motion and his SE 5
- * (the player: "his jump sound"), so there 38 takes it (clovis_kit); in the
- * other kits 38 is an attack cry too and takes the attack's. Each named body SE's VAG is appended once; the hero
+ * a second short cry for the jump). Its kit's script cries only on the
+ * combo's end and the charged attack (SE 32 / 36), the strong attack (37)
+ * and the jumps back (38): quiet_cries; the other attack SEs are silent. The
+ * attack cry is the one the enemy has. A body whose script has a cry for its
+ * strong attack (power 8 under the screen blur: the grown Clovis's 17) gives
+ * it to SE 37; the others' 37 is silent. The grown Clovis jumps back with
+ * the heroes' motion and his SE 5 (the player: "his jump sound"), so 38
+ * takes it; the others' 38 is silent. DV_VOICE_MUTE is silent (the skeleton
+ * has no voice: it says nothing, the player's pick; the enemy's hit on it
+ * still sounds, from the enemy's bank). Each named body SE's VAG is appended once; the hero
  * tones of the role's SEs point to it with the body tone's centre (+ the
  * SEs' note difference), shift and ADSR; the silent ones point to one
  * silent VAG, appended when the first is met; a hero VAG no tone uses any
@@ -2707,8 +2706,46 @@ static int vab_info(const uint8_t* e, uint32_t len, VabInfo* v)
 }
 
 static const uint8_t kSilentVag[16] = {0, 1};
-#define DV_KIT_CLOVIS  1   /* revoice: a Clovis kit (38 is the jump back) */
 #define DV_KIT_SPECIAL 2   /* revoice: the special was put in (45 is its breath) */
+
+/* Fewer cries (2026-11-24, the player: "the triple combo: keep the voice at
+ * its end, the other attacks none; keep the jump, the hurt, the death", then
+ * "the charged attack too", and for the grown Clovis "his special and his
+ * tiredness too"; the jumps back: his own SE, the others' none). All ten
+ * kits (areas 0..9's hero scripts) have the same moves in the same
+ * animations: the standing combo 46, 48, 50 (only 50, its third hit,
+ * cries), the charged attack 76, the strong attack 78, the jumps back 127 /
+ * 128; each kit cries them with its own SE (the combo's end is 40 in 4/1, 32
+ * in the others, where 32 also cries in other attacks). A body with a voice
+ * gets its kit's script with every attack cry (sound.play / sound.stop slot
+ * 1, SE 32..41) pointed to one SE per kept move, after the move's animation
+ * (kCryOf), and every other one to DV_QUIET_SE, which revoice silences. The
+ * script is walked instruction by instruction (the low byte of each head is
+ * its length in words) up to its end, a zero word, the last `anim self` read
+ * naming the move. As the decomp's heroswap.py quiet. */
+static const uint16_t kCryOf[5][2] = {{50, 32}, {76, 36}, {78, 37}, {127, 38}, {128, 38}};
+#define DV_QUIET_SE 41
+
+static int quiet_cries(uint8_t* s, uint32_t len)
+{
+    uint32_t n = len / 4, p = 0, last = 0x200, w, op, c, i;
+    while (p < n) {
+        w = le32(s + 4 * p);
+        if (!(w & 0xFF)) break;                           /* its end (the special's block after it: no cries) */
+        op = (w >> 8) & 0xFF;
+        if (w == 0x00000402u && p + 1 < n) {
+            last = le32(s + 4 * p + 4) & 0x1FF;
+        } else if ((w & 0xFF) == 1 && (op == 35 || op == 37) && ((w >> 16) & 0xFF) == 1 && (w >> 24) >= 32 &&
+                   (w >> 24) <= 41) {
+            c = DV_QUIET_SE;
+            for (i = 0; i < 5; i++)
+                if (kCryOf[i][0] == last) c = kCryOf[i][1];
+            put32(s + 4 * p, (w & 0x00FFFFFFu) | c << 24);
+        }
+        p += w & 0xFF;
+    }
+    return 1;
+}
 
 /* The grown Clovis's tired end on the hero's strong attack (2026-11-24, the
  * player: "the boss's own moves, or parts", then "his tired voice"; decomp
@@ -2842,8 +2879,9 @@ static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* b
                    const int8_t* roles, int kitflags)
 {
     static const uint8_t kRole[52] = {   /* hero SE -> role + 1 (attack 1, hurt 2, jump 3, death 4, strong 5,
-                                          * back-jump 6, tired 7: the special's breath, a SE no script plays) */
-        [32] = 1, [33] = 1, [34] = 1, [35] = 1, [36] = 1, [37] = 5, [38] = 6, [39] = 1, [40] = 1, [41] = 1,
+                                          * back-jump 6, tired 7: the special's breath, a SE no script plays;
+                                          * 8: quieted, quiet_cries leaves only 32 / 36 to the attack) */
+        [32] = 1, [33] = 8, [34] = 8, [35] = 8, [36] = 1, [37] = 5, [38] = 6, [39] = 8, [40] = 8, [41] = 8,
         [42] = 2, [43] = 3, [44] = 4, [45] = 7};
     static VabInfo v, b;
     static uint8_t hdr[0x8000], silenced[256];
@@ -2859,9 +2897,8 @@ static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* b
         int r = kRole[se], bse;
         uint32_t at, bat, bvag;
         if (!r) continue;
-        bse = (r == 6 && !(kitflags & DV_KIT_CLOVIS)) || (r == 7 && !(kitflags & DV_KIT_SPECIAL)) ? DV_VOICE_KIT
-                                                                                              : roles[r - 1];
-        if ((r == 5 || r == 6) && bse == DV_VOICE_KIT) bse = roles[0];   /* no strong / back-jump cry: the attack's */
+        bse = r == 8 ? DV_VOICE_MUTE : r == 7 && !(kitflags & DV_KIT_SPECIAL) ? DV_VOICE_KIT : roles[r - 1];
+        if ((r == 5 || r == 6) && bse == DV_VOICE_KIT) bse = DV_VOICE_MUTE;   /* no strong / back-jump cry: none */
         if (bse == DV_VOICE_KIT) continue;
         e = code + 12 + 16 * se;
         if (le16u(e + 2) >= 128 || le16u(e + 4) >= 16) return 0;
@@ -3112,7 +3149,7 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
     static uint8_t named[401];
     static const uint8_t end[4] = {0};
     uint32_t i, n = 0, core;
-    int j, kitflags = clovis_kit ? DV_KIT_CLOVIS : 0;
+    int j, kitflags = 0;
 
     kit_free(k);
     if (!d->ready || !b->ready || d->nent > 400) return 0;
@@ -3184,9 +3221,11 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
     if (voice && b->bank.n && (voice[0] != DV_VOICE_KIT || voice[1] != DV_VOICE_KIT || voice[2] != DV_VOICE_KIT ||
                                voice[3] != DV_VOICE_KIT || voice[4] != DV_VOICE_KIT || voice[5] != DV_VOICE_KIT ||
                                voice[6] != DV_VOICE_KIT)) {
-        /* the body's voice in both copies of the kit's bank */
+        /* its cries only on the kept moves, then the body's voice in both
+         * copies of the kit's bank */
         static Buf nv;
-        uint32_t hb = 0;
+        uint32_t hb = 0, se = le32(k->ops.p + 8);
+        if (!se || se > k->nent || !quiet_cries(k->ent[se - 1], k->entlen[se - 1])) goto fail;
         for (j = 0; j + 1 < p.nops; j++)
             if (p.ops[j].op == 52 && le32(k->ops.p + p.ops[j].pos + 4) == 0 && p.ops[j].nref)
                 hb = le32(k->ops.p + p.refs[p.ops[j].ref0]);

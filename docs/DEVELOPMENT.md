@@ -2066,14 +2066,14 @@ has its own colour effect on the sword", "and the voices").**
   the calls (the object's +0x8, named `deathTimer`, is set by attacks too):
   the player heard death cries on attacks, a strange jump and a hurt that
   sounded like a hit, and the roles were read again from the code; the
-  player then confirmed hurt (42) and death (44) by ear. All ten attacks
-  play the body's one cry, as the enemy does: two cries in turn, each
+  player then confirmed hurt (42) and death (44) by ear. The attacks that
+  cry play the body's one cry, as the enemy does: two cries in turn, each
   attack at its own pitch (-2..+2 semitones), were tried, and the player
-  preferred the one cry. A fifth role, `strong`, is SE 37: every hero's
-  strong attack (power 8 under the screen blur, in all nine kits). The
-  grown Clovis's script has a cry for his own strong attack (17, power 8,
-  the blur), so his 37 plays it; the others' 37 takes their attack cry
-  (`DV_VOICE_KIT`). His SE 20, a long, quiet breath, is his tiredness after
+  preferred the one cry (and then fewer cries, below). A fifth role,
+  `strong`, is SE 37: every hero's strong attack (power 8 under the screen
+  blur, in all nine kits). The grown Clovis's script has a cry for his own
+  strong attack (17, power 8, the blur), so his 37 plays it; the others' 37
+  first took their attack cry, now none. His SE 20, a long, quiet breath, is his tiredness after
   his special: the special sets a counter, and until it runs out he stands
   in anim 54 with SE 20 and does not guard. His special is the Clovis kits'
   strong attack (hold attack, press jump, 5 HP: anims 78, 135, 79, 136 are
@@ -2104,11 +2104,25 @@ has its own colour effect on the sword", "and the voices").**
   and death are silent (`DV_VOICE_MUTE`: the tones point to one silent VAG)
   and its hurt first stayed the kit's; the player heard Clovis there, so it
   is silent too (the attacker's own hit SE still sounds, from the enemy's
-  bank). The jump back: in the Clovis kits (the prologue's, chapter 1's)
-  SE 38 plays only with anims 127 / 128, the jump back; the grown Clovis
-  jumps back with the same motion and his SE 5 (the player missed "his
-  jump sound"), so on those kits 38 takes it (`kRole` 6, `clovis_kit`); in
-  the other kits 38 is an attack cry too and takes the attack's. The Moves
+  bank). The jump back: the grown Clovis jumps back with the heroes' motion
+  (anims 127 / 128) and his SE 5 (the player missed "his jump sound"), so
+  38 takes it (`kRole` 6; first only on the Clovis kits, where 38 played
+  nothing else). *Fewer cries* (2026-11-24, the player: "the triple combo:
+  keep the voice at its end, the other attacks none; keep the jump, the
+  hurt, the death", then "the charged attack too" and, for the grown Clovis,
+  "his special and his tiredness too"): all ten kits have the same moves in
+  the same animations (the standing combo 46, 48, 50, where only 50 cries;
+  the charged attack 76; the strong attack 78; the jumps back 127 / 128),
+  each crying with its own SE (the combo's end is 40 in 4/1, 32 in the
+  others, where 32 also cries in other attacks). `quiet_cries` walks the
+  kit's script of a body with a voice and points every attack cry
+  (`sound.play` / `sound.stop` slot 1, SE 32..41) to one SE per kept move
+  after that move's `anim self` (`kCryOf`: 32 the combo's end, 36 the
+  charged attack, 37 the strong attack, 38 the jumps back) and every other
+  one to SE 41; revoice gives 32 and 36 the attack cry, silences 33..35 and
+  39..41 (`kRole` 8), and leaves 37 and 38 silent for a body without its
+  own (Raimun, Lodonya: my proposal, the player was unsure about the jumps
+  back). The decomp's heroswap.py `quiet` does the same. The Moves
   choices read Clovis (Young), Clovis, Arlen... (the player: "the
   prologue's Clovis could be Clovis (Young)"). Moves from the menu on a
   body, mid-stage, is checked by `test_heroswap.py oldclovis --menu-moves
