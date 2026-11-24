@@ -1114,29 +1114,30 @@ static const struct {
     uint8_t order[14];
     int weapon;
     uint32_t trail[4];   /* sword trail: colour_a, fade_a, colour_b, fade_b (0xBBGGRR; retrail) */
-    int8_t voice[6];     /* its bank's SE for each voice role (attack, hurt, jump, death, strong,
-                          * back-jump): DV_VOICE_KIT the kit's own (strong, back-jump: the attack's),
-                          * DV_VOICE_MUTE silent */
+    int8_t voice[7];     /* its bank's SE for each voice role (attack, hurt, jump, death, strong,
+                          * back-jump, tired): DV_VOICE_KIT the kit's own (strong, back-jump: the
+                          * attack's), DV_VOICE_MUTE silent */
+    uint8_t special[2];  /* its slots of the special's tired end (tired, recovery), 0 none */
 } kBodies[BODY_COUNT] = {
-    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1}},                /* the Dragon Valor: 0/1's opening scene */
-    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5}},                /* the grown Clovis: 3/17's enemy group */
-    {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT}},   /* a skeleton of chapter 1: no voice */
-    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1}},               /* Raimun, chapter 1's boss */
-    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1}},             /* Lodonya, chapter 2's black knight */
-    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1}},                /* Shalya */
-    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS, {0xE040A0, 0x180711, 0x40E0FF, 0x07181C}, {-1, -1, -1, -1, -1, -1}},      /* Fannah (part 2: a thing on her back) */
-    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1, {0xFF70E0, 0x1C0C18, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1}},                  /* Princess Jeanne */
+    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
+    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57}},               /* the grown Clovis: 3/17's enemy group */
+    {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
+    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1, -1}, {0}},               /* Raimun, chapter 1's boss */
+    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1, -1}, {0}},             /* Lodonya, chapter 2's black knight */
+    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* Shalya */
+    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS, {0xE040A0, 0x180711, 0x40E0FF, 0x07181C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},      /* Fannah (part 2: a thing on her back) */
+    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1, {0xFF70E0, 0x1C0C18, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                  /* Princess Jeanne */
     /* Phillip in 5/19's scene where the Guardian gives him Kadum: Phillip's
      * parts but his hips (Kadum on his back) and the sword in his hand. (Felippe
      * as 4/1's scene draws him was here: the hero Felippe's look, out on the
      * player's word, 2026-11-24; the Guardian itself is another, armoured
      * figure: file 80 object 1, not on the heroes' joints.) */
-    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1, {0x0000FF, 0x00001C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1}},
+    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1, {0x0000FF, 0x00001C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},
 };
 /* A body as kit_dress takes it: its parts in hero node order, their prims
  * pointed at its baked hero page (body_bake; until then `tex` holds its
  * texture file), the page TIM, its portrait (empty: the kit's stays). */
-typedef struct { int ready; Buf prims[14], verts[14], tex, page, portrait, bank; } Body;
+typedef struct { int ready; Buf prims[14], verts[14], tex, page, portrait, bank, anims[2]; } Body;
 static Body s_bodies[BODY_COUNT];
 static Kit s_prologue;   /* the prologue Clovis's kit (0/1): the bodies' moves by default */
 static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
@@ -1322,7 +1323,7 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
 #define DV_KIT_VER     1u
 #define DV_BODY_MAGIC  0x42485644u   /* "DVHB" */
-#define DV_BODY_VER    2u   /* 2: the body's sound bank (its voice) */
+#define DV_BODY_VER    4u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two) */
 #define DV_PROLOGUE_ID 100u          /* the prologue Clovis's kit's id in its file */
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
@@ -1411,6 +1412,7 @@ static void body_save(int b)
     for (i = 0; ok && i < 14; i++) ok = wbuf(f, y->prims[i].p, y->prims[i].n) && wbuf(f, y->verts[i].p, y->verts[i].n);
     ok = ok && wbuf(f, y->page.p, y->page.n) && wbuf(f, y->portrait.p, y->portrait.n) &&
          wbuf(f, y->bank.p, y->bank.n);
+    for (i = 0; ok && i < 2; i++) ok = wbuf(f, y->anims[i].p, y->anims[i].n);
     fclose(f);
     if (!ok) remove(path);
 }
@@ -1431,6 +1433,7 @@ static int body_load(int b)
              y->verts[i].n;
     ok = ok && rbuf(f, &y->page, 0x100000) && y->page.n && rbuf(f, &y->portrait, 0x10000) &&
          rbuf(f, &y->bank, 0x100000);
+    for (i = 0; ok && i < 2; i++) ok = rbuf(f, &y->anims[i], 0x10000) && (!kBodies[b].special[i] || y->anims[i].n);
     fclose(f);
     y->ready = ok;
     return ok;
@@ -2536,6 +2539,16 @@ static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, u
             !buf_put(&body->verts[i], CT_E(&c, ve), CT_L(&c, ve)))
             return 0;
     }
+    {   /* its special's tired end (its object's slots, kBodies special) */
+        uint32_t after = p.ops[op3].pos + 16 + 14 * DV_NODE, cnt = le32(e0 + after), q;
+        for (q = 0; q < 2; q++) {
+            uint32_t slot = kBodies[b].special[q], ref;
+            body->anims[q].n = 0;
+            if (!slot) continue;
+            ref = slot < cnt ? le32(e0 + after + 4 + 4 * slot) : 0;
+            if (!ref || ref >= c.n || !buf_put(&body->anims[q], CT_E(&c, ref), CT_L(&c, ref))) return 0;
+        }
+    }
     body->tex.n = body->portrait.n = 0;
     if (!buf_put(&body->tex, ft, lt)) return 0;           /* the texture file, whole: baked with the kit */
     if (kBodies[b].por_file >= 0) {                       /* the k-th TIM of a scene pack's image set */
@@ -2646,14 +2659,99 @@ static int vab_info(const uint8_t* e, uint32_t len, VabInfo* v)
 }
 
 static const uint8_t kSilentVag[16] = {0, 1};
+#define DV_KIT_CLOVIS  1   /* revoice: a Clovis kit (38 is the jump back) */
+#define DV_KIT_SPECIAL 2   /* revoice: the special was put in (45 is its breath) */
+
+/* The grown Clovis's tired end on the hero's strong attack (2026-11-24, the
+ * player: "the boss's own moves, or parts", then "his tired voice"; decomp
+ * heroswap.py `special`, whose SPECIAL_TEXT is the block's source). His
+ * special is the Clovis kits' strong attack (hold attack, press jump, 5 HP):
+ * his anims 27, 55, 28, 56 are the hero's 78, 135, 79, 136 byte for byte.
+ * What he adds is the end: tired, anim 54 looping with his breath (SE 20)
+ * once, for 30 frames, then 57, then his idle. In the kit's script the
+ * first jump after the strong attack's `anim self, 136` (once) goes to the
+ * block appended to it, which ends with a jump to the old target; his two
+ * animations go right after the kit's core, named by slots 195 and 196.
+ * -1: no memory; 0: not this script (no anchor); 1: done. */
+static const uint32_t kSpecialAnchor[2] = {0x00000402u, 0x00002088u};   /* anim self, 136, 0, 1, 0 */
+static const uint16_t kSpecialSlots[2] = {195, 196};
+static const uint32_t kSpecialBlock[64] = {
+    0x00010503u, 0x00000006u, 0x0000001Eu, 0x00000402u, 0x000040C3u, 0x00010603u,
+    0x00000038u, 0x00000000u, 0x00010603u, 0x00000039u, 0x00000000u, 0x00010703u,
+    0x0000001Eu, 0x00000000u, 0x00010703u, 0x0000001Du, 0x00000001u, 0x00010603u,
+    0x0000004Au, 0x00000000u, 0x69690101u, 0x01011203u, 0x00000050u, 0x00000001u,
+    0x2D012301u, 0x00020301u, 0x69690201u, 0x00000402u, 0x000040C3u, 0x69690101u,
+    0x00010803u, 0x00000006u, 0xFFFFFFFFu, 0x01011103u, 0x00000006u, 0x00000000u,
+    0x00020301u, 0x69690201u, 0x00000402u, 0x000020C4u, 0x00010603u, 0x00000038u,
+    0x00000000u, 0x00010603u, 0x00000039u, 0x00000000u, 0x00010703u, 0x0000001Eu,
+    0x00000000u, 0x00010703u, 0x0000001Du, 0x00000001u, 0x69690101u, 0x01011203u,
+    0x00000053u, 0x00000001u, 0x69690201u, 0x00010503u, 0x00000006u, 0x00000000u,
+    0x09012003u, 0x0000000Cu, 0x0000000Fu, 0xD3E20301u,
+};
+
+static int special_patch(Kit* k, const Body* b)
+{
+    uint32_t se = le32(k->ops.p + 8), n, hits = 0, i, p = 0, base, last, core, after, slots, w;
+    uint8_t *s, *ns, *an[2];
+    int32_t target;
+    if (!se || se > k->nent || k->nent + 2 > 400 || le32(k->ops.p + 12) != 14) return 0;
+    after = 16 + 14 * DV_NODE;
+    slots = le32(k->ops.p + after);
+    for (i = 0; i < 2; i++) if (kSpecialSlots[i] >= slots || !b->anims[i].n) return 0;
+    s = k->ent[se - 1];
+    n = k->entlen[se - 1] / 4;
+    for (i = 0; i + 1 < n; i++)
+        if (le32(s + 4 * i) == kSpecialAnchor[0] && le32(s + 4 * i + 4) == kSpecialAnchor[1]) { p = i; hits++; }
+    if (hits != 1) return 0;
+    for (;;) {                                        /* the first jump after it */
+        if (p >= n || !((w = le32(s + 4 * p)) & 0xFF)) return 0;
+        if (((w >> 8) & 0xFF) == 3) break;
+        p += w & 0xFF;
+    }
+    target = (int32_t)p + (int16_t)(w >> 16);
+    if (!(ns = (uint8_t*)malloc((n + 64) * 4))) return -1;
+    for (i = 0; i < 2; i++) {
+        if (!(an[i] = (uint8_t*)malloc(b->anims[i].n))) {
+            while (i--) free(an[i]);
+            free(ns);
+            return -1;
+        }
+        memcpy(an[i], b->anims[i].p, b->anims[i].n);
+    }
+    memcpy(ns, s, n * 4);
+    base = n;
+    last = base + 63;
+    put32(ns + 4 * p, (w & 0xFFFFu) | ((base - p) & 0xFFFFu) << 16);   /* now to the block */
+    for (i = 0; i < 64; i++) put32(ns + 4 * (n + i), kSpecialBlock[i]);
+    put32(ns + 4 * last, (kSpecialBlock[63] & 0xFFFFu) | ((uint32_t)(target - (int32_t)last) & 0xFFFFu) << 16);
+    free(s);
+    k->ent[se - 1] = ns;
+    k->entlen[se - 1] = (n + 64) * 4;
+    core = k->nent - k->ntail;                        /* the animations after the core */
+    for (i = k->nent; i > core; i--) {
+        k->ent[i + 1] = k->ent[i - 1];
+        k->entlen[i + 1] = k->entlen[i - 1];
+    }
+    for (i = 0; i < 2; i++) {
+        k->ent[core + i] = an[i];
+        k->entlen[core + i] = b->anims[i].n;
+    }
+    k->nent += 2;
+    for (i = 0; i < k->nrefs; i++) {
+        uint32_t v = le32(k->ops.p + k->refs[i]);
+        if (v > core) put32(k->ops.p + k->refs[i], v + 2);
+    }
+    for (i = 0; i < 2; i++) put32(k->ops.p + after + 4 + 4u * kSpecialSlots[i], core + 1 + i);
+    return 1;
+}
 
 static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* bank, uint32_t blen,
-                   const int8_t* roles, int clovis_kit)
+                   const int8_t* roles, int kitflags)
 {
     static const uint8_t kRole[52] = {   /* hero SE -> role + 1 (attack 1, hurt 2, jump 3, death 4, strong 5,
-                                          * back-jump 6) */
+                                          * back-jump 6, tired 7: the special's breath, a SE no script plays) */
         [32] = 1, [33] = 1, [34] = 1, [35] = 1, [36] = 1, [37] = 5, [38] = 6, [39] = 1, [40] = 1, [41] = 1,
-        [42] = 2, [43] = 3, [44] = 4};
+        [42] = 2, [43] = 3, [44] = 4, [45] = 7};
     static VabInfo v, b;
     static uint8_t hdr[0x8000], silenced[256];
     uint32_t size[256], vs, n, se, fsize = 0;
@@ -2668,8 +2766,9 @@ static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* b
         int r = kRole[se], bse;
         uint32_t at, bat, bvag;
         if (!r) continue;
-        bse = r == 6 && !clovis_kit ? DV_VOICE_KIT : roles[r - 1];
-        if (r >= 5 && bse == DV_VOICE_KIT) bse = roles[0];   /* no strong / back-jump cry: the attack's */
+        bse = (r == 6 && !(kitflags & DV_KIT_CLOVIS)) || (r == 7 && !(kitflags & DV_KIT_SPECIAL)) ? DV_VOICE_KIT
+                                                                                              : roles[r - 1];
+        if ((r == 5 || r == 6) && bse == DV_VOICE_KIT) bse = roles[0];   /* no strong / back-jump cry: the attack's */
         if (bse == DV_VOICE_KIT) continue;
         e = code + 12 + 16 * se;
         if (le16u(e + 2) >= 128 || le16u(e + 4) >= 16) return 0;
@@ -2904,7 +3003,7 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
     static uint8_t named[401];
     static const uint8_t end[4] = {0};
     uint32_t i, n = 0, core;
-    int j;
+    int j, kitflags = clovis_kit ? DV_KIT_CLOVIS : 0;
 
     kit_free(k);
     if (!d->ready || !b->ready || d->nent > 400) return 0;
@@ -2956,22 +3055,32 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
                  b->portrait.n ? b->portrait.n : d->portrait.n))
         goto fail;
     k->npage = 1;
+    if (clovis_kit && b->anims[0].n) {                 /* the grown Clovis's tired end */
+        int sp = special_patch(k, b);
+        if (sp < 0) goto fail;
+        if (sp) {
+            kitflags |= DV_KIT_SPECIAL;
+            fprintf(stderr, "%s: a body's tired end on the strong attack (its animations in slots 195, 196)\n",
+                    DV_HS_PLUGIN);
+        }
+    }
     {
         uint32_t se = le32(k->ops.p + 8);              /* op 3's behaviour script */
         if (trail && se && se <= k->nent) retrail(k->ent[se - 1], k->entlen[se - 1], trail);
     }
     if (voice && b->bank.n && (voice[0] != DV_VOICE_KIT || voice[1] != DV_VOICE_KIT || voice[2] != DV_VOICE_KIT ||
-                               voice[3] != DV_VOICE_KIT || voice[4] != DV_VOICE_KIT || voice[5] != DV_VOICE_KIT)) {
+                               voice[3] != DV_VOICE_KIT || voice[4] != DV_VOICE_KIT || voice[5] != DV_VOICE_KIT ||
+                               voice[6] != DV_VOICE_KIT)) {
         /* the body's voice in both copies of the kit's bank */
         static Buf nv;
         uint32_t hb = 0;
         for (j = 0; j + 1 < p.nops; j++)
             if (p.ops[j].op == 52 && le32(k->ops.p + p.ops[j].pos + 4) == 0 && p.ops[j].nref)
                 hb = le32(k->ops.p + p.refs[p.ops[j].ref0]);
-        if (!hb || hb > k->nent || !revoice(&nv, k->vab.p, k->vab.n, b->bank.p, b->bank.n, voice, clovis_kit)) goto fail;
+        if (!hb || hb > k->nent || !revoice(&nv, k->vab.p, k->vab.n, b->bank.p, b->bank.n, voice, kitflags)) goto fail;
         k->vab.n = 0;
         if (!buf_put(&k->vab, nv.p, nv.n)) goto fail;
-        if (!revoice(&nv, k->ent[hb - 1], k->entlen[hb - 1], b->bank.p, b->bank.n, voice, clovis_kit)) goto fail;
+        if (!revoice(&nv, k->ent[hb - 1], k->entlen[hb - 1], b->bank.p, b->bank.n, voice, kitflags)) goto fail;
         free(k->ent[hb - 1]);
         if (!(k->ent[hb - 1] = (uint8_t*)malloc(nv.n))) goto fail;
         memcpy(k->ent[hb - 1], nv.p, nv.n);

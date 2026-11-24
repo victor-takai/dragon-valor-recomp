@@ -2062,8 +2062,22 @@ has its own colour effect on the sword", "and the voices").**
   the blur), so his 37 plays it; the others' 37 takes their attack cry
   (`DV_VOICE_KIT`). His SE 20, a long, quiet breath, is his tiredness after
   his special: the special sets a counter, and until it runs out he stands
-  in anim 54 with SE 20 and does not guard. No hero voice SE has that role,
-  so it stays unused. His guard (anim 32, SE 4 and a burst, at random when
+  in anim 54 with SE 20 and does not guard. His special is the Clovis kits'
+  strong attack (hold attack, press jump, 5 HP: anims 78, 135, 79, 136 are
+  his 27, 55, 28, 56 byte for byte), and its tired end is his own; at the
+  player's word (the tired voice, faithful: he stands there) `special_patch`
+  gives Old Clovis on a Clovis kit that end: the first jump after the strong
+  attack's `anim self, 136` goes to a block appended to the script
+  (`kSpecialBlock`, 64 words: the decomp's SPECIAL_TEXT assembled by
+  objscript.py) with 30 frames of his anim 54 looping, SE 45 once (a voice
+  SE no hero script plays; revoice gives it his SE 20, role 7, only with
+  the block in), his 57, then the old jump's target (L01E5); his two
+  animations go right after the kit's core, in slots 195 / 196 (cached in
+  `body_oldclovis.bin`, version 4: a first try took four, his lunge and end
+  too, and played the lunge twice: the hero's 135 is it). Checked: the
+  script in RAM is the reference's (`test_heroswap.py` compares the hero
+  script now) and, played in 1/7 (hold Square, press Cross), 78, 135, 79,
+  136, 195 for about a second, 196, then the stance and the idle. His guard (anim 32, SE 4 and a burst, at random when
   hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
   effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump

@@ -285,8 +285,9 @@ the native 60 Hz version.
   Fannah and Jeanne; the row is locked while a hero is picked), and the
   Status screen names the body played instead of Clovis. Each matches the
   decomp tool byte for byte. The grown Clovis's strong attack takes his own
-  strong-attack cry and his own sound on the jump back; the skeleton, which
-  has no voice, is silent.
+  strong-attack cry, his own sound on the jump back and, after his special
+  (the strong attack: the same animations), his tired end with his breath;
+  the skeleton, which has no voice, is silent.
   **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
   Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
   scene; first misnamed the Guardian; a Felippe with shield left, the

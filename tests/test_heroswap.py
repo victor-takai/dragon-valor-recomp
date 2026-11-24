@@ -441,6 +441,16 @@ hero = "{hero_name}"
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
         if expect_pack:
+            # the hero's behaviour script (the entry op 3 names at +8): its
+            # moves, a body's special (the grown Clovis's), byte for byte
+            n_ = int.from_bytes(expect_pack[:4], "little")
+            offs_ = struct.unpack_from(f"<{n_ + 1}I", expect_pack, 4)
+            se_ = int.from_bytes(expect_pack[offs_[0] + 8:offs_[0] + 12], "little")
+            want_s = expect_pack[offs_[se_]:offs_[se_ + 1]]
+            got_s = b"".join(rd(PACK + offs_[se_] + o, min(0x8000, len(want_s) - o))
+                             for o in range(0, len(want_s), 0x8000))
+            check(f"hero script in RAM = the reference's (entry {se_}, {len(want_s)} B)", got_s == want_s)
+        if expect_pack:
             # the sword trails (native 6 instructions: colours and fades),
             # every one in the pack, against the reference's (a body's own
             # colours, the hero's otherwise)
