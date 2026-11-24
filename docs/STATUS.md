@@ -275,10 +275,18 @@ the native 60 Hz version.
   Lodonya shout with their own voices (attack, hurt, jump and death cries,
   their roles read from the scripts after the player's first listen); both
   match the decomp tool byte for byte.
+  **Other looks** (2026-11-24, the player's request): Mihael's green look
+  of area 10 and Gerome's look of area 12 are Play as choices of their own,
+  each with that area's kit (moves, weapon, portrait); a red Mihael picked
+  in area 10 is now swapped in too (by the code; area 10 not played yet).
+  Each matches the decomp tool byte for byte.
   **Moves** (2026-11-24, the player's request): the bodies can wear any
   hero's moves and voice (Hero > Moves; Anna's or Anita's for Shalya,
-  Fannah and Jeanne), and the Status screen names the body played instead
-  of Clovis. Each matches the decomp tool byte for byte.
+  Fannah and Jeanne; the row is locked while a hero is picked), and the
+  Status screen names the body played instead of Clovis. Each matches the
+  decomp tool byte for byte. The grown Clovis's strong attack takes his own
+  strong-attack cry; the skeleton, which has no voice, is silent except when
+  hurt.
   **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
   Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
   scene; first misnamed the Guardian; a Felippe with shield left, the

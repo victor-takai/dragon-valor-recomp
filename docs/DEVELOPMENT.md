@@ -1983,7 +1983,9 @@ could use the female characters' bodies", "could the Hero menu choose the
 body / moveset?").** Option `moves` (the menu's Hero > Moves row, applied
 with Play as and Weapon): the kit the ten bodies wear, `own` (the prologue
 Clovis's) or one of the nine heroes' (`clovis` .. `anita`); the nine heroes
-keep their own. Every hero's 14 nodes are in the same order (decomp
+keep their own, so the row is locked while Play as names one of them or
+each stage's own (the player: "it does nothing"; `moves_matter` in
+dragonvalor_menu.cpp, a pick left there is dropped on Apply). Every hero's 14 nodes are in the same order (decomp
 `docs/targets/hero-swap.md`, *Another hero's moves*), so a body's part order
 holds for any kit, and the kit brings its script, moves, animations and VAB:
 Shalya, Fannah or Jeanne with Anna's or Anita's moves move and sound like
@@ -2054,7 +2056,19 @@ has its own colour effect on the sword", "and the voices").**
   player then confirmed hurt (42) and death (44) by ear. All ten attacks
   play the body's one cry, as the enemy does: two cries in turn, each
   attack at its own pitch (-2..+2 semitones), were tried, and the player
-  preferred the one cry. The others have no voice of their own and keep the kit's. `revoice` (a port of the decomp's
+  preferred the one cry. A fifth role, `strong`, is SE 37: every hero's
+  strong attack (power 8 under the screen blur, in all nine kits). The
+  grown Clovis's script has a cry for his own strong attack (17, power 8,
+  the blur), so his 37 plays it; the others' 37 takes their attack cry
+  (`DV_VOICE_KIT`). His SE 20, a long, quiet breath, is his tiredness after
+  his special: the special sets a counter, and until it runs out he stands
+  in anim 54 with SE 20 and does not guard. No hero voice SE has that role,
+  so it stays unused. His guard (anim 32, SE 4 and a burst, at random when
+  hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
+  effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
+  0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
+  and death are silent (`DV_VOICE_MUTE`: the tones point to one silent VAG)
+  and its hurt stays the kit's. The others have no voice of their own and keep the kit's. `revoice` (a port of the decomp's
   `tools/vab.py revoice`) transplants them into both copies of the kit's
   bank (file 0's whole one, the pack's header-only one): each body VAG
   appended once, the hero tones repointed with the body tone's centre, shift
@@ -2067,6 +2081,39 @@ has its own colour effect on the sword", "and the voices").**
   now also reads every native-6 instruction of the pack in RAM, the bank
   header in the pack and the bank body in SPU RAM (`spu_ram` at
   `g_SoundSpuAddr[1]`) against the reference: 24/24 each for Raimun, the grown Clovis and Lodonya (their voices: the bank body in SPU RAM byte for byte the reference's, 95520 / 118640 / 85776 bytes), Jeanne, Phillip (Kadum), Fannah, Shalya with Anna's moves and Kodel (the kits' own banks), every trail colour the reference's; the bank header in the pack is compared but for each ProgAtr's reserved bytes (+8..+15), where libsnd keeps words of its own.
+  Again after the single cry, the strong cry and the silent skeleton
+  (references rebuilt with `--prune`, as the plugin's packs are): 24/24
+  each for the grown Clovis, the skeleton, Raimun and Lodonya (SPU bodies
+  96928 / 66768 / 95520 / 83296 bytes).
+
+**Other looks (2026-11-24, the player: "Mihael has two versions, green and
+red").** Two heroes wear another look in another area, model, moves, voice,
+portrait and weapon of that area's kit: Mihael in area 10 (green and gold,
+the dark sword; area 8's, his kit, is red with the crystal one) and Gerome
+in 12/1..12/6 (a white lock, a brown vest, the turquoise sword; from 12/9
+the hero is Anita, as 9/1's). They are Play as choices `mihael10` ("Mihael
+(area 10)", kit from 10/1) and `gerome12` ("Gerome (area 12)", from 12/4:
+12/1 carries no hero texture), after the nine heroes in the menu and at
+the end of the plugin's list (`LOOK_FIRST`, `kLookOf`), and play their
+hero's part (`g_Hero.index` 7 / 5; Moves locked). Anna's two areas (7, 11)
+show the same look. Their kits and walkers are cached by value
+(`hero_mihael10.kit`, `.map`): `hero18.*` may be an older build's body.
+The whole of area 10 is Mihael's green look (`kLookArea`), so there the
+green one is the stage's own (`area_look`: no rebuild) and the red Mihael
+the swap; before, a Mihael picked in area 10 stayed green. Area 12 mixes
+Gerome's look and Anita and its game index turns Anita's mid-area, so the
+stage's own there stays Anita's index, and a save is told to be the look
+(`look_in_ram`: the first part whose vertices differ from the hero's kit,
+byte for byte in RAM) there only when the look is the choice.
+
+- **Checked** on build-debug: `test_heroswap.py mihael10 / gerome12 --ref
+  build/heroswap/10-1_to_1-7 / 12-4_to_1-7 --prime-disc2` 25/25 each (pack,
+  file 0 in VRAM, portrait, SPU body, trails, Status name, g_Hero.index 7 /
+  5, 1/9 rebuilt too); `test_heroswap.py clovis --menu
+  gerome12,raimun,mihael10,stage` picks each from the menu (the new order)
+  with the right index. Not seen: the Moves row locked on screen (the debug
+  window has no size to capture), a stage of area 10 or 12 played with a
+  look, the red Mihael in area 10.
 
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild

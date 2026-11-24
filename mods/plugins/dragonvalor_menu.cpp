@@ -84,16 +84,20 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_HERO_APPLY  "dv.heroswap.apply"
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
 const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
-                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor",
+                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Mihael (area 10)",
+                                      "Gerome (area 12)", "Dragon Valor",
                                       "Old Clovis", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne",
                                       "Phillip (Kadum)"};
 const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
-                                     "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
+                                     "phillip", "gerome", "anna", "mihael", "anita", "mihael10", "gerome12",
+                                     "dragonvalor",
                                      "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne",
                                      "phillipkadum"};
-#define DV_PLAY_AS_CHOICES 19
-#define DV_PLAY_AS_DRAGONVALOR 10   /* the prologue's dragon slayer: plays Clovis's part (g_Hero.index 0) */
-#define DV_PLAY_AS_OLDCLOVIS 11     /* the grown Clovis of chapter 3; the bodies after it hold index 0 too */
+#define DV_PLAY_AS_CHOICES 21
+/* 10, 11: a hero's other look (Mihael's green of area 10, Gerome's of 12/1..6),
+ * with that area's kit: its hero's index, Moves locked */
+#define DV_PLAY_AS_DRAGONVALOR 12   /* the prologue's dragon slayer: plays Clovis's part (g_Hero.index 0) */
+#define DV_PLAY_AS_OLDCLOVIS 13     /* the grown Clovis of chapter 3; the bodies after it hold index 0 too */
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
 /* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own, then the
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
@@ -106,7 +110,7 @@ const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", 
 #define DV_WEAPON_CHOICES 13
 #define DV_KEY_MOVES       "dv.heroswap.moves"
 /* dragonvalor.heroswap's `moves` option: whose kit (moves, voice) the
- * characters after Anita wear; index 0 = the prologue Clovis's. */
+ * characters from the Dragon Valor on wear; index 0 = the prologue Clovis's. */
 const char* const kMovesChoices[] = {"The prologue Clovis's", "Clovis's", "Arlen's", "Kodel's", "Felippe's",
                                      "Phillip's", "Gerome's", "Anna's", "Mihael's", "Anita's"};
 const char* const kMovesValues[] = {"own", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna",
@@ -178,6 +182,7 @@ const RecompRuntimeUiItem kItems[] = {
 
     {DV_KEY_PLAY_AS, "Hero", "Play as",
      "The hero of every action stage: model, moves, voice, portrait and name, story scenes included. "
+     "Mihael (area 10) and Gerome (area 12) are their other look, with that area's moves and weapon. "
      "The Dragon Valor and the characters after him wear the moves set in Moves. "
      "Pick one with Left / Right, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_PLAY_AS_CHOICES - 1, 1, kPlayAsChoices, DV_PLAY_AS_CHOICES, nullptr},
@@ -186,9 +191,10 @@ const RecompRuntimeUiItem kItems[] = {
      "four are read from disc 2 once it has been started. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
     {DV_KEY_MOVES, "Hero", "Moves",
-     "Whose moves and voice the characters after Anita (the Dragon Valor to Phillip (Kadum)) have: the "
+     "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: the "
      "prologue Clovis's, or a hero's. Anna's and Anita's suit Shalya, Fannah and Jeanne; theirs and Mihael's "
-     "are read from disc 2 once it has been started. The nine heroes keep their own. Pick one, then confirm it.",
+     "are read from disc 2 once it has been started. Locked while Play as names one of the nine heroes (or each "
+     "stage's own): they keep their own. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_MOVES_CHOICES - 1, 1, kMovesChoices, DV_MOVES_CHOICES, nullptr},
     DV_ROW_ACTION(DV_KEY_HERO_APPLY, "Hero", "Apply",
                   "Use the hero, weapon and moves above. In an action stage the stage restarts from its beginning: "
@@ -756,8 +762,12 @@ void open_dialog(Menu& m, int kind, const RecompRuntimeUiItem* item, const char*
 bool in_action_stage() { return hero_loaded() && psx_mod_read_byte(DV_MODE) == 8; }
 
 /* ---- Hero: Play as and Weapon, picked in the rows, applied together -------- */
+/* Moves applies only to the characters from the Dragon Valor on:
+ * the nine heroes keep their own kits, so the row is locked for them. */
+bool moves_matter(const Menu& m) { return m.play_as_pend >= DV_PLAY_AS_DRAGONVALOR; }
+
 bool hero_pending(const Menu& m) {
-    return m.play_as_pend != m.play_as || m.weapon_pend != m.weapon || m.moves_pend != m.moves;
+    return m.play_as_pend != m.play_as || m.weapon_pend != m.weapon || (moves_matter(m) && m.moves_pend != m.moves);
 }
 
 /* dragonvalor.heroswap is in the running plan (on by default since
@@ -782,8 +792,8 @@ void open_hero_dialog(Menu& m, bool closing) {
     hero_choice_text(m.play_as_pend, m.weapon_pend, choice, sizeof choice);
     if (m.play_as_pend != m.play_as)
         std::snprintf(title, sizeof title, m.play_as_pend ? "Play as %s?" : "Back to %s?", choice);
-    else if (m.moves_pend != m.moves && m.weapon_pend == m.weapon)
-        std::snprintf(title, sizeof title, "The characters after Anita with %s moves?", kMovesChoices[m.moves_pend]);
+    else if (moves_matter(m) && m.moves_pend != m.moves && m.weapon_pend == m.weapon)
+        std::snprintf(title, sizeof title, "The Dragon Valor and the others with %s moves?", kMovesChoices[m.moves_pend]);
     else if (m.weapon_pend)
         std::snprintf(title, sizeof title, "Hold %s?", kWeaponChoices[m.weapon_pend]);
     else
@@ -807,6 +817,7 @@ void open_hero_dialog(Menu& m, bool closing) {
  * being played restarts with them once the menu closes (dv_hs_vblank in
  * dragonvalor_heroswap.c waits for plain play); the menu then closes. */
 void apply_hero(Menu& m) {
+    if (!moves_matter(m)) m.moves_pend = m.moves;   /* a hero picked: Moves (locked) is left as it was */
     const bool hero_changed = m.play_as_pend != m.play_as, weapon_changed = m.weapon_pend != m.weapon;
     bool live = true;
     if (hero_changed) live = m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[m.play_as_pend]) && live;
@@ -1186,6 +1197,7 @@ int cb_is_enabled(void* ctx, const RecompRuntimeUiItem* item) {
     if (is(item, DV_KEY_GO_NOW)) return warp_possible() && !m.host->netplay_active() ? 1 : 0;
     if (is(item, DV_KEY_SECRET_GO)) return trip_possible() && !m.host->netplay_active() ? 1 : 0;
     if (is(item, DV_KEY_HERO_APPLY)) return hero_pending(m) ? 1 : 0;
+    if (is(item, DV_KEY_MOVES)) return moves_matter(m) ? 1 : 0;
     return 1;
 }
 
@@ -1204,8 +1216,10 @@ void row_info(void* ctx, const RecompRuntimeUiItem* item, DvMenuRowInfo* out) {
     } else if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON) || is(item, DV_KEY_MOVES)) {
         out->pending = is(item, DV_KEY_PLAY_AS) ? m.play_as_pend != m.play_as
                        : is(item, DV_KEY_WEAPON) ? m.weapon_pend != m.weapon
-                                                 : m.moves_pend != m.moves;
+                                                 : moves_matter(m) && m.moves_pend != m.moves;
         if (out->pending) std::snprintf(out->note, sizeof out->note, "not applied");
+        else if (is(item, DV_KEY_MOVES) && !moves_matter(m))
+            std::snprintf(out->note, sizeof out->note, "the heroes keep theirs");
     } else if (is(item, DV_KEY_HERO_APPLY) && hero_pending(m)) {
         std::snprintf(out->note, sizeof out->note, in_action_stage() ? "restarts the stage" : "from the next stage");
     }
