@@ -270,6 +270,10 @@ the native 60 Hz version.
   free: the hero's CLUT block grows up into the page's unused rows. Each
   matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
   raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
+  **Moves** (2026-11-24, the player's request): the bodies can wear any
+  hero's moves and voice (Hero > Moves; Anna's or Anita's for Shalya,
+  Fannah and Jeanne), and the Status screen names the body played instead
+  of Clovis. Each matches the decomp tool byte for byte.
   **Eight more bodies** (2026-11-23, the player's request): a skeleton,
   Raimun, Lodonya, Shalya, Fannah, Jeanne, Felippe with his shield and the
   Guardian are Play as choices too, all on the prologue Clovis's kit (no

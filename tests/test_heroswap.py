@@ -20,6 +20,11 @@ row and confirms it in the dialog (Enter, then Enter on "Restart the
 stage"): the stage must restart with HERO2 as the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
 
+--moves HERO2 sets the `moves` option: the bodies wear HERO2's kit (its
+moves and voice; g_Hero.index HERO2's); the reference then dresses HERO2's
+kit stage, e.g. `heroswap.py build 7 1 1 7 --prune --body shalya` for
+Shalya with Anna's moves.
+
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
 a body (dragonvalor oldclovis skeleton raimun lodonya shalya fannah jeanne
 felippeshield guardian: another character in the prologue Clovis's kit,
@@ -88,9 +93,28 @@ def hname(value):
             "felippeshield": "Felippe (shield)"}.get(value, value.capitalize())
 
 
+MOVES = None              # --moves: the hero whose kit the bodies wear (None: the prologue Clovis's)
+
+
 def gindex(hero):
-    """g_Hero.index for a HEROES index: the bodies play Clovis's part (0)."""
-    return 0 if hero >= 0 and HEROES[hero] in BODIES else hero
+    """g_Hero.index for a HEROES index: a body plays its moves' hero's part
+    (Clovis's 0 for the prologue Clovis's)."""
+    if hero >= 0 and HEROES[hero] in BODIES:
+        return HEROES.index(MOVES) if MOVES else 0
+    return hero
+
+
+def letters(glyphs):
+    """Text of name glyph codes (decomp docs/FORMATS.md, Text: the low ten
+    bits index the glyph, the rest its advance)."""
+    out = ""
+    for w in glyphs:
+        if w in (0x1800, 0x3000):
+            out += " "
+            continue
+        i = (w & 31) * 21 + ((w >> 5) & 31)
+        out += chr(ord("A") + i - 43) if 43 <= i <= 68 else chr(ord("a") + i - 69) if 69 <= i <= 94 else "#"
+    return out
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
 # and their source stages: 1/1 4/15 8/1 10/2 4/3 10/1 11/1 12/6 12/1)
 WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise",
@@ -131,7 +155,12 @@ def main(argv):
     slot, leave, menu_hero = 10, (1, 9), None
     if prime:
         args.remove("--prime-disc2")
+    global MOVES
     weapon = menu_weapon = None
+    if "--moves" in args:
+        i = args.index("--moves")
+        MOVES = args[i + 1]
+        del args[i:i + 2]
     scene_shots = 0
     if "--scene-shots" in args:
         i = args.index("--scene-shots")
@@ -199,7 +228,7 @@ id = "play-as"
 enabled = true
 [feature.values]
 hero = "{hero_name}"
-""" + (f'weapon = "{weapon}"\n' if weapon else "")
+""" + (f'weapon = "{weapon}"\n' if weapon else "") + (f'moves = "{MOVES}"\n' if MOVES else "")
     if default:
         state_text = "format_version = 2\n"
     results, pid = [], None
@@ -354,6 +383,20 @@ hero = "{hero_name}"
             check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
             check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
             check(f"g_Hero.index = {gindex(hero)}", rd(HERO_INDEX, 1)[0] == gindex(hero), str(rd(HERO_INDEX, 1)[0]))
+            # the Status screen's name: g_HeroNames[g_Hero.index] (a body's own
+            # name, but the skeleton's, which has none: its moves' hero's)
+            gi = rd(HERO_INDEX, 1)[0]
+            ptr = int.from_bytes(rd(0x800C5E14 + 4 * gi, 4), "little")
+            raw = rd(ptr, 32) if 0x800BBF04 <= ptr < 0x800BBF84 else b""
+            glyphs = []
+            for k in range(0, len(raw), 2):
+                g = int.from_bytes(raw[k:k + 2], "little")
+                if g == 0x8000:
+                    break
+                glyphs.append(g)
+            want_name = {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis", "felippeshield": "Felippe",
+                         "skeleton": hname(MOVES or "clovis")}.get(hero_name, hname(hero_name))
+            check(f"the Status screen's name is {want_name}", letters(glyphs) == want_name, letters(glyphs))
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
         for label, (rect, data) in expect_vram.items():

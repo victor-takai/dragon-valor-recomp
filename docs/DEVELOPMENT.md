@@ -1938,6 +1938,51 @@ back, not a weapon: with the hero's own weapon she holds Kodel's cutlass
   `g_Hero.index` 0, the Status screen, 12 s of play, 1/9 rebuilt:
   all ten 20/20 (dragonvalor, oldclovis, skeleton, raimun, lodonya, shalya, fannah, jeanne, felippeshield, guardian), the in-game shots showing each body with its own texture and its portrait on the Status screen (the skeleton's the prologue Clovis's). Not checked: long play, a boss, their scenes.
 
+**Other moves for the bodies, and their name on the Status screen
+(2026-11-24, the player: "with Raimun the menu says Clovis", "the women
+could use the female characters' bodies", "could the Hero menu choose the
+body / moveset?").** Option `moves` (the menu's Hero > Moves row, applied
+with Play as and Weapon): the kit the ten bodies wear, `own` (the prologue
+Clovis's) or one of the nine heroes' (`clovis` .. `anita`); the nine heroes
+keep their own. Every hero's 14 nodes are in the same order (decomp
+`docs/targets/hero-swap.md`, *Another hero's moves*), so a body's part order
+holds for any kit, and the kit brings its script, moves, animations and VAB:
+Shalya, Fannah or Jeanne with Anna's or Anita's moves move and sound like
+them. The bodies' kits are no longer built from 0/1's files at the scan:
+
+- the scan bakes each body once (`body_bake`: the page from its texture
+  file, its prims pointed there), cached as `body<b>.bin`, and keeps the
+  prologue Clovis's kit (`prologue.kit`; the old `hero9..18.kit` are left
+  unread);
+- `kit_dress` dresses any kit with a baked body: the kit's ops without
+  their weld lists, the entries they still name renumbered in order, the
+  body's parts in the hero nodes' entries, its page and portrait (the same
+  bytes as `kit_build` over the dressed files, as the decomp tool makes
+  them);
+- `body_kits_refresh`, at every stage load, dresses the ten again when the
+  option or the bodies read change; a disc-2 hero's moves need disc 2
+  started once (until then the prologue Clovis's).
+
+A body holds its moves' hero's `g_Hero.index` (stats, spells, the save; the
+world map's walker stays Clovis's), and the save-state check tells a body
+by its chest whatever the index. The Status screen draws
+`g_HeroNames[g_Hero.index]`, so it said "Clovis" (or the moves' hero's
+name): `status_name_sync`, from the VBlank callback, lays out ACTION.BIN's
+`g_HeroNameText` (0x800BBF04, 0x80 bytes) again while a body's stage is
+played, the body's name first under its index, the other names after it
+(one that no longer fits made empty: only the played index is read), and
+puts the game's layout back with any other hero; it writes only over a
+table that is one (the nine pointers inside the block, each name ended in
+it), since other modules have other data there. The skeleton has no name
+and keeps its moves' hero's. The dialogues' renames now take every name
+from `kNameGlyphs` (the nine heroes' rows checked against ACTION.BIN), since
+the table in RAM can hold a body's.
+
+- **Checked** on build-debug with `tests/test_heroswap.py NAME --ref FOLDER
+  [--moves HERO2]` (the reference: `heroswap.py build <HERO2's kit stage>
+  1 7 --prune --body NAME`; the test now also reads the Status screen's
+  name from RAM): 21/21 each for the Dragon Valor, the skeleton (named Clovis), Lodonya and Fannah with the prologue Clovis's moves, Shalya and Fannah with Anna's, Jeanne with Anita's, Raimun with Arlen's, and Kodel (the game's table back); the Status screen shows each body's name ("Dragon Valor" runs a little past the name plate).
+
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
 itself for every stage.

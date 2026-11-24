@@ -116,14 +116,19 @@ static const int kKitSource[HERO_COUNT][2] = {
     {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1},
     {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}};
 static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5};   /* 0x8006CC70 */
-/* The bodies (choices 9..18): characters with the heroes' body, worn by the
- * prologue Clovis's kit (see *bodies from story scenes*; the player's
- * requests, 2026-11-23). They are no heroes of the game: for what it names
- * by g_Hero.index (the menus, the stats, the save, the world map's walker)
- * they play Clovis's part. */
+/* The bodies (choices 9..18): characters with the heroes' body, worn by a
+ * hero's kit (see *bodies from story scenes*; the player's requests,
+ * 2026-11-23): by default the prologue Clovis's, or the one of option
+ * `moves` (2026-11-24: "the women could use the female heroes' bodies").
+ * They are no heroes of the game: for what it names by g_Hero.index (the
+ * stats, the save, the spells) they play that hero's part, Clovis's for
+ * the prologue's; the world map's walker is Clovis's. s_body_donor: the
+ * hero whose kit the bodies' kits were last dressed from (-1: the prologue
+ * Clovis's), see body_kits_refresh. */
 #define BODY_FIRST 9
+static int s_body_donor = -1;
 static int is_body(int h) { return h >= BODY_FIRST && h < HERO_COUNT; }
-static int game_hero(int h) { return is_body(h) ? 0 : h; }
+static int game_hero(int h) { return is_body(h) ? (s_body_donor >= 0 ? s_body_donor : 0) : h; }
 
 /* The weapon models (hero node 2) of the action stages of both discs, by
  * geometry and look (a scan of the 226 stages, 2026-11-18; decomp
@@ -1084,17 +1089,21 @@ static const struct {
     {4, 1, 80, 4, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1},      /* Felippe as 4/1's scenes draw him */
     {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1},     /* the Guardian, Phillip's twin */
 };
-typedef struct { int ready; Buf prims[14], verts[14], tex, portrait; } Body;
+/* A body as kit_dress takes it: its parts in hero node order, their prims
+ * pointed at its baked hero page (body_bake; until then `tex` holds its
+ * texture file), the page TIM, its portrait (empty: the kit's stays). */
+typedef struct { int ready; Buf prims[14], verts[14], tex, page, portrait; } Body;
 static Body s_bodies[BODY_COUNT];
+static Kit s_prologue;   /* the prologue Clovis's kit (0/1): the bodies' moves by default */
 static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
                      uint32_t lp, const uint8_t* f0, uint32_t l0);
-static int kit_build_dressed(Kit* k, const Body* body, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1);
+static int body_bake(Body* body);
+static void body_kits_refresh(void);
 
 /* Table and kits of disc 0 (areas 0..6) or 1 (7..12). */
 static int disc_scan(int disc)
 {
     static Split s;
-    Buf src_f0 = {0}, src_f1 = {0};   /* Clovis's file 0 and pack (1/1), for the bodies' kits */
     static Ct c0, cp;
     static Tim tims[64];
     uint32_t size = 0, key = 0, idx, starts[256], counts[256];
@@ -1116,11 +1125,10 @@ static int disc_scan(int disc)
             if (!cdr_stage(&d, area, stage, &idx, starts, counts, &nf)) continue;
             f0 = cdr_file(&d, idx, starts[0], counts[0], &l0);
             f1 = cdr_file(&d, idx, starts[1], counts[1], &l1);
-            /* a body's stage: its parts, texture file and portrait (its kit
-             * is built after the scan, from the prologue Clovis's files of 0/1) */
+            /* a body's stage: its parts, page and portrait (its kit is
+             * dressed from a hero's kit when needed: body_kits_refresh) */
             for (h = 0; h < BODY_COUNT; h++)
-                if (kBodies[h].area == area && kBodies[h].stage == stage && !s_kits[BODY_FIRST + h].ready &&
-                    !s_bodies[h].ready) {
+                if (kBodies[h].area == area && kBodies[h].stage == stage && !s_bodies[h].ready) {
                     uint32_t lo = 0, lt = 0, lp = 0;
                     const uint8_t *fo = NULL, *ft = NULL, *fp = NULL;
                     int bf = kBodies[h].file, pf = kBodies[h].por_file;
@@ -1129,14 +1137,17 @@ static int disc_scan(int disc)
                         ft = cdr_file(&d, idx, starts[bf - 1], counts[bf - 1], &lt);
                     }
                     if (pf >= 0 && nf > pf) fp = cdr_file(&d, idx, starts[pf], counts[pf], &lp);
-                    if (!fo || !ft || (pf >= 0 && !fp) || !body_take(h, fo, lo, ft, lt, fp, lp, f0, l0))
+                    if (!fo || !ft || (pf >= 0 && !fp) || !body_take(h, fo, lo, ft, lt, fp, lp, f0, l0) ||
+                        !body_bake(&s_bodies[h])) {
+                        s_bodies[h].ready = 0;
                         fprintf(stderr, "%s: no %s body in %d/%d\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + h], area, stage);
+                    }
                 }
             /* a map stage of a kit's area: the walker for that hero */
             if (f0 && ct_parse(&c0, f0, l0) && c0.n >= 2) {
                 uint32_t ca, ia;
                 for (h = 0; h < HERO_COUNT; h++)
-                    if (kKitSource[game_hero(h)][0] == area && !s_mapkits[h].ready &&
+                    if (kKitSource[is_body(h) ? 0 : h][0] == area && !s_mapkits[h].ready &&
                         sheet_find(CT_E(&c0, 1), CT_L(&c0, 1), &ca, &ia))
                         mapkit_take(&s_mapkits[h], CT_E(&c0, 1), ca, ia);
             }
@@ -1159,12 +1170,14 @@ static int disc_scan(int disc)
             scan_scene_copy(&d, idx, starts, counts, nf, &s,
                             dv_area_hero(area) >= 0 ? &s_kits[dv_area_hero(area)] : NULL, r);
             for (h = 0; h < HERO_COUNT; h++)
-                if (kKitSource[h][0] == area && kKitSource[h][1] == stage && !s_kits[h].ready) {
+                if (kKitSource[h][0] == area && kKitSource[h][1] == stage && (is_body(h) || !s_kits[h].ready)) {
                     if (is_body(h)) {
-                        /* the bodies' kits come after the scan (a body can be
-                         * on a later stage): keep the prologue Clovis's files */
-                        if (!src_f1.n && (!buf_put(&src_f0, f0, l0) || !buf_put(&src_f1, f1, l1)))
-                            src_f0.n = src_f1.n = 0;
+                        /* the bodies' kits are dressed later (body_kits_refresh)
+                         * from a hero's kit, by default this one */
+                        if (!s_prologue.ready && !kit_build(&s_prologue, f0, l0, f1, l1)) {
+                            kit_free(&s_prologue);
+                            fprintf(stderr, "%s: no kit for the prologue Clovis from %d/%d\n", DV_HS_PLUGIN, area, stage);
+                        }
                         continue;
                     }
                     if (!kit_build(&s_kits[h], f0, l0, f1, l1)) {
@@ -1187,14 +1200,6 @@ static int disc_scan(int disc)
                 }
         }
     }
-    for (h = 0; h < BODY_COUNT; h++)
-        if (!s_kits[BODY_FIRST + h].ready && s_bodies[h].ready && src_f1.n &&
-            !kit_build_dressed(&s_kits[BODY_FIRST + h], &s_bodies[h], src_f0.p, src_f0.n, src_f1.p, src_f1.n)) {
-            kit_free(&s_kits[BODY_FIRST + h]);
-            fprintf(stderr, "%s: no kit for %s\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + h]);
-        }
-    buf_free(&src_f0);
-    buf_free(&src_f1);
     free(data);
     s_disc_ready[disc] = s_nstages[disc] > 0;
     return s_disc_ready[disc];
@@ -1271,21 +1276,23 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 
 #define DV_KIT_MAGIC   0x4B485644u   /* "DVHK" */
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
-/* The heroes' kits are still version 1 (a disc-2 hero's kit must survive:
- * it is only built while disc 2 runs); the bodies' are 2: from the prologue
- * Clovis's files, their page baked (2026-11-23). */
-#define DV_KIT_VER(h)  (is_body(h) ? 2u : 1u)
+#define DV_KIT_VER     1u
+#define DV_BODY_MAGIC  0x42485644u   /* "DVHB" */
+#define DV_BODY_VER    1u
+#define DV_PROLOGUE_ID 100u          /* the prologue Clovis's kit's id in its file */
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
-static void kit_save(int h)
+/* A kit in the cache (the heroes' hero<h>.kit, the prologue Clovis's
+ * prologue.kit; the bodies' kits are not kept: they are dressed from these,
+ * and hero9..18.kit of 2026-11-23 are left unread). */
+static void kit_save_as(const Kit* k, const char* name, uint32_t id)
 {
     char path[1200];
-    const Kit* k = &s_kits[h];
     FILE* f;
     uint32_t i, ok;
-    cache_file(path, sizeof path, "hero%d.kit", h);
+    cache_file(path, sizeof path, "%s", name);
     if (!(f = fopen(path, "wb"))) return;
-    ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_KIT_VER(h)) && w32(f, (uint32_t)h) && wbuf(f, k->ops.p, k->ops.n) &&
+    ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_KIT_VER) && w32(f, id) && wbuf(f, k->ops.p, k->ops.n) &&
          w32(f, k->nrefs);
     for (i = 0; ok && i < k->nrefs; i++) ok = w32(f, k->refs[i]);
     ok = ok && w32(f, k->nent) && w32(f, k->ntail);
@@ -1296,17 +1303,16 @@ static void kit_save(int h)
     if (!ok) remove(path);
 }
 
-static int kit_load(int h)
+static int kit_load_as(Kit* k, const char* name, uint32_t id)
 {
     char path[1200];
-    Kit* k = &s_kits[h];
     FILE* f;
     uint32_t v, i;
     int ok;
-    cache_file(path, sizeof path, "hero%d.kit", h);
+    cache_file(path, sizeof path, "%s", name);
     if (!(f = fopen(path, "rb"))) return 0;
     memset(k, 0, sizeof *k);
-    ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_KIT_VER(h) && r32(f, &v) && v == (uint32_t)h &&
+    ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_KIT_VER && r32(f, &v) && v == id &&
          rbuf(f, &k->ops, 0x10000) && r32(f, &k->nrefs) && k->nrefs <= 512;
     for (i = 0; ok && i < k->nrefs; i++) ok = r32(f, &k->refs[i]) && k->refs[i] + 4 <= k->ops.n;
     ok = ok && r32(f, &k->nent) && k->nent <= 400 && r32(f, &k->ntail) && k->ntail <= k->nent;
@@ -1323,6 +1329,56 @@ static int kit_load(int h)
     if (!ok) { kit_free(k); return 0; }
     k->ready = 1;
     return 1;
+}
+
+static void kit_save(int h)
+{
+    char name[32];
+    snprintf(name, sizeof name, "hero%d.kit", h);
+    kit_save_as(&s_kits[h], name, (uint32_t)h);
+}
+
+static int kit_load(int h)
+{
+    char name[32];
+    snprintf(name, sizeof name, "hero%d.kit", h);
+    return kit_load_as(&s_kits[h], name, (uint32_t)h);
+}
+
+/* A body, baked (body<b>.bin): its parts, page and portrait. */
+static void body_save(int b)
+{
+    char path[1200];
+    const Body* y = &s_bodies[b];
+    FILE* f;
+    int i, ok;
+    cache_file(path, sizeof path, "body%d.bin", b);
+    if (!(f = fopen(path, "wb"))) return;
+    ok = w32(f, DV_BODY_MAGIC) && w32(f, DV_BODY_VER) && w32(f, (uint32_t)b);
+    for (i = 0; ok && i < 14; i++) ok = wbuf(f, y->prims[i].p, y->prims[i].n) && wbuf(f, y->verts[i].p, y->verts[i].n);
+    ok = ok && wbuf(f, y->page.p, y->page.n) && wbuf(f, y->portrait.p, y->portrait.n);
+    fclose(f);
+    if (!ok) remove(path);
+}
+
+static int body_load(int b)
+{
+    char path[1200];
+    Body* y = &s_bodies[b];
+    FILE* f;
+    uint32_t v;
+    int i, ok;
+    cache_file(path, sizeof path, "body%d.bin", b);
+    if (!(f = fopen(path, "rb"))) return 0;
+    y->ready = 0;
+    ok = r32(f, &v) && v == DV_BODY_MAGIC && r32(f, &v) && v == DV_BODY_VER && r32(f, &v) && v == (uint32_t)b;
+    for (i = 0; ok && i < 14; i++)
+        ok = rbuf(f, &y->prims[i], 0x100000) && y->prims[i].n >= 17 * 16 && rbuf(f, &y->verts[i], 0x100000) &&
+             y->verts[i].n;
+    ok = ok && rbuf(f, &y->page, 0x100000) && y->page.n && rbuf(f, &y->portrait, 0x10000);
+    fclose(f);
+    y->ready = ok;
+    return ok;
 }
 
 #define DV_MAP_MAGIC 0x4D485644u   /* "DVHM" */
@@ -1467,12 +1523,18 @@ static void disc_prepare(int disc)
     int h, need = 0;
     if (disc < 0 || s_disc_ready[disc] || !disc_key(disc, &key)) return;
     cache_dir();
-    for (h = 0; h < HERO_COUNT; h++) if (!s_kits[h].ready) kit_load(h);
+    for (h = 0; h < BODY_FIRST; h++) if (!s_kits[h].ready) kit_load(h);
+    if (!s_prologue.ready) kit_load_as(&s_prologue, "prologue.kit", DV_PROLOGUE_ID);
+    for (h = 0; h < BODY_COUNT; h++) if (!s_bodies[h].ready) body_load(h);
     for (h = 0; h < HERO_COUNT; h++) if (!s_mapkits[h].ready) mapkit_load(h);
     for (h = 0; h < WEAPON_COUNT; h++) if (!s_wkits[h].ready) weapon_load(h);
-    for (h = 0; h < HERO_COUNT; h++)
-        need |= (!s_kits[h].ready || !s_mapkits[h].ready) && (kKitSource[h][0] >= 7) == disc;
+    for (h = 0; h < BODY_FIRST; h++) need |= !s_kits[h].ready && (kKitSource[h][0] >= 7) == disc;
+    for (h = 0; h < HERO_COUNT; h++) need |= !s_mapkits[h].ready && (kKitSource[h][0] >= 7) == disc;
     for (h = 0; h < WEAPON_COUNT; h++) need |= !s_wkits[h].ready && (kWeapons[h].area >= 7) == disc;
+    if (disc == 0) {                     /* the bodies and the prologue Clovis are on disc 1 */
+        need |= !s_prologue.ready;
+        for (h = 0; h < BODY_COUNT; h++) need |= !s_bodies[h].ready;
+    }
     if (!need && table_load(disc, key)) {
         fprintf(stderr, "%s: disc %d from the cache (%d action stages)\n", DV_HS_PLUGIN, disc + 1, s_nstages[disc]);
         return;
@@ -1482,8 +1544,12 @@ static void disc_prepare(int disc)
         return;
     }
     table_save(disc, key);
-    for (h = 0; h < HERO_COUNT; h++)
+    for (h = 0; h < BODY_FIRST; h++)
         if (s_kits[h].ready && (kKitSource[h][0] >= 7) == disc) kit_save(h);
+    if (disc == 0) {
+        if (s_prologue.ready) kit_save_as(&s_prologue, "prologue.kit", DV_PROLOGUE_ID);
+        for (h = 0; h < BODY_COUNT; h++) if (s_bodies[h].ready) body_save(h);
+    }
     for (h = 0; h < HERO_COUNT; h++)
         if (s_mapkits[h].ready && (kKitSource[h][0] >= 7) == disc) mapkit_save(h);
     for (h = 0; h < WEAPON_COUNT; h++)
@@ -1505,14 +1571,19 @@ static void ensure_disc(void)
     uint32_t key;
     if (disc < 0) return;
     disc_prepare(disc);
-    for (h = 0; h < HERO_COUNT; h++) missing |= !s_kits[h].ready && (kKitSource[h][0] >= 7) != disc;
+    for (h = 0; h < BODY_FIRST; h++) missing |= !s_kits[h].ready && (kKitSource[h][0] >= 7) != disc;
     for (h = 0; h < WEAPON_COUNT; h++) missing |= !s_wkits[h].ready && (kWeapons[h].area >= 7) != disc;
+    if (disc != 0) {
+        missing |= !s_prologue.ready;
+        for (h = 0; h < BODY_COUNT; h++) missing |= !s_bodies[h].ready;
+    }
     /* (only once its image opens: at activation the disc roster may not be
      * registered yet, and that must not count as the one try) */
     if (missing && !tried_other[1 - disc] && disc_key(1 - disc, &key)) {
         tried_other[1 - disc] = 1;
         disc_prepare(1 - disc);
     }
+    body_kits_refresh();
 }
 
 /* --- the swap -------------------------------------------------------------- */
@@ -1534,6 +1605,7 @@ static int s_name_old_n, s_name_new_n;
 static int s_resync;                       /* a save state was loaded: re-read the swap from RAM */
 
 static int s_weapon = -1;                  /* chosen weapon model (kWeapons), -1 = the hero's own */
+static int s_moveset = -1;                 /* option `moves`: the hero (0..8) whose kit the bodies wear, -1 the prologue Clovis's */
 static int s_swap_armed, s_swap_same;      /* the swap's kit is the armed one / the stage's own hero */
 static Kit s_armed;                        /* a hero's kit with another weapon model (arm_kit) */
 static const Kit* arm_kit(int hero, int weapon);
@@ -1559,6 +1631,10 @@ static void read_options(void)
     if (psx_mod_current_option_value("weapon", v, sizeof v) ||
         psx_mod_option_value(DV_HS_PKG, DV_HS_FEATURE, "weapon", v, sizeof v))
         for (w = 0; w < WEAPON_COUNT; w++) if (!strcmp(v, kWeapons[w].id)) s_weapon = w;
+    s_moveset = -1;
+    if (psx_mod_current_option_value("moves", v, sizeof v) ||
+        psx_mod_option_value(DV_HS_PKG, DV_HS_FEATURE, "moves", v, sizeof v))
+        for (w = 0; w < BODY_FIRST; w++) if (!strcmp(v, kHeroValues[w])) s_moveset = w;
 }
 
 static void ram_read(uint32_t addr, uint8_t* out, uint32_t n)
@@ -2366,14 +2442,18 @@ static const Kit* arm_kit(int hero, int weapon)
  * animations pose them. Their kit is the prologue Clovis's (0/1: script,
  * moves, animations, voice, shadow; the chapter-1 Clovis's animations hold a
  * shield up on the left arm, and a body without one lifted an empty hand,
- * the player) built from his files dressed: the body's parts in the hero's
- * nodes (kBodies order), no weld list (the hero's weld the hero's own
- * vertices), the hero page baked from the body's texture file (its TIMs
- * uploaded in order into a VRAM; the image: the body's page from its top row
- * to its prims' last texel row, at (384, 0); the CLUTs its prims use, in
- * ascending order, four to a row, in the page's last rows), every textured
- * prim's tpage and CLUT and every untextured prim's DR_TPAGE pointed there,
- * and the body's portrait (or the kit's). */
+ * the player), or with option `moves` a hero's (the women in Anna's or
+ * Anita's: 2026-11-24, the player), dressed: the body's parts in the hero's
+ * nodes (kBodies order: every hero's nodes are in the same order), no weld
+ * list (the hero's weld the hero's own vertices), the hero page baked from
+ * the body's texture file (its TIMs uploaded in order into a VRAM; the
+ * image: the body's page from its top row to its prims' last texel row, at
+ * (384, 0); the CLUTs its prims use, in ascending order, four to a row, in
+ * the page's last rows), every textured prim's tpage and CLUT and every
+ * untextured prim's DR_TPAGE pointed there, and the body's portrait (or the
+ * kit's). The bake is done once, when the body is read (body_bake, cached
+ * as body<b>.bin); the dress over a kit whenever the kit changes
+ * (kit_dress, body_kits_refresh). */
 static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
                      uint32_t lp, const uint8_t* f0, uint32_t l0)
 {
@@ -2442,26 +2522,18 @@ static void vram_load(const uint8_t* b, uint32_t len)
     }
 }
 
-static int kit_build_dressed(Kit* k, const Body* body, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1)
+/* The body's hero page, baked from its texture file, and its prims pointed
+ * there; the texture file is let go. */
+static int body_bake(Body* body)
 {
     static const uint32_t usize[4] = {0x1C, 0x20, 0x24, 0x2C};   /* records 4..7 */
-    static Ct cp, c0, ctx;
-    static Prog p;
+    static Ct ctx;
     static TexPrim tp[DV_MAX_TPRIMS];
-    static Tim t[64];
-    static const uint8_t* ents[4097];
-    static uint32_t lens[4097];
-    static const uint8_t* ents0[16];
-    static uint32_t lens0[16];
-    static Buf prims[14], e0, pk, chain, page, f0b;
     uint16_t cluts[256];
-    const uint8_t *s0, *ch;
-    uint32_t i, kk, r, vab, te, pos, h = 0, rows, cy, px, py;
-    int j, n, kh, ncl = 0, btp = -1, placed = 0;
+    uint32_t i, kk, r, h = 0, rows, cy, px, py;
+    int j, n, ncl = 0, btp = -1;
 
-    if (!body->ready || !ct_parse(&cp, f1, l1) || !prog_walk(&p, CT_E(&cp, 0), CT_L(&cp, 0)) || p.ops[0].op != 3 ||
-        le32(CT_E(&cp, 0) + 12) != 14)
-        return 0;
+    if (!body->ready) return 0;
     /* the page: the body's one tpage, its last texel row, its CLUTs ascending */
     for (i = 0; i < 14; i++) {
         if ((n = tex_prims(body->prims[i].p, body->prims[i].n, tp, DV_MAX_TPRIMS)) < 0) return 0;
@@ -2489,7 +2561,7 @@ static int kit_build_dressed(Kit* k, const Body* body, const uint8_t* f0, uint32
     memset(s_vram, 0, sizeof s_vram);
     if (!ct_parse(&ctx, body->tex.p, body->tex.n)) return 0;
     for (i = 0; i < ctx.n; i++) vram_load(CT_E(&ctx, i), CT_L(&ctx, i));
-    page.n = 0;
+    body->page.n = 0;
     {
         uint8_t hd[0x1C];
         static const uint8_t zero[128] = {0};
@@ -2499,31 +2571,24 @@ static int kit_build_dressed(Kit* k, const Body* body, const uint8_t* f0, uint32
         put32(hd + 16, 12 + 128 * rows);
         put32(hd + 20, 384u | cy << 16);
         put32(hd + 24, 64u | rows << 16);
-        if (!buf_put(&page, hd, 0x1C)) return 0;
+        if (!buf_put(&body->page, hd, 0x1C)) return 0;
         for (j = 0; j < (int)(4 * rows); j++) {
             if (j < ncl) {
-                if (!buf_put(&page, s_vram + 2u * ((uint32_t)(cluts[j] >> 6) * 1024u + (uint32_t)(cluts[j] & 0x3F) * 16u), 32)) return 0;
-            } else if (!buf_put(&page, zero, 32)) {
+                if (!buf_put(&body->page, s_vram + 2u * ((uint32_t)(cluts[j] >> 6) * 1024u + (uint32_t)(cluts[j] & 0x3F) * 16u), 32)) return 0;
+            } else if (!buf_put(&body->page, zero, 32)) {
                 return 0;
             }
         }
         put32(hd, 12 + 128 * h);
         put32(hd + 4, 384u);
         put32(hd + 8, 64u | h << 16);
-        if (!buf_put(&page, hd, 12)) return 0;
+        if (!buf_put(&body->page, hd, 12)) return 0;
         for (r = 0; r < h; r++)
-            if (!buf_put(&page, s_vram + 2u * ((py + r) * 1024u + px), 128)) return 0;
+            if (!buf_put(&body->page, s_vram + 2u * ((py + r) * 1024u + px), 128)) return 0;
     }
-    s0 = CT_E(&cp, 0);
-    for (i = 0; i < cp.n; i++) { ents[i] = CT_E(&cp, i); lens[i] = CT_L(&cp, i); }
     for (i = 0; i < 14; i++) {
-        uint32_t pe = le32(s0 + 16 + i * DV_NODE + 0x68), ve = le32(s0 + 16 + i * DV_NODE + 0x6C);
-        uint8_t* tab;
-        if (!pe || pe >= cp.n || !ve || ve >= cp.n) return 0;
-        prims[i].n = 0;
-        if (!buf_put(&prims[i], body->prims[i].p, body->prims[i].n)) return 0;
-        tab = prims[i].p;
-        if ((n = tex_prims(tab, prims[i].n, tp, DV_MAX_TPRIMS)) < 0) return 0;
+        uint8_t* tab = body->prims[i].p;
+        if ((n = tex_prims(tab, body->prims[i].n, tp, DV_MAX_TPRIMS)) < 0) return 0;
         for (j = 0; j < n; j++) {
             uint32_t buf;
             for (buf = 0; buf < 2; buf++) {
@@ -2545,50 +2610,116 @@ static int kit_build_dressed(Kit* k, const Body* body, const uint8_t* f0, uint32
             for (kk = 0; kk < cnt; kk++)
                 for (buf = 0; buf < 2; buf++) {
                     uint32_t o = poff + 2 * sz * kk + buf * sz + 4, w;
-                    if (o + 4 > prims[i].n || ((w = le32(tab + o)) >> 24) != 0xE1) return 0;
+                    if (o + 4 > body->prims[i].n || ((w = le32(tab + o)) >> 24) != 0xE1) return 0;
                     if ((int)(w & 0x1F) == btp) put32(tab + o, (w & ~0x1Fu) | DV_HERO_TPAGE);
                 }
         }
-        ents[pe] = prims[i].p;
-        lens[pe] = prims[i].n;
-        ents[ve] = body->verts[i].p;
-        lens[ve] = body->verts[i].n;
     }
-    /* entry 0 without the hero's weld lists */
-    for (kh = 1; p.ops[kh].op != 0 && is_hero_op(s0, &p.ops[kh]); kh++) {}
-    e0.n = 0;
-    for (j = 0; j < p.nops; j++)
-        if (!(j < kh && p.ops[j].op == 31) && !buf_put(&e0, s0 + p.ops[j].pos, p.ops[j].size)) return 0;
-    pos = p.ops[p.nops - 1].pos + 4;                        /* any bytes after the end */
-    if (pos < CT_L(&cp, 0) && !buf_put(&e0, s0 + pos, CT_L(&cp, 0) - pos)) return 0;
-    ents[0] = e0.p;
-    lens[0] = e0.n;
-    if (!ct_build(&pk, ents, lens, cp.n)) return 0;
-    /* file 0: the baked page in place of the hero-page TIMs (one, in the
-     * first's place), the body's portrait in place of the hero's (same size) */
-    if (!ct_parse(&c0, f0, l0) || c0.n > 16 || !file0_parts(&c0, &vab, &te)) return 0;
-    ch = CT_E(&c0, te);
-    n = tim_chain(ch, CT_L(&c0, te), t, 64, NULL);
-    chain.n = pos = 0;
-    for (j = 0; j < n; j++) {
-        if (tim_in_page(&t[j])) {
-            if (!buf_put(&chain, ch + pos, t[j].start - pos)) return 0;
-            if (!placed && !buf_put(&chain, page.p, page.n)) return 0;
-            placed = 1;
-            pos = t[j].end;
-        } else if (tim_is_portrait(&t[j]) && body->portrait.n) {
-            if (t[j].end - t[j].start != body->portrait.n || !buf_put(&chain, ch + pos, t[j].start - pos) ||
-                !buf_put(&chain, body->portrait.p, body->portrait.n))
-                return 0;
-            pos = t[j].end;
+    buf_free(&body->tex);
+    return 1;
+}
+
+/* A hero's kit worn by a body (heroswap.py dress over the kit's pack; the
+ * same bytes as kit_build over the dressed files): the kit's ops without
+ * their weld lists (op 31), the entries those ops still name renumbered in
+ * order (the weld lists' own entries go), the body's parts in the hero
+ * nodes' entries, its page as the kit's only hero-page TIM, its portrait if
+ * it has one; the VAB (the voice) stays the kit's. */
+static int kit_dress(Kit* k, const Kit* d, const Body* b)
+{
+    static Prog p;
+    static Buf ops;
+    static uint32_t num[401];
+    static uint8_t named[401];
+    static const uint8_t end[4] = {0};
+    uint32_t i, n = 0, core;
+    int j;
+
+    kit_free(k);
+    if (!d->ready || !b->ready || d->nent > 400) return 0;
+    ops.n = 0;
+    if (!buf_put(&ops, d->ops.p, d->ops.n) || !buf_put(&ops, end, 4) || !prog_walk(&p, ops.p, ops.n) ||
+        p.ops[0].op != 3 || le32(ops.p + 12) != 14)
+        return 0;
+    for (j = 0; j + 1 < p.nops; j++)
+        if (p.ops[j].op != 31 && !buf_put(&k->ops, ops.p + p.ops[j].pos, p.ops[j].size)) goto fail;
+    if (!buf_put(&k->ops, end, 4) || !prog_walk(&p, k->ops.p, k->ops.n) || p.nrefs > 512) goto fail;
+    k->ops.n -= 4;
+    memset(named, 0, sizeof named);
+    for (j = 0; j < p.nrefs; j++) {
+        uint32_t v = le32(k->ops.p + p.refs[j]);
+        if (v < 1 || v > d->nent) goto fail;
+        named[v] = 1;
+    }
+    core = d->nent - d->ntail;
+    for (i = 1; i <= d->nent; i++) {
+        num[i] = named[i] ? ++n : 0;
+        if (!num[i]) continue;
+        k->entlen[n - 1] = d->entlen[i - 1];
+        if (!(k->ent[n - 1] = (uint8_t*)malloc(d->entlen[i - 1] ? d->entlen[i - 1] : 1))) goto fail;
+        memcpy(k->ent[n - 1], d->ent[i - 1], d->entlen[i - 1]);
+        k->nent = n;
+        if (i > core) k->ntail++;
+    }
+    for (j = 0; j < p.nrefs; j++) {
+        uint32_t pos = p.refs[j];
+        put32(k->ops.p + pos, num[le32(k->ops.p + pos)]);
+        k->refs[k->nrefs++] = pos;
+    }
+    /* the body's parts in the hero's nodes */
+    for (i = 0; i < 14; i++) {
+        uint32_t pe = kit_node_ref(k, i, 0x68), ve = kit_node_ref(k, i, 0x6C);
+        const Buf* src[2] = {&b->prims[i], &b->verts[i]};
+        uint32_t e[2] = {pe, ve}, q;
+        for (q = 0; q < 2; q++) {
+            uint8_t* t;
+            if (!e[q] || e[q] > k->nent || !(t = (uint8_t*)malloc(src[q]->n ? src[q]->n : 1))) goto fail;
+            memcpy(t, src[q]->p, src[q]->n);
+            free(k->ent[e[q] - 1]);
+            k->ent[e[q] - 1] = t;
+            k->entlen[e[q] - 1] = src[q]->n;
         }
     }
-    if (!placed || !buf_put(&chain, ch + pos, CT_L(&c0, te) - pos)) return 0;
-    for (i = 0; i < c0.n; i++) { ents0[i] = CT_E(&c0, i); lens0[i] = CT_L(&c0, i); }
-    ents0[te] = chain.p;
-    lens0[te] = chain.n;
-    if (!ct_build(&f0b, ents0, lens0, c0.n)) return 0;
-    return kit_build(k, f0b.p, f0b.n, pk.p, pk.n);
+    if (!buf_put(&k->vab, d->vab.p, d->vab.n) || !buf_put(&k->page, b->page.p, b->page.n) ||
+        !buf_put(&k->portrait, b->portrait.n ? b->portrait.p : d->portrait.p,
+                 b->portrait.n ? b->portrait.n : d->portrait.n))
+        goto fail;
+    k->npage = 1;
+    k->ready = 1;
+    return 1;
+fail:
+    kit_free(k);
+    return 0;
+}
+
+/* The bodies' kits, dressed from the kit of option `moves` (the prologue
+ * Clovis's when it is "own" or that hero's kit is not read yet: disc 2's
+ * heroes once disc 2 has been started), again whenever that or the bodies
+ * read change; at every stage load (ensure_disc), so a change of the option
+ * applies from the next stage load, like the hero's. */
+static void body_kits_refresh(void)
+{
+    static int built_for = -2, built_n = -1;
+    int want = s_moveset >= 0 && s_moveset < BODY_FIRST && s_kits[s_moveset].ready ? s_moveset : -1, b, n = 0;
+    const Kit* d = want >= 0 ? &s_kits[want] : &s_prologue;
+    for (b = 0; b < BODY_COUNT; b++) n += s_bodies[b].ready;
+    if (!d->ready) n = 0;
+    if (want == built_for && n == built_n) return;
+    for (b = 0; b < BODY_COUNT; b++) {
+        Kit* k = &s_kits[BODY_FIRST + b];
+        if (!n || !s_bodies[b].ready || !kit_dress(k, d, &s_bodies[b])) {
+            kit_free(k);
+            if (n && s_bodies[b].ready) fprintf(stderr, "%s: no kit for %s\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + b]);
+        }
+    }
+    built_for = want;
+    built_n = n;
+    s_body_donor = want;
+    s_armed.ready = 0;
+    if (s_moveset >= 0 && want < 0)
+        fprintf(stderr, "%s: %s's moves not read yet (start disc %d once): the prologue Clovis's\n", DV_HS_PLUGIN,
+                kHeroNames[s_moveset], kKitSource[s_moveset][0] >= 7 ? 2 : 1);
+    fprintf(stderr, "%s: %d bodies wear %s's moves\n", DV_HS_PLUGIN, n, want >= 0 ? kHeroNames[want] : "the prologue Clovis");
 }
 
 /* --- reloads of the hero's texture ----------------------------------------
@@ -2711,22 +2842,14 @@ static int swap_page_reloads(Buf* out, const uint8_t* b, uint32_t len, const Kit
 static const uint16_t kNameGlyphs[HERO_COUNT][16];   /* below, with the epilogue */
 static const int kNameLen[HERO_COUNT];
 
+/* kNameGlyphs: the nine heroes' rows are the game's table's (checked
+ * against ACTION.BIN's g_HeroNameText), read from there no more since the
+ * table in RAM can hold a body's name (status_name_sync). */
 static int read_hero_name(int hero, uint16_t* out)
 {
-    uint32_t p, i;
     if (hero < 0 || hero >= HERO_COUNT) return 0;
-    if (is_body(hero)) {                                 /* not in the game's table */
-        memcpy(out, kNameGlyphs[hero], sizeof kNameGlyphs[hero]);
-        return kNameLen[hero];
-    }
-    p = psx_mod_read_word(DV_HERO_NAMES + 4 * (uint32_t)hero);
-    if (p < 0x80000000u || p >= DV_RAM_END - 32 || (p & 1u)) return 0;
-    for (i = 0; i < 16; i++) {
-        uint16_t w = psx_mod_read_half(p + 2 * i);
-        if (w == 0x8000) return (int)i;
-        out[i] = w;
-    }
-    return 0;
+    memcpy(out, kNameGlyphs[hero], sizeof kNameGlyphs[hero]);
+    return kNameLen[hero];
 }
 
 static int glyph_letter(uint16_t w)
@@ -3256,8 +3379,9 @@ static int weapon_in_ram(int h)
     return -1;
 }
 
-/* A body's stage keeps Clovis's g_Hero.index: the body is told by the hero
- * object's chest (node 1), byte for byte its kit's vertex entry; -1 if none. */
+/* A body's stage holds its moves' hero's g_Hero.index: the body is told by
+ * the hero object's chest (node 1), byte for byte its kit's vertex entry
+ * (its own, whatever kit it wears); -1 if none. */
 static int body_in_ram(void)
 {
     uint32_t nodes = psx_mod_read_word(DV_HERO_OBJECT + DV_OBJ_NODES), vp, e;
@@ -3283,7 +3407,8 @@ static void resync_after_load(void)
     s_saved_hero = s_written_hero = -1;
     if (!s_enabled || psx_mod_read_byte(DV_MODE) != 8 || ah < 0 || h >= HERO_COUNT || !stage_find(area, stage))
         return;   /* not in an action stage: the next stage load decides */
-    if (h == 0) {
+    const int h_ram = h;                       /* a body's game index (its moves' hero) */
+    {
         int bh = body_in_ram();
         if (bh >= 0) h = bh;
     }
@@ -3306,7 +3431,7 @@ static void resync_after_load(void)
             if (!s_name_old_n || !s_name_new_n || s_swap_same) s_name_old_n = s_name_new_n = 0;
             if (!s_swap_same) {
                 s_saved_hero = ah;  /* the game's own, given back at a stage without a swap */
-                s_written_hero = game_hero(h);
+                s_written_hero = is_body(h) ? h_ram : game_hero(h);
             }
             fprintf(stderr, "%s: save state %d/%d played as %s%s%s: its scenes follow\n", DV_HS_PLUGIN, area, stage,
                     kHeroNames[h], s_swap_armed ? " with weapon " : "", s_swap_armed ? kWeapons[w].id : "");
@@ -3353,10 +3478,77 @@ static void dv_hs_savestate_loaded(void)
     s_resync = 1;
 }
 
+/* --- the Status screen's name ----------------------------------------------
+ * The Status screen (ACTION.BIN's magic menu, decomp mod1_magic_menu.c)
+ * draws g_HeroNames[g_Hero.index]: a body plays its moves' hero's part
+ * there, so it said "Clovis" (the player, 2026-11-24: "with Raimun it says
+ * Clovis"). While a body's stage is played the table names the body:
+ * g_HeroNameText (0x800BBF04, 0x80 bytes: the nine names, each ended by
+ * 0x8000 and padded to a word) is laid out again with the body's name
+ * first, under its game index, the other names after it (one that no longer
+ * fits is made empty: only the played index is read in an action stage);
+ * with any other hero the game's own layout comes back. Written only over a
+ * table (the nine pointers inside the text block, each name ended inside
+ * it): another module, MAP.BIN, has other data there. A body with no name
+ * (the skeleton) keeps its moves' hero's. */
+#define DV_HERO_NAME_TEXT 0x800BBF04u
+#define DV_HERO_NAME_HW   64u
+static void name_table(int gi, int look, uint16_t* blk, uint32_t* ptr)
+{
+    static const uint8_t koff[9] = {0, 0x10, 0x1C, 0x28, 0x38, 0x48, 0x58, 0x64, 0x74};
+    uint32_t pos = 0, i, q, end;
+    memset(blk, 0, 2 * DV_HERO_NAME_HW);
+    if (gi < 0) {
+        for (i = 0; i < 9; i++) {
+            ptr[i] = DV_HERO_NAME_TEXT + koff[i];
+            for (q = 0; q < (uint32_t)kNameLen[i]; q++) blk[koff[i] / 2 + q] = kNameGlyphs[i][q];
+            blk[koff[i] / 2 + q] = 0x8000;
+        }
+        return;
+    }
+    for (q = 0; q < (uint32_t)kNameLen[look]; q++) blk[pos++] = kNameGlyphs[look][q];
+    end = pos;
+    blk[pos++] = 0x8000;
+    ptr[gi] = DV_HERO_NAME_TEXT;
+    for (i = 0; i < 9; i++) {
+        if ((int)i == gi) continue;
+        if (pos + (uint32_t)kNameLen[i] + 1 > DV_HERO_NAME_HW) {
+            ptr[i] = DV_HERO_NAME_TEXT + 2 * end;
+            continue;
+        }
+        ptr[i] = DV_HERO_NAME_TEXT + 2 * pos;
+        for (q = 0; q < (uint32_t)kNameLen[i]; q++) blk[pos++] = kNameGlyphs[i][q];
+        blk[pos++] = 0x8000;
+    }
+}
+
+static void status_name_sync(void)
+{
+    static uint16_t want[DV_HERO_NAME_HW];
+    static uint32_t wptr[9];
+    uint32_t p[9], i, q;
+    int look = s_enabled && s_swap && is_body(s_swap_hero) && kNameLen[s_swap_hero] > 0 ? s_swap_hero : -1, same = 1;
+    for (i = 0; i < 9; i++) p[i] = psx_mod_read_word(DV_HERO_NAMES + 4 * i);
+    name_table(look >= 0 ? game_hero(look) : -1, look, want, wptr);
+    if (!memcmp(p, wptr, sizeof p)) {
+        for (i = 0; i < DV_HERO_NAME_HW && same; i++) same = psx_mod_read_half(DV_HERO_NAME_TEXT + 2 * i) == want[i];
+        if (same) return;
+    }
+    for (i = 0; i < 9; i++) {                          /* a hero-name table? */
+        if (p[i] < DV_HERO_NAME_TEXT || p[i] >= DV_HERO_NAME_TEXT + 2 * DV_HERO_NAME_HW || (p[i] & 1u)) return;
+        for (q = p[i]; q < DV_HERO_NAME_TEXT + 2 * DV_HERO_NAME_HW && psx_mod_read_half(q) != 0x8000; q += 2) {}
+        if (q >= DV_HERO_NAME_TEXT + 2 * DV_HERO_NAME_HW) return;
+    }
+    for (i = 0; i < DV_HERO_NAME_HW; i++) psx_mod_write_half(DV_HERO_NAME_TEXT + 2 * i, want[i]);
+    for (i = 0; i < 9; i++) psx_mod_write_word(DV_HERO_NAMES + 4 * i, wptr[i]);
+    fprintf(stderr, "%s: the Status screen names %s\n", DV_HS_PLUGIN, look >= 0 ? kHeroNames[look] : "the game's hero");
+}
+
 static void dv_hs_vblank(void)
 {
     uint32_t r, c;
     if (s_resync) resync_after_load();
+    status_name_sync();
     if (!dv_heroswap_restart_request) return;
     if (!s_enabled) { dv_heroswap_restart_request = 0; return; }
     if (psx_mod_read_byte(DV_MODE) != 8 || psx_mod_read_byte(DV_MODE + 1) != 7 || psx_mod_read_byte(DV_PAUSE_STATE) ||
