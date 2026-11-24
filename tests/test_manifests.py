@@ -34,6 +34,7 @@ PLUGIN_SRC = "\n".join(Path(p).read_text(encoding="utf-8", errors="replace")
 INERT_CHOICES = {
     ("dragonvalor.heroswap", "hero"): "stage",      # each stage's own hero
     ("dragonvalor.heroswap", "weapon"): "hero",     # the hero's own weapon
+    ("dragonvalor.heroswap", "moves"): "own",       # the bodies' default kit (only a body played uses it)
 }
 
 

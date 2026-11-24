@@ -756,7 +756,7 @@ row read "CD Speed / CD Speed 1.0.0" or "Cheats / Dragon Valor Cheats
 1.3.0", and nine features sat in seven groups (Cheats, Display,
 Experimental, Convenience, Advanced, Quality of Life, Visual). Now:
 
-- two groups, **Game** (Cheats, Faster loading, Play as, Skip intro movie)
+- two groups, **Game** (Cheats, Faster loading, Play as, Skip intro)
   and **Graphics** (Bezel artwork, HD texture packs, Steady 3D (PGXP),
   Widescreen); the list sorts by group, then name;
 - every feature description opens with a short sentence the row shows as
@@ -979,7 +979,7 @@ builder plus extras with its generic drawer:
 | Items | Pendant, Lithograph, Ring, Talisman, Bracelet, Earrings, Pepper, Wine, Horn, Perfume, Tea, Mask, Tiara, Harp, Gold Key, Silver Key, Copper Key: 0‥99, in the Status screen's order and with its texts (the first five are bonuses applied when found, Earrings cut every cast by 1 MP, the rest are trade goods and keys; raising a key count also takes that kind of key in the stage's pickup pool, see *Pickup ids*) | u16 counts `0x800A2DD4`‥`DE` and `0x800A2DF0`‥`0x800A2E04`, written at once |
 | Warp (experimental; Area, Stage and Go now moved out of Cheats on 2026-10-16 at the player's request, because the warp has known limits: garbage text in story scenes, skipped stages' items and keys; the section was called Experimental until 2026-11-18) | Area (next Continue: `0x800A2F18`, the area the next GAME OVER → CONTINUE loads, see *Character and weapon*; areas of the current disc only) and Stage (next Continue: the stage-start record `0x8007D9C6`, which the Continue copies over `0x800A2F1A`; added 2026-10-16). Both only offer action stages, from the bitmask table `tools/datacdr.py kinds --c` prints, because a scene-type or empty stage left the screen black until the watchdog closed the game. The first version had no Stage row and kept the stage number, so a late stage offered few areas (stage 21 is an action stage only in areas 3 and 6, the player's report); now the Area row moves the stage to the nearest action stage of the new area when needed (stage 1 is one in every area), and the Stage row steps over scene stages. Stages that open with a story scene play it with garbage text after the jump (see *Character and weapon*); **Go now (Game Over)**, an action: writes HP 0, holds Infinite HP off (`dv_cheats_hold_hp`, shared with the cheats plugin, 60 s safety net from the GAME OVER) and closes the menu. HP 0 makes ACTION.BIN (`0x800C40E0`) set mode 9 at once, with no death animation: the hero stays on its feet and the world keeps running under GAME OVER, so the first version, which pressed Cross on the prompt every 800 ms, made the hero jump (player report 2026-10-16; the prompt ignores buttons until its state 2). Now a title pad transform (`psx_mod_set_pad_transform`, player 0; offline only) is the per-frame hook: as soon as the prompt starts (mode 9, sub 2, prompt state ≤ 2 at `0x8009FAF8`) it writes what the prompt's confirm branch writes (cursor YES, brightness 128, timer 30, state 3), and it hands the guest a neutral pad until the action stage runs again, so nothing the player presses moves the hero. Before the GAME OVER the pad stays the player's: the game holds the death back while a dialogue or story scene runs (still mode 8; the Brize Forest tutorial delays it by about 8 s), and a scene that waits for Cross would otherwise never end (up to 5 min). Then it writes back the Val the Continue took (50) and lets Infinite HP act again. The transform returns the stock pad outside a trip and is detached the next time the menu opens. 8‥12 s per trip in `tests/test_area_row.py`, 15 s from the tutorial. Besides Val, a Continue changes `0x800A2DA8` (+1, probably a death / continue counter), `0x800A2EFC` and `0x800A2F08`‥`0F` (unknown) and the play time. **Cut prologue scene** (2026-11-21, the player asked for an easy way into the stages nothing in the game leads to, found by the decomp's `tools/stages.py`, its docs/SECRETS.md; the first version offered all four of disc 1 through a Secret stage choice row and a Go to secret stage action, and the marble corridor 1/24 and the Japanese release's chapter 1 world maps 1/14 / 1/16 were taken out the same day at the player's request, leaving the one action): the scene cut from the prologue, stage 0/5. No Game Over: the action, asked in a dialog, sets `dv_trip_area` / `dv_trip_stage` and `dv_trip_request` and closes the menu; the cheats plugin's entry hook on ModelWeldReset (`0x80021CE4`, FrameDraw, after the frame's objects and before DrawOTag) waits for a quiet frame (mode 8 sub-mode 7, no pause, no event script, area and stage phases 0, load rows idle, the same test as Play as's restart) and calls the game's own ModeTransition (`0x80025264`, object native 3) through `psx_mod_call_guest`, with { kind, area delta, stage delta } in `g_CdUnused8768` (`0x80078768`, 16 bytes of the CD object's .bss that nothing touches, the decomp's docs/OBJECTS.md section 9; zeroed after the call): kind 0 (kind 1 inside the area; a world map would need kind 3, into MAP.BIN). Not `psx_mod_alloc_guest_memory`: the first version put the four bytes there, and an allocation changes the save-state header's layout cookie (`psx_mod_memory_layout_cookie`, `boot_state.c`), so every state saved before the first trip of a session was refused afterwards (found before release; `tests/test_secret_stages.py` loads test state 9 after the trip). The game resets the stage, loads it, and asks for disc 1 itself when the player is on disc 2. 0/5 plays its scene (about a minute) and goes on to chapter 1. Its 22 messages, left in the Japanese release's code (kana where the US font has its accented letters, kanji of a sheet no longer on the disc), are shown in English: while the room's message table (`g_EventVm.messages`, `0x8009FA18`) still points at the Japanese message 0, the cheats plugin's VBlank encodes the English lines (`kCutScene`, the US font's glyph code; the encoder also knows the speed, pen, colour and question controls) at `0x801E0000` and points the table at them. That RAM is above the stage's heap: the stage buffers end where the second arena starts (GS_ARENA2, `0x800A2CA0`, where the message window builds), the RAM stack only uses the top of RAM, and `0x801D1698`‥`0x801FF698` stayed zero in 1/24, the largest of the secret stages; the text is written only while GS_ARENA2 is 64 KB or more below it. The first version wrote the lines over 0/5's description bank (a Japanese leftover there); the corridor's English translation (an early draft of Clovis finding Princess Celia, 1/24 room 1) needed the RAM above the heap, since its bank is the English one the magic menu reads, and left with the corridor (git history: `5c65d83`; the Japanese and the English stay in the decomp's SECRETS.md). Main RAM only, so a state saved during the scene keeps the English. A loaded state cancels a pending trip; the row is greyed out without the Cheats mod | Area and Stage are RAM rows like the editors (`0x800A2F18`, the record `0x8007D9C6`), restricted to action stages; Go now is an action with a pad transform, asked in a dialog first; Cut prologue scene is an action asked in a dialog and made by `dragonvalor_cheats.c` |
 | Video | Fullscreen, Smooth picture (the linear filter of the final image), Texture filtering (Nearest / Bilinear / xBR), Scanlines, Dynamic resolution | `PsxMenuHost.video_apply` (live; also saved to `settings.toml`) |
-| Options | Volume, Pause in menu, Skip intro movie, Game dimming, Menu opacity | `host_volume_set`; Skip intro is a `mod_set` feature switch (next start); the rest are the menu's own (`dragonvalor_settings.toml`, below) |
+| Options | Volume, Pause in menu, Skip intro, Game dimming, Menu opacity | `host_volume_set`; Skip intro is a `mod_set` feature switch (next start); the rest are the menu's own (`dragonvalor_settings.toml`, below) |
 
 How it is built: psxrecomp f9c287f5 ships the host side of an in-game menu
 (`psx_menu_host.h`: pause, live video, mod changes, disc tray, exit) and
@@ -1051,56 +1051,83 @@ the settings file (`BACKLOG.md`).
 #### This project's package: `dragonvalor.skip-intro`
 
 `mods/preloaded/packages/dragonvalor.skip-intro/1.0.0/manifest.toml`: one
-feature, off by default, that presses Start for the player as soon as the
-intro movie starts, the skip the game itself offers, so power-on reaches the
-title with no button. Plugin: `mods/plugins/dragonvalor_skip_intro.c`.
+feature, off by default, that takes power-on straight to the title menu
+with no button: options `logo`, `movie` and `title` (all on). Plugin:
+`mods/plugins/dragonvalor_skip_intro.c`.
 
-How the boot sequences (intro module at `0x800BBEF0`, mode byte
-`0x8008634C`, sub-state `0x8008634D`, traced with `wtrace_arm`):
+How the boot runs (OPENNING.BIN, decomp `src/openning/logo.c`, `intro.c`,
+`titlemenu.c`; `g_GameFlow.mode` at `0x8008634C`, `subMode` `0x8008634D`;
+the logic runs at 30 Hz, two VBlanks a frame). Corrected 2026-11-24 from
+the decomp: the table this section had (traced in 2026-10 without it) took
+mode 5, the attract demo, for the menu.
 
-| Mode | What | Transition |
+| Mode | What | Length |
 |---|---|---|
-| 0 | boot | |
-| 1 sub 0‥5 | Namco logo: loads, fade in, hold, hold, fade out (~6 s from frame ~490) | the fade-out handler does `mode++; sub = 0` when its stage timer (`*(0x800D8DD0)+4`) runs out |
-| 2 | intro movie `MOVIE/MOVIE1.STR` (~31 s) | Start → `func_800BD038` tears the movie down and does `mode++` |
-| 3 sub 0‥1 | title logo animation | by itself after ~26 s, or earlier |
-| 5 sub 0 → 17 sub 0 → 5 sub 2 | title still (~5 s) → menu load → **menu ready** (New Game / Load Game / Configuration) | |
-| 17 sub 1 → 8 sub 1‥ / 4 sub 16‥13 → 17 → 8 | story demo and attract gameplay (DEMO.BIN) | back to the menu later |
-| 6 | New Game (prologue text) | from the ready menu |
+| 0 | boot: `GameInit` (CD, memory card, sound, pads...), OPENNING.BIN read | from the game's entry (VBlank ~150, after the BIOS boot, which runs unpaced) to ~380: ~3.8 s, ~2.5 s of it with the CD idle (its `CdInit` at VBlank 153, its first read at 305), in the libraries' init |
+| 1 | Namco logo (`g_LogoState`, pointer at `0x800D8DD0`: `+4` timer): sub 0 load the boot TIMs, 1 the logo's prims (black), 2 fade in (32 frames), 3 `LogoLoadTitlePack` (`\TITLE\DB_TITLE.TIP` into `g_FileBuffer`: `CdLoadDiscFile` blocks until read), 4 hold (64 frames), 5 fade out (32) | ~5.2 s |
+| 2 | intro movie `MOVIE/MOVIE1.STR`; Start (a press edge) ends it | ~31 s |
+| 3 | title: sub 0 `TitleEnter` (the title pack's TIMs and sounds), sub 1 `TitleLoop`, which keeps control: `g_TitleWork.screen` (`0x80156F32`) 0 = main, `state` (`0x80156F33`) 1 logo flight, 2 ring burst, 3 menu fade-in, 4/5 **the menu** (New Game / Load Game / Configuration); Start in states 1..3 jumps to 4 | ~1 s load, ~1.4 s flight |
+| 5 | attract demo (DEMO.BIN), after 1500 idle frames (~25 s) on the menu | |
+| 17 | New Game (from the menu: Start or Cross) | |
 
-Start cannot be injected from a VBlank callback: the game runs its own SIO
-pad exchange inside its per-frame pad routine (`func_80069F0C`, driver
-`func_8006A330`) and only then copies the response (pad struct `+0x3C`,
-`0x800BBC78` for pad 1: id `0x73`, `0x5A`, buttons active-low, sticks) into
-its pad struct (`+0x30`, `0x800A2F20`; buttons at `0x800A2F22`, held word
-`0x800A2F66`) through `func_8006C250`. That copy is listed in `game.toml`
-`[recompiler] mod_function_entry_funcs`, which makes the recompiler emit
-`psx_mod_function_entry()` at its entry (one line in
-`generated/SLUS_010.92_full_34.c`; regenerate after editing the list), and
-the plugin's function-entry hook clears the Start bit in the response (a0 =
-pad struct) there. Details that cost a day:
+The plugin does it all at the entry of the pad-response copy
+(`func_8006C250`, listed in `game.toml` `[recompiler]
+mod_function_entry_funcs`, which makes the recompiler emit
+`psx_mod_function_entry()` there): the game's per-frame pad routine
+(`func_80069F0C`, driver `func_8006A330`) runs its own SIO exchange, then
+calls the copy (a0 = pad struct, `+0x3C` the response: id `0x73`, `0x5A`,
+buttons active-low, sticks; `0x800BBC78` for pad 1), and only then does the
+frame's mode handler run. So Start is set in the response there (a VBlank
+callback cannot: the game refreshes the response itself), and the logo's
+sub-state and timer are set there too, before `ModeLogo` reads them (a
+sub-state written at a VBlank can land between a handler's read and its own
+`subMode++`):
 
-- The movie player reacts to a press **edge**: a response that always
-  carries Start never skips. The plugin presses 4 frames every 24.
-- Without a controller the SIO response is not refreshed every frame, so
-  the plugin also writes Start *released* in its off phases and during the
-  first 60 frames of mode 3.
-- The Namco logo is not skippable: ending it early (poking `mode = 2`, or
-  expiring its stage timers from sub 2 or 3) sends the title into the story
-  demo; cutting only sub 4 stalls the title animation. Its stages evidently
-  cover loads the title depends on.
-- After the skip the title behaves exactly as after a manual Start: in
-  some runs it goes title still → menu, in others it plays the story demo
-  first (`17/1 → 8/1`, or `4/16 → … → 17/0 → 8/1`) and reaches the menu
-  afterwards. Which one happens looks like a race in the game's own title
-  logic (same with a debug-server press); worth watching during the human
-  session.
-- On the ready menu (mode 5 sub 2) Start = New Game (mode 6). A Start on the
-  title still (5 sub 0) or on the animation starts the story demo instead.
+- `logo`: at sub 2 the fade-in is not run (sub 3, the hold's timer 0), so
+  the logo stays black as sub 1 made it; the title-pack read runs as ever;
+  the hold ends in one frame; at sub 5 the timer is set to -1 (level 0, then
+  mode 2). The read was the reason the logo "could not be skipped".
+- `movie`: Start is released for 4 VBlanks from the movie's start, pressed
+  for 4, and so on: the player polls at the movie's rate and reacts to an
+  edge (a Start always held never skips).
+- `title`: Start pressed in states 1..3 (the game's skip to the menu, with
+  the title music); released at sub 0 / state 0 (nothing left over from the
+  movie) and for 60 VBlanks after the menu opens, since a Start reaching the
+  menu picks New Game.
 
-`tests/test_skip_intro.py` (fresh boot, feature enabled in `state.toml`)
-checks that the title animation starts within 14 s and that the title then
-moves on; `--off` checks the movie keeps playing.
+Measured on build-debug with Faster loading on (2026-11-24): the menu was up
+9.75 s after the debug server answered with the old plugin (movie only),
+3.84 s now; the screen is black until the menu but for one dim frame as the
+movie starts (the old one showed the Namco logo again for a moment). Left:
+the ~2.5 s of mode 0 and the ~1 s of `TitleEnter`.
+
+- `boot` (**Fast boot**, the same day, the player: "can it be better
+  still?"): what was left is black and needs no watching: `GameInit`'s
+  memory-card probing (the BIOS's `_bu_init` reads both cards' directories
+  at the real card's pace: 74 SIO transactions, ~2.5 s; ~1.2 s of it card
+  2), OPENNING.BIN's read and `TitleEnter`'s uploads, each waiting a VSync.
+  From activation until the title's loop starts (mode 3 sub 1) the plugin
+  holds `psx_mod_hold_acceleration(1, 0)`, a mod API added by
+  `patches/psxrecomp/0005` (`patches/README.md`): the runtime paces that
+  span as it paces an accelerated CD load (every guest VBlank, interrupt and
+  CD deadline as ever, uncapped wall clock, 1 present in 30, accelerated
+  audio sunk). Released for good at the first VBlank of anything else (a
+  save state loaded at once: `test_heroswap.py kodel` 21/21) or after 60 s
+  of guest time. The host runs that code at ~3x real time (the BIOS's card
+  driver) and ~1.5x (the uploads). Measured from the process start, debug
+  build with Faster loading, two runs each: the menu at 10.3 / 10.4 s
+  without it, 6.8 / 7.0 s with it (the guest's part from ~6.9 s to ~3.4 s);
+  `test_skip_intro.py` (no Faster loading) has the menu 1.8 s after the
+  debug server answers, 7.7 s before. The first ~3.5 s are the runtime's own
+  start (an overlay-toolchain worker the `--no-launcher` path joins: the
+  launcher's own screen covers it).
+
+`tests/test_skip_intro.py` writes its own `state.toml` (the feature on with
+every option; `--off` without it; the player's file restored), launches the
+build and checks: the menu within 8 s, the logo's fade-in never run, the
+movie under 1.5 s, the menu still waiting 4 s later, and a Start there
+starting a new game (mode 17); `--off`: the movie still playing at 20 s.
+5/5 and 1/1 (2026-11-24; its runs have no Faster loading: menu at 7.7 s).
 
 #### This project's package: `dragonvalor.enhancement.widescreen` (2026-10-15)
 
@@ -1511,7 +1538,8 @@ worked examples this one follows.
 
 Every action stage loads with the hero the player picks. Package 2.0.0,
 feature `play-as` (channel experimental, on by default since 2026-11-18 at its neutral choices, see below), option `hero`
-(`stage` = each stage's own, or `clovis` … `anita`); the in-game menu's
+(`stage` = each stage's own, or `clovis` … `anita`, or `dragonvalor`: the prologue's dragon slayer,
+see *The Dragon Valor* below); the in-game menu's
 Hero section has the same choice as **Play as**, confirmed in a dialog (the
 first choice also switches the feature on, for the next start, when it is
 off). The choice applies when a
@@ -1800,6 +1828,351 @@ stage's own hero with another weapon: "... as Clovis with weapon soul"),
 and a state whose weapon is not the chosen one gets the notice "Save made
 with the hero's own weapon: Soul from the next stage". Checked in one
 session with a scratch slot (deleted), as above.
+
+**The Dragon Valor (2026-11-23, the player's request: "a way to make the
+'Dragon Valor' of the opening cutscene a playable character").** The dragon
+slayer of the prologue's 0/1: room 1's scene shows him losing to the Dragon,
+in room 2 Clovis finds him dying and takes his sword. He is a scene object
+of room 1's event pack (file 80, its first op 3) with a hero's body, found
+by the decomp (`docs/targets/hero-swap.md`, *A body from a story scene*):
+14 parts whose node templates equal Clovis's but for their entries, parts 1
+(his sword, the prologue's, the same model as Azos) and 2 (the chest) in
+the other order, every part modelled around the same joints, so Clovis's
+animations pose him as they pose Clovis; his texture is one 4-bit TIM of
+file 79 in the heroes' sheet layout ((576, 256), CLUT block (576, 502)),
+his portrait file 80's entry 4 in the heroes' portrait format. He has three
+animations of his own (the fight) and no weld lists. The 10th choice of
+`hero`, `dragonvalor` ("Dragon Valor (prologue)" in the launcher, "Dragon
+Valor" in the menu): the plugin takes his body when it reads 0/1
+(`body_take`) and builds his kit at 1/1 from Clovis's files dressed with it
+(`kit_build_dressed`, a port of the decomp's `heroswap.py dress`): his parts
+in the hero's nodes, the hero's weld lists dropped (they weld Clovis's own
+vertices), his TIM moved whole into the hero page (image at (384, 0), CLUT
+block in the page's last rows, 246..255) with every textured prim's tpage
+and CLUT id and every untextured prim's DR_TPAGE pointed there, his
+portrait in file 0's chain; then `kit_build` as for any hero. So he has
+Clovis's moves, spells and voice; any weapon of the Weapon row goes in his
+hand as in any hero's. He is no hero of the game: `g_Hero.index` holds
+Clovis's 0 (`game_hero`), so the Status screen and the save say Clovis and
+the world map's walker is Clovis's; the dialogues and the epilogues name
+him (his glyph codes, from the speaker line of 0/1's scene, are in
+`kNameGlyphs`: ACTION.BIN's name table has none), and the in-game menu's
+header says Dragon Valor. After a save-state load the hero object's chest
+(node 1), byte for byte his kit's vertex entry, tells his stage from
+Clovis's (`body_in_ram`). Kit and walker are cached as `hero9.kit` /
+`hero9.map`; a cache from before reads disc 1 once more.
+- **Checked** on build-debug: `tests/test_heroswap.py dragonvalor --ref
+  <decomp>/build/heroswap/1-1_dragonvalor_to_1-7` (the reference: `heroswap.py
+  build 1 1 1 7 --prune --body dragonvalor`), 20/20: 1/7 rebuilt (file 0
+  444444 B, pack 252584 B), the pack head, his texture image (384, 0, 64,
+  148) and CLUTs (384, 246, 64, 10) and his portrait in VRAM byte for byte
+  the reference's, `g_Hero.index` 0, the Status screen (his portrait), 20 s
+  of play, 1/9 rebuilt too. With `--leave 3/1 --scene-shots 10` (3/1 opens
+  with Kodel's scene) 15/15: his body in the scene, "Dragon Valor:" with his
+  portrait in the dialogues. The first run found the menu's Play as row
+  refusing a value past 9 (`dragonvalor_menu.cpp`): fixed. Not checked: long
+  play, a boss.
+
+**Weapons of other characters (2026-11-23, the player's request: "Raimun's
+sword").** The weapon models above came from the action stages' heroes. The
+decomp's `heroswap.py weapons` scans every object of both discs with the
+heroes' 14-part body (the hips, chest, head and feet where Clovis's are) for
+a long part 2 in the hand: 52 looks, five new, held by characters who share
+the heroes' body (decomp docs/targets/hero-swap.md, *Weapons of other
+characters*). Four are `weapon` choices, `kWeapons` entries with a file and
+an object: Raimun's sword (`raimun`: 1/20 room 2's enemy group, file 84,
+object 0; chapter 1's boss), Jeanne's crystal sword (`jeanne`: 4/1 room 1's
+scene, file 80, object 2), Mihael's broadsword (`broadsword`: 11/4 room 8's
+scene, file 136; Anna's chapter, disc 2) and Kodel's cutlass (`cutlass`: 3/1
+room 1's scene, file 80, object 0; before he takes Azos). The broadsword is
+out again since the player's test ("it really is the first weapon,
+identical"): in play it looks like Azos; three remain. `weapon_take_obj`
+takes part 2 of that op 3 and the TIM from the file read before it into the
+same buffer (file - 1), the last TIM with a CLUT block in the weapon's page;
+cached as `weapon_<a>_<s>_f<file>_o<obj>.bin` (the first nine's keys and
+files unchanged). Raimun's sword needs six CLUTs, more than a hero's block
+has free (four to eight): `arm_kit` then grows the block up by the rows it
+needs (`pg_more_cluts`), into the page's rows between the hero's image and
+its block, which nothing uploads to; the body's CLUTs keep their places.
+The grown Clovis's long sword (3/17) is not offered: its prims draw from his
+whole sheet, one island of 256 x 192 texels, which fits no hero's page.
+- **Checked** on build-debug against the decomp tool (`heroswap.py build
+  2 1 1 7 --prune --weapon AREA STAGE FILE OBJECT`), pack head and hero page
+  image, CLUTs and portrait in VRAM byte for byte: Arlen with Raimun's sword
+  21/21 (the CLUT block (384, 243, 64, 13), grown by a row), with Jeanne's
+  21/21, Kodel's cutlass 21/21, Mihael's broadsword 22/22 (`--prime-disc2`),
+  the Dragon Valor with Raimun's 21/21; Arlen with Kadum still 21/21. The
+  four fit all nine heroes and the Dragon Valor (the decomp tool, every
+  pair).
+
+**Old Clovis and the cache's place (2026-11-23, the player's play test).**
+The player asked to play the grown Clovis Kodel fights in chapter 3, whose
+long sword fits no other hero's page: an 11th `hero` choice, `oldclovis`
+("Old Clovis (chapter 3)"), a second body (`kBodies`: 3/17 room 1's enemy
+group, file 76, object 0, the heroes' part order; texture file 75; portrait
+the second TIM of the scene packs' image set, file 80 entry 3; decomp
+`heroswap.py --body oldclovis`). His sheet comes whole into the hero page,
+so his own sword with it. Bodies are taken where their stage is and their
+kits built after the scan from a copy of Clovis's 1/1 files (3/17 comes
+after 1/1). The dialogues name him Clovis, as the game does. Checked:
+`test_heroswap.py oldclovis --ref` 20/20, the Dragon Valor again 20/20.
+The same test session found why the player saw every disc-2 weapon (Mihael's,
+Anna's) fall back to the hero's own: the plugin's cache was a path relative
+to the working directory, and the game started from a link ran elsewhere
+(Windows gives C:\Windows\System32), so the cache was neither read nor
+written and the disc-2 weapon models were never loaded. It now lives beside
+the executable (`SDL_GetBasePath`, as the runtime's `mods/` and the menu's
+settings): the release build started from System32 wrote its cache into
+build-release.
+
+**Eight more bodies on the prologue Clovis's kit (2026-11-23, the player's
+requests: "these characters would be nice to have", and "the Dragon Valor
+and old Clovis use a Clovis skeleton with a shield, so their hand is
+raised: could it be the first Clovis's?").** The decomp's scan of every
+object of both discs for the heroes' body (`docs/targets/hero-swap.md`,
+*Bodies of other characters*) found eight more characters (seven since
+2026-11-24, see below); each is a
+`hero` choice (`kBodies`, `kHeroValues`): `skeleton` (chapter 1's, 1/5's
+enemy group, file 132; no name and no portrait: the dialogues and the
+portrait stay the kit's), `raimun` (chapter 1's boss, 1/20, file 84),
+`lodonya` (chapter 2's black knight, 2/25, file 76), `shalya` (2/4, file
+80), `fannah` (3/1, file 80 object 1), `jeanne` (4/1, file 80 object 2),
+and `phillipkadum` ("Phillip (Kadum)": Phillip as 5/19's scene draws him
+when the Guardian gives him Kadum, file 80 object 0: Phillip's parts but
+his hips, with Kadum on his back, and the sword in his hand; Phillip's
+portrait and name). Until 2026-11-24 it was called the Guardian, a speaker
+of that scene; the Guardian is another, armoured figure (object 1, not on
+the heroes' joints), and `felippeshield` (Felippe as 4/1's scene draws him,
+file 80 object 4) is gone: the hero Felippe's look but for the sword (the
+player: "Felippe and Felippe shield are the same model"). The bodies' cache files
+are named by option value (`body_<value>.bin`) since, so a change of the
+list never reads another body's file. Checked: `test_heroswap.py
+phillipkadum --ref` (`heroswap.py build 0 1 1 7 --prune --body
+phillipkadum`) 21/21, the Status screen "Phillip"; its first run, which
+read disc 1 again for the renamed cache files, missed only the frame-rate
+check (214 frames in 8 s); Jeanne with Anita's moves 21/21 again. All play the prologue Clovis's part
+for the game (`g_Hero.index` 0, `game_hero`); their names come from their
+scenes' speaker lines (`kNameGlyphs`). Fannah's part 2 is a thing on her
+back, not a weapon: with the hero's own weapon she holds Kodel's cutlass
+(`kBodies[].weapon`).
+
+- The kit source of every body is now the prologue's Clovis (0/1,
+  `kKitSource`), who holds no shield: the chapter-1 Clovis's animations
+  hold a shield up on the left arm, and a body without one lifted an empty
+  hand. The bodies' walker on the world maps stays Clovis's (area 1).
+- Their textures are not all one TIM in the heroes' sheet layout, so
+  `kit_build_dressed` bakes the hero page (decomp `bake_page`): the body's
+  texture file (the file before its own) is uploaded TIM by TIM into a
+  scratch VRAM (`vram_load`), and the page is cut from it: the image, the
+  body's page from its top row to its prims' last texel row, at (384, 0);
+  the CLUTs its prims use, in ascending order, four to a row, in the page's
+  last rows (29 to 55 CLUTs, 8 to 14 rows); every prim's CLUT id remapped.
+  The Dragon Valor and the grown Clovis go the same way, so their pages
+  changed too. The bodies' cached kits are version 2 (`DV_KIT_VER`), the
+  heroes' stay 1: a disc-2 hero's kit, built only while disc 2 runs, is
+  kept; the bodies' old kits are rebuilt on the next start.
+- **Checked** on build-debug, each against the decomp tool's `heroswap.py
+  build 0 1 1 7 --prune --body NAME` (Fannah's with `--weapon 3 1 80 0`):
+  pack head, hero page image, CLUTs and portrait in VRAM byte for byte,
+  `g_Hero.index` 0, the Status screen, 12 s of play, 1/9 rebuilt:
+  all ten 20/20 (dragonvalor, oldclovis, skeleton, raimun, lodonya, shalya, fannah, jeanne, felippeshield, guardian), the in-game shots showing each body with its own texture and its portrait on the Status screen (the skeleton's the prologue Clovis's). Not checked: long play, a boss, their scenes.
+
+**Other moves for the bodies, and their name on the Status screen
+(2026-11-24, the player: "with Raimun the menu says Clovis", "the women
+could use the female characters' bodies", "could the Hero menu choose the
+body / moveset?").** Option `moves` (the menu's Hero > Moves row, applied
+with Play as and Weapon): the kit the ten bodies wear, `own` (the prologue
+Clovis's) or one of the nine heroes' (`clovis` .. `anita`); the nine heroes
+keep their own, so the row is locked while Play as names one of them or
+each stage's own (the player: "it does nothing"; `moves_matter` in
+dragonvalor_menu.cpp, a pick left there is dropped on Apply). Every hero's 14 nodes are in the same order (decomp
+`docs/targets/hero-swap.md`, *Another hero's moves*), so a body's part order
+holds for any kit, and the kit brings its script, moves, animations and VAB:
+Shalya, Fannah or Jeanne with Anna's or Anita's moves move and sound like
+them. The bodies' kits are no longer built from 0/1's files at the scan:
+
+- the scan bakes each body once (`body_bake`: the page from its texture
+  file, its prims pointed there), cached as `body<b>.bin`, and keeps the
+  prologue Clovis's kit (`prologue.kit`; the old `hero9..18.kit` are left
+  unread);
+- `kit_dress` dresses any kit with a baked body: the kit's ops without
+  their weld lists, the entries they still name renumbered in order, the
+  body's parts in the hero nodes' entries, its page and portrait (the same
+  bytes as `kit_build` over the dressed files, as the decomp tool makes
+  them); since 2026-11-24 also the body's own weld lists (`kit_add_welds`;
+  the player's screenshot showed a gap at the grown Clovis's waist: without
+  the hero's lists a body had none and its seams opened as a part turned).
+  A list names its parts by their place in its op and an offset in their
+  prims (decomp `PackListRelocate`), and a body's parts keep their prims'
+  layout, so `body_take` keeps the body pack's ops 31 whose parts are all
+  its object's (each part as the hero node that takes it), cached in
+  `body_<value>.bin` (version 5), and the kit gets them as ops 31 right
+  after op 3, their entries at the end (hero tail), as the decomp's
+  `body_welds` / `dress`. Six bodies have lists (the grown Clovis three,
+  Lodonya and Shalya one, Fannah, Jeanne and Phillip (Kadum) two); the
+  Dragon Valor, the skeleton and Raimun have none in their packs. The
+  program is walked again after them (a first build left the voice's op 52
+  lookup on the old positions: no kit for the voiced bodies with lists);
+- `body_kits_refresh`, at every stage load, dresses the ten again when the
+  option or the bodies read change; a disc-2 hero's moves need disc 2
+  started once (until then the prologue Clovis's).
+
+A body holds its moves' hero's `g_Hero.index` (stats, spells, the save; the
+world map's walker stays Clovis's), and the save-state check tells a body
+by its chest whatever the index. The Status screen draws
+`g_HeroNames[g_Hero.index]`, so it said "Clovis" (or the moves' hero's
+name): `status_name_sync`, from the VBlank callback, lays out ACTION.BIN's
+`g_HeroNameText` (0x800BBF04, 0x80 bytes) again while a body's stage is
+played, the body's name first under its index, the other names after it
+(one that no longer fits made empty: only the played index is read), and
+puts the game's layout back with any other hero; it writes only over a
+table that is one (the nine pointers inside the block, each name ended in
+it), since other modules have other data there. The skeleton has no name
+and keeps its moves' hero's. The dialogues' renames now take every name
+from `kNameGlyphs` (the nine heroes' rows checked against ACTION.BIN), since
+the table in RAM can hold a body's.
+
+- **Checked** on build-debug with `tests/test_heroswap.py NAME --ref FOLDER
+  [--moves HERO2]` (the reference: `heroswap.py build <HERO2's kit stage>
+  1 7 --prune --body NAME`; the test now also reads the Status screen's
+  name from RAM): 21/21 each for the Dragon Valor, the skeleton (named Clovis), Lodonya and Fannah with the prologue Clovis's moves, Shalya and Fannah with Anna's, Jeanne with Anita's, Raimun with Arlen's, and Kodel (the game's table back); the Status screen shows each body's name ("Dragon Valor" runs a little past the name plate).
+
+**The bodies' sword trails and voices (2026-11-24, the player: "each model
+has its own colour effect on the sword", "and the voices").**
+
+- *Trails.* The light ribbon of a swing is started by the hero's behaviour
+  script (the entry op 3 names at +8) with native 6, `TrailStartTwoNodes`:
+  an 8-word instruction whose words 3 / 4 and 6 / 7 are the two edge colours
+  (0xBBGGRR) and the steps they fade by over 7 segments. Every hero's script
+  has its own pair (decomp `docs/targets/hero-swap.md`, *Sword trails*), so a
+  body swung with its kit's. `retrail` gives the calls with the script's
+  most common pair (the swing; special moves keep theirs) the body's
+  `kBodies[].trail`: Raimun gold -> white, the grown Clovis blue -> green,
+  the skeleton white (their own scripts' colours), Phillip (Kadum) Kadum's
+  red -> white (Mihael's), the Dragon Valor flame orange, Lodonya crimson ->
+  violet, Shalya cyan, Fannah violet -> gold, Jeanne crystal pink; fades a
+  ninth of each channel (a whole-word subtraction: a channel must hold 7).
+- *Voices.* Every hero's bank (VAB_CODE: an SE table, then a whole VAB)
+  keeps its voice in SE 32..44 (program 2, SPU voice 23), played by role:
+  attack 32..41 (each starts an attack's hitbox), hurt 42 (the hit
+  reaction, anims 101..108), jump 43 (with a vertical velocity), death 44
+  (anims 119 / 120, at 0 hp). The enemies' banks keep theirs in program 1
+  (SE 16..20, SPU voice 20). `kBodies[].voice` names the body's SE for each
+  role, read the same way from its own script (its hit reaction plays one SE
+  above 0 hp, another at 0; its attack cry comes with the weapon's swing;
+  enemies do not jump, so a second, short attack cry): Raimun and the grown
+  Clovis attack 16, hurt 18, jump 17, death 19; Lodonya attack 17, hurt 18,
+  jump 17, death 19. The first picks read the roles from field names near
+  the calls (the object's +0x8, named `deathTimer`, is set by attacks too):
+  the player heard death cries on attacks, a strange jump and a hurt that
+  sounded like a hit, and the roles were read again from the code; the
+  player then confirmed hurt (42) and death (44) by ear. The attacks that
+  cry play the body's one cry, as the enemy does: two cries in turn, each
+  attack at its own pitch (-2..+2 semitones), were tried, and the player
+  preferred the one cry (and then fewer cries, below). A fifth role,
+  `strong`, is SE 37: every hero's strong attack (power 8 under the screen
+  blur, in all nine kits). The grown Clovis's script has a cry for his own
+  strong attack (17, power 8, the blur), so his 37 plays it; the others' 37
+  first took their attack cry, now none. His SE 20, a long, quiet breath, is his tiredness after
+  his special: the special sets a counter, and until it runs out he stands
+  in anim 54 with SE 20 and does not guard. His special is the Clovis kits'
+  strong attack (hold attack, press jump, 5 HP: anims 78, 135, 79, 136 are
+  his 27, 55, 28, 56 byte for byte), and its tired end is his own; at the
+  player's word (the tired voice, faithful: he stands there) `special_patch`
+  gives Old Clovis on a Clovis kit that end: the first jump after the strong
+  attack's `anim self, 136` goes to a block appended to the script
+  (`kSpecialBlock`, 64 words: the decomp's SPECIAL_TEXT assembled by
+  objscript.py) with 30 frames of his anim 54 looping, SE 45 once (a voice
+  SE no hero script plays; revoice gives it his SE 20, role 7, only with
+  the block in), his 57, then the old jump's target (L01E5); his two
+  animations go right after the kit's core, in slots 195 / 196 (cached in
+  `body_oldclovis.bin`, version 4: a first try took four, his lunge and end
+  too, and played the lunge twice: the hero's 135 is it). Checked: the
+  script in RAM is the reference's (`test_heroswap.py` compares the hero
+  script now) and, played in 1/7 (hold Square, press Cross), 78, 135, 79,
+  136, 195 for about a second, 196, then the stance and the idle. SE 45's
+  tone is the 14th slot of program 2, which holds 13 (volume 0, note range
+  0..0): at first the breath did not sound (the player saw no change), so
+  revoice fills an empty hero tone with the body tone's whole attributes
+  and counts it (program tones 13 -> 14, VAB ts 49 -> 50; the decomp's
+  vab.revoice does the same). `spu_events` (polled during the special,
+  `special_play` in the session notes) show the breath's VAG keyed on
+  voice 23 as the tired pose starts and playing to its end. His guard (anim 32, SE 4 and a burst, at random when
+  hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
+  effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
+  0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
+  and death are silent (`DV_VOICE_MUTE`: the tones point to one silent VAG)
+  and its hurt first stayed the kit's; the player heard Clovis there, so it
+  is silent too (the attacker's own hit SE still sounds, from the enemy's
+  bank). The jump back: the grown Clovis jumps back with the heroes' motion
+  (anims 127 / 128) and his SE 5 (the player missed "his jump sound"), so
+  38 takes it (`kRole` 6; first only on the Clovis kits, where 38 played
+  nothing else). *Fewer cries* (2026-11-24, the player: "the triple combo:
+  keep the voice at its end, the other attacks none; keep the jump, the
+  hurt, the death", then "the charged attack too" and, for the grown Clovis,
+  "his special and his tiredness too"): all ten kits have the same moves in
+  the same animations (the standing combo 46, 48, 50, where only 50 cries;
+  the charged attack 76; the strong attack 78; the jumps back 127 / 128),
+  each crying with its own SE (the combo's end is 40 in 4/1, 32 in the
+  others, where 32 also cries in other attacks). `quiet_cries` walks the
+  kit's script of a body with a voice and points every attack cry
+  (`sound.play` / `sound.stop` slot 1, SE 32..41) to one SE per kept move
+  after that move's `anim self` (`kCryOf`: 32 the combo's end, 36 the
+  charged attack, 37 the strong attack, 38 the jumps back) and every other
+  one to SE 41; revoice gives 32 and 36 the attack cry, silences 33..35 and
+  39..41 (`kRole` 8), and leaves 37 and 38 silent for a body without its
+  own (Raimun, Lodonya: my proposal, the player was unsure about the jumps
+  back). The decomp's heroswap.py `quiet` does the same. The Moves
+  choices read Clovis (Young), Clovis, Arlen... (the player: "the
+  prologue's Clovis could be Clovis (Young)"). Moves from the menu on a
+  body, mid-stage, is checked by `test_heroswap.py oldclovis --menu-moves
+  kodel --ref-after FOLDER` (28/28; the player saw no change, the kit was
+  Kodel's byte for byte). The others have no voice of their own and keep the kit's. `revoice` (a port of the decomp's
+  `tools/vab.py revoice`) transplants them into both copies of the kit's
+  bank (file 0's whole one, the pack's header-only one): each body VAG
+  appended once, the hero tones repointed with the body tone's centre, shift
+  and ADSR (the pitch and envelope the body's had), hero VAGs no tone uses
+  any more made one silent block, sizes, VAG count and `fsize` updated. The
+  body's bank (the whole VAB_CODE of its pair file) is kept by `body_bake`
+  and cached in `body_<value>.bin` (version 2). `tools/vab.py export` in the
+  decomp writes every bank's SEs as WAV files to listen to.
+- **Checked** on build-debug with `tests/test_heroswap.py NAME --ref`, which
+  now also reads every native-6 instruction of the pack in RAM, the bank
+  header in the pack and the bank body in SPU RAM (`spu_ram` at
+  `g_SoundSpuAddr[1]`) against the reference: 24/24 each for Raimun, the grown Clovis and Lodonya (their voices: the bank body in SPU RAM byte for byte the reference's, 95520 / 118640 / 85776 bytes), Jeanne, Phillip (Kadum), Fannah, Shalya with Anna's moves and Kodel (the kits' own banks), every trail colour the reference's; the bank header in the pack is compared but for each ProgAtr's reserved bytes (+8..+15), where libsnd keeps words of its own.
+  Again after the single cry, the strong cry and the silent skeleton
+  (references rebuilt with `--prune`, as the plugin's packs are): 24/24
+  each for the grown Clovis, the skeleton, Raimun and Lodonya (SPU bodies
+  96928 / 66768 / 95520 / 83296 bytes).
+
+**Other looks (2026-11-24, the player: "Mihael has two versions, green and
+red").** Two heroes wear another look in another area, model, moves, voice,
+portrait and weapon of that area's kit: Mihael in area 10 (green and gold,
+the dark sword; area 8's, his kit, is red with the crystal one) and Gerome
+in 12/1..12/6 (a white lock, a brown vest, the turquoise sword; from 12/9
+the hero is Anita, as 9/1's). They are Play as choices `mihael10` ("Mihael
+(area 10)", kit from 10/1) and `gerome12` ("Gerome (area 12)", from 12/4:
+12/1 carries no hero texture), after the nine heroes in the menu and at
+the end of the plugin's list (`LOOK_FIRST`, `kLookOf`), and play their
+hero's part (`g_Hero.index` 7 / 5; Moves locked). Anna's two areas (7, 11)
+show the same look. Their kits and walkers are cached by value
+(`hero_mihael10.kit`, `.map`): `hero18.*` may be an older build's body.
+The whole of area 10 is Mihael's green look (`kLookArea`), so there the
+green one is the stage's own (`area_look`: no rebuild) and the red Mihael
+the swap; before, a Mihael picked in area 10 stayed green. Area 12 mixes
+Gerome's look and Anita and its game index turns Anita's mid-area, so the
+stage's own there stays Anita's index, and a save is told to be the look
+(`look_in_ram`: the first part whose vertices differ from the hero's kit,
+byte for byte in RAM) there only when the look is the choice.
+
+- **Checked** on build-debug: `test_heroswap.py mihael10 / gerome12 --ref
+  build/heroswap/10-1_to_1-7 / 12-4_to_1-7 --prime-disc2` 25/25 each (pack,
+  file 0 in VRAM, portrait, SPU body, trails, Status name, g_Hero.index 7 /
+  5, 1/9 rebuilt too); `test_heroswap.py clovis --menu
+  gerome12,raimun,mihael10,stage` picks each from the menu (the new order)
+  with the right index. Not seen: the Moves row locked on screen (the debug
+  window has no size to capture), a stage of area 10 or 12 played with a
+  look, the red Mihael in area 10.
 
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild

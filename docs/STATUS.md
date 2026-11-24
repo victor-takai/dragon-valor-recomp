@@ -259,6 +259,57 @@ the native 60 Hz version.
   `tools/heroswap.py`. Open: long play, 9/10's scene not watched, a scene
   pack installed right after a save-state load not watched
   (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
+  **Weapons of other characters** (2026-11-23, the player's request:
+  "Raimun's sword"): a scan of every object of both discs with the heroes'
+  body (decomp `heroswap.py weapons`) found five more weapons; four are
+  were offered: Raimun's sword (chapter 1's boss, 1/20), Jeanne's crystal
+  sword, Mihael's broadsword (Anna's chapter, disc 2; out again: in play it
+  looks like Azos, the player) and Kodel's cutlass (3/1's opening scene);
+  the grown Clovis's long sword (3/17) draws from his whole
+  texture sheet and fits no hero. Raimun's needs more CLUTs than a hero has
+  free: the hero's CLUT block grows up into the page's unused rows. Each
+  matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
+  raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
+  **Trails and voices** (2026-11-24, the player's request): each body
+  swings with its own sword-trail colours, and Raimun, the grown Clovis and
+  Lodonya shout with their own voices (attack, hurt, jump and death cries,
+  their roles read from the scripts after the player's first listen); both
+  match the decomp tool byte for byte. At the player's word they cry only
+  on the standing combo's third hit and the charged attack (the other
+  attacks are silent), the grown Clovis also on his strong attack and his
+  jumps back, and the jump, hurt and death cries stay.
+  **Other looks** (2026-11-24, the player's request): Mihael's green look
+  of area 10 and Gerome's look of area 12 are Play as choices of their own,
+  each with that area's kit (moves, weapon, portrait); a red Mihael picked
+  in area 10 is now swapped in too (by the code; area 10 not played yet).
+  Each matches the decomp tool byte for byte.
+  **Moves** (2026-11-24, the player's request): the bodies can wear any
+  hero's moves and voice (Hero > Moves; Anna's or Anita's for Shalya,
+  Fannah and Jeanne; the row is locked while a hero is picked), and the
+  Status screen names the body played instead of Clovis. Each matches the
+  decomp tool byte for byte. The grown Clovis's strong attack takes his own
+  strong-attack cry, his own sound on the jump back and, after his special
+  (the strong attack: the same animations), his tired end with his breath;
+  the skeleton, which has no voice, is silent.
+  **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
+  Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
+  scene; first misnamed the Guardian; a Felippe with shield left, the
+  hero's own look) are Play as choices too, all on the prologue Clovis's kit (no
+  shield: the chapter-1 Clovis's moves held a raised empty hand), the hero
+  page baked from each body's texture file; each matches the decomp tool
+  byte for byte (`test_heroswap.py NAME --ref`).
+  **Old Clovis** (2026-11-23, the player's request): the grown Clovis of
+  chapter 3 (3/17) is the 11th choice, his body and long sword on Clovis's
+  kit (`test_heroswap.py oldclovis --ref` 20/20). The plugin's cache now
+  lives beside the executable: started from a link, the game ran in another
+  folder and lost the disc-2 weapons (the player saw them all as Clovis's).
+  **The Dragon Valor** (2026-11-23, the player's request): the dragon slayer
+  of the prologue's opening scene (0/1) is a 10th Play as choice: his body
+  (a scene object with a hero's 14 parts, found by the decomp), texture and
+  portrait on Clovis's kit, so Clovis's moves; the dialogues and epilogues
+  say Dragon Valor, the Status screen and the save Clovis (no hero of the
+  game). `tests/test_heroswap.py dragonvalor --ref ...` 20/20 (the decomp
+  tool's `--body dragonvalor` bytes), and 3/1's opening scene with him.
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own
   return only works in netplay builds and closed the game; upstream
@@ -325,11 +376,10 @@ the native 60 Hz version.
 
 1. Human play session: the player finished chapter 1 and played into
    chapter 2 (Kodel, 2026-10-16); still open are Load Game after a restart, reaching disc 2
-   in-game, and whether the Xbox pad actually rumbles with Vibration ON. Also watch
-   what the title does after a Start during the intro movie: in scripted
-   runs it sometimes goes to the menu and sometimes plays the story demo
-   first (see `DEVELOPMENT.md`, *skip-intro*); the same race may show up
-   with a real press.
+   in-game, and whether the Xbox pad actually rumbles with Vibration ON. (The
+   "story demo race" after the intro skip noted here until 2026-11-24 was
+   the attract demo, which starts after 25 s idle on the menu: the decomp
+   shows mode 5 is the demo, not the menu.)
 2. Known from the PAL bring-up and not re-checked here: dissolve brightness at
    high internal scale (see [`HISTORY.md`](HISTORY.md)).
 3. Play as (hero and weapon, done 2026-11-17/18, above) is still open on
@@ -373,8 +423,12 @@ into `saves/openbios/` by `python tools/dvdbg.py launch --state N`. RAM addresse
 magic levels (verified cheat map) and the save-state workflow are in [`DEVELOPMENT.md`](DEVELOPMENT.md#save-states).
 
 Mods: the project ships `dragonvalor.cheats` 1.4.0 (Infinite HP, Infinite MP,
-gem / scroll every N kills, added 2026-10-15; Unlock gallery, 2026-11-21) and `dragonvalor.skip-intro` (the intro movie is skipped by the game's
-own Start path through a function-entry hook on the pad copy) as bundled
+gem / scroll every N kills, added 2026-10-15; Unlock gallery, 2026-11-21) and `dragonvalor.skip-intro` (power-on straight to the title menu since
+2026-11-24: the Namco logo keeps only the title-data read it covers, the
+movie and the title's logo flight get the game's own Start skip, all from
+a function-entry hook on the pad copy; the menu in 3.8 s instead of 9.8 s;
+Fast boot then runs the black boot faster than real time through a mod API
+of `patches/psxrecomp/0005`: menu ~3.4 s sooner from the process start) as bundled
 packages backed by plugins in `mods/plugins/`, verified on and off
 (2026-10-14). The cheats feature is on by default with every option off, so
 the **in-game menu** (Escape / Select+Start; `mods/plugins/dragonvalor_menu.cpp`

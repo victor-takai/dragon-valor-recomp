@@ -1,12 +1,14 @@
 # Dragon Valor (USA) "Skip intro". The plugin (mods/plugins/dragonvalor_skip_intro.c)
-# presses Start for the player as soon as the intro movie starts, the skip the
-# game itself offers; nothing is patched on disc. Off by default.
+# takes power-on straight to the title menu: the Namco logo keeps only the
+# title data read it covers, the intro movie gets the game's own Start skip,
+# the title's logo flight the game's own Start skip to the menu. Nothing is
+# patched on disc. Off by default.
 format_version = 7
 id = "dragonvalor.skip-intro"
 version = "1.0.0"
 name = "Dragon Valor Skip Intro"
 author = "Dragon Valor Recomp"
-description = "Skips the intro movie at boot with the game's own Start skip. Off by default."
+description = "Power-on straight to the title menu: no Namco logo, no intro movie, no title animation, the black boot sped up. Off by default."
 license = "MIT"
 resolver = "declarative"
 save_compatibility = "shared"
@@ -16,8 +18,8 @@ game_id = "SLUS-01092"
 
 [[feature]]
 id = "skip-intro"
-name = "Skip intro movie"
-description = "Straight to the title screen. The intro movie is skipped the moment it starts, so power-on reaches the title with no button press. The Namco logo stays: the title screen loads its data behind it."
+name = "Skip intro"
+description = "Power-on reaches the title menu in a few seconds with no button press: the Namco logo is not shown (the title data it covers is still read), the intro movie and the title's logo animation are skipped the way Start skips them. The menu then waits for you."
 group = "Game"
 default_enabled = false
 
@@ -26,6 +28,30 @@ feature = "skip-intro"
 id = "movie"
 label = "Skip intro movie"
 description = "Presses Start for you as soon as the movie starts, the same skip the game offers. Off, the movie plays until you press Start."
+type = "boolean"
+default = "true"
+
+[[option]]
+feature = "skip-intro"
+id = "logo"
+label = "Skip Namco logo"
+description = "The Namco logo is not shown: its fade-in, hold and fade-out (about 4.5 s) are left out; the title data it covers is still read. Off, the logo shows as on the console."
+type = "boolean"
+default = "true"
+
+[[option]]
+feature = "skip-intro"
+id = "title"
+label = "Skip title animation"
+description = "Presses Start during the title's logo flight, the game's own skip: the menu shows at once with its music. Off, the logo flies in first (about 1.5 s)."
+type = "boolean"
+default = "true"
+
+[[option]]
+feature = "skip-intro"
+id = "boot"
+label = "Fast boot"
+description = "The black part of the boot (the memory card check, the title's loading) runs as fast as your PC allows instead of in real time: the game does exactly the same, the menu shows a few seconds sooner. Off, it runs at the console's pace."
 type = "boolean"
 default = "true"
 

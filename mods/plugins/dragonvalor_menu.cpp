@@ -84,18 +84,38 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_HERO_APPLY  "dv.heroswap.apply"
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
 const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
-                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
+                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Mihael (area 10)",
+                                      "Gerome (area 12)", "Dragon Valor",
+                                      "Old Clovis", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne",
+                                      "Phillip (Kadum)"};
 const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
-                                     "phillip", "gerome", "anna", "mihael", "anita"};
+                                     "phillip", "gerome", "anna", "mihael", "anita", "mihael10", "gerome12",
+                                     "dragonvalor",
+                                     "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne",
+                                     "phillipkadum"};
+#define DV_PLAY_AS_CHOICES 21
+/* 10, 11: a hero's other look (Mihael's green of area 10, Gerome's of 12/1..6),
+ * with that area's kit: its hero's index, Moves locked */
+#define DV_PLAY_AS_DRAGONVALOR 12   /* the prologue's dragon slayer: plays Clovis's part (g_Hero.index 0) */
+#define DV_PLAY_AS_OLDCLOVIS 13     /* the grown Clovis of chapter 3; the bodies after it hold index 0 too */
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
 /* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own, then the
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
 const char* const kWeaponChoices[] = {"The hero's own", "Azos", "Soul", "Kadum", "Igunis", "Felippe's first sword",
                                       "Mihael's dark sword", "Anna's red weapon", "Anita's purple sword",
-                                      "Anita's turquoise sword"};
+                                      "Anita's turquoise sword", "Raimun's sword", "Jeanne's crystal sword",
+                                      "Kodel's cutlass"};
 const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple",
-                                     "turquoise"};
-#define DV_WEAPON_CHOICES 10
+                                     "turquoise", "raimun", "jeanne", "cutlass"};
+#define DV_WEAPON_CHOICES 13
+#define DV_KEY_MOVES       "dv.heroswap.moves"
+/* dragonvalor.heroswap's `moves` option: whose kit (moves, voice) the
+ * characters from the Dragon Valor on wear; index 0 = the prologue Clovis's. */
+const char* const kMovesChoices[] = {"Clovis (Young)", "Clovis", "Arlen", "Kodel", "Felippe",
+                                     "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
+const char* const kMovesValues[] = {"own", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna",
+                                    "mihael", "anita"};
+#define DV_MOVES_CHOICES 10
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
@@ -162,14 +182,22 @@ const RecompRuntimeUiItem kItems[] = {
 
     {DV_KEY_PLAY_AS, "Hero", "Play as",
      "The hero of every action stage: model, moves, voice, portrait and name, story scenes included. "
+     "Mihael (area 10) and Gerome (area 12) are their other look, with that area's moves and weapon. "
+     "The Dragon Valor and the characters after him wear the moves set in Moves. "
      "Pick one with Left / Right, then confirm it.",
-     RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
+     RECOMP_RUNTIME_UI_CHOICE, 0, DV_PLAY_AS_CHOICES - 1, 1, kPlayAsChoices, DV_PLAY_AS_CHOICES, nullptr},
     {DV_KEY_WEAPON, "Hero", "Weapon",
      "The sword the hero holds (its look: damage and moves stay the hero's). Kadum, Igunis and the last "
      "four are read from disc 2 once it has been started. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
+    {DV_KEY_MOVES, "Hero", "Moves",
+     "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), "
+     "the prologue's, or a hero's. Anna and Anita suit Shalya, Fannah and Jeanne; they and Mihael "
+     "are read from disc 2 once it has been started. Locked while Play as names one of the nine heroes (or each "
+     "stage's own): they keep their own. Pick one, then confirm it.",
+     RECOMP_RUNTIME_UI_CHOICE, 0, DV_MOVES_CHOICES - 1, 1, kMovesChoices, DV_MOVES_CHOICES, nullptr},
     DV_ROW_ACTION(DV_KEY_HERO_APPLY, "Hero", "Apply",
-                  "Use the hero and weapon above. In an action stage the stage restarts from its beginning: "
+                  "Use the hero, weapon and moves above. In an action stage the stage restarts from its beginning: "
                   "HP, items and Val stay, its doors and keys reset."),
 
     DV_ROW_BOOL(DV_KEY_CHEAT_HP, "Cheats", "Infinite HP", "HP never drops."),
@@ -242,8 +270,9 @@ const RecompRuntimeUiItem kItems[] = {
     DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_VOLUME, "Options", "Volume", "The game's volume.", 0, 100, 5),
     DV_ROW_BOOL(RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU, "Options", "Pause in menu",
                 "Hold the game while this menu is open."),
-    DV_ROW_BOOL(DV_KEY_SKIP_INTRO, "Options", "Skip intro movie",
-                "Press Start for you when the intro movie starts. From the next start of the game."),
+    DV_ROW_BOOL(DV_KEY_SKIP_INTRO, "Options", "Skip intro",
+                "Power-on straight to the title menu: no Namco logo, intro movie or title animation. "
+                "From the next start of the game."),
     DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_MENU_DIM, "Options", "Game dimming",
                "How dark the game gets behind this menu.", 0, 100, 10),
     DV_ROW_INT(RECOMP_RUNTIME_UI_KEY_MENU_OPACITY, "Options", "Menu opacity",
@@ -272,7 +301,8 @@ struct Menu {
     int gem_every = 0, scroll_every = 0;   /* integer options of the same feature */
     int play_as = 0;                       /* index in kPlayAsValues: the applied choice */
     int weapon = 0;                        /* index in kWeaponValues: the applied choice */
-    int play_as_pend = 0, weapon_pend = 0; /* what the Hero rows show; applied from the dialog */
+    int moves = 0;                         /* index in kMovesValues: the applied choice */
+    int play_as_pend = 0, weapon_pend = 0, moves_pend = 0; /* what the Hero rows show; applied from the dialog */
     /* the dialog over the menu, and what its action button does */
     DvMenuDialog dialog;
     int dialog_kind = 0;                   /* DV_DIALOG_* */
@@ -675,6 +705,7 @@ int cb_get_value(void* ctx, const RecompRuntimeUiItem* item, int* out) {
     if (is(item, DV_KEY_SKIP_INTRO)) { *out = m.skip_intro; return 1; }
     if (is(item, DV_KEY_PLAY_AS)) { *out = m.play_as_pend; return 1; }
     if (is(item, DV_KEY_WEAPON)) { *out = m.weapon_pend; return 1; }
+    if (is(item, DV_KEY_MOVES)) { *out = m.moves_pend; return 1; }
     if (const RamRow* r = ram_row(item)) {
         const int v = hero_loaded() ? ram_read(*r) : 0;
         *out = v > item->maximum ? item->maximum : v < item->minimum ? item->minimum : v;
@@ -731,7 +762,13 @@ void open_dialog(Menu& m, int kind, const RecompRuntimeUiItem* item, const char*
 bool in_action_stage() { return hero_loaded() && psx_mod_read_byte(DV_MODE) == 8; }
 
 /* ---- Hero: Play as and Weapon, picked in the rows, applied together -------- */
-bool hero_pending(const Menu& m) { return m.play_as_pend != m.play_as || m.weapon_pend != m.weapon; }
+/* Moves applies only to the characters from the Dragon Valor on:
+ * the nine heroes keep their own kits, so the row is locked for them. */
+bool moves_matter(const Menu& m) { return m.play_as_pend >= DV_PLAY_AS_DRAGONVALOR; }
+
+bool hero_pending(const Menu& m) {
+    return m.play_as_pend != m.play_as || m.weapon_pend != m.weapon || (moves_matter(m) && m.moves_pend != m.moves);
+}
 
 /* dragonvalor.heroswap is in the running plan (on by default since
  * 2026-11-18; a player can still switch it off in the launcher). */
@@ -755,6 +792,8 @@ void open_hero_dialog(Menu& m, bool closing) {
     hero_choice_text(m.play_as_pend, m.weapon_pend, choice, sizeof choice);
     if (m.play_as_pend != m.play_as)
         std::snprintf(title, sizeof title, m.play_as_pend ? "Play as %s?" : "Back to %s?", choice);
+    else if (moves_matter(m) && m.moves_pend != m.moves && m.weapon_pend == m.weapon)
+        std::snprintf(title, sizeof title, "The Dragon Valor and the others move as %s?", kMovesChoices[m.moves_pend]);
     else if (m.weapon_pend)
         std::snprintf(title, sizeof title, "Hold %s?", kWeaponChoices[m.weapon_pend]);
     else
@@ -778,12 +817,15 @@ void open_hero_dialog(Menu& m, bool closing) {
  * being played restarts with them once the menu closes (dv_hs_vblank in
  * dragonvalor_heroswap.c waits for plain play); the menu then closes. */
 void apply_hero(Menu& m) {
+    if (!moves_matter(m)) m.moves_pend = m.moves;   /* a hero picked: Moves (locked) is left as it was */
     const bool hero_changed = m.play_as_pend != m.play_as, weapon_changed = m.weapon_pend != m.weapon;
     bool live = true;
     if (hero_changed) live = m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[m.play_as_pend]) && live;
     if (weapon_changed) live = m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "weapon", kWeaponValues[m.weapon_pend]) && live;
+    if (m.moves_pend != m.moves) live = m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "moves", kMovesValues[m.moves_pend]) && live;
     m.play_as = m.play_as_pend;
     m.weapon = m.weapon_pend;
+    m.moves = m.moves_pend;
     char title[128];
     if (m.play_as && m.weapon)
         std::snprintf(title, sizeof title, "%s, holding %s", kPlayAsChoices[m.play_as], kWeaponChoices[m.weapon]);
@@ -793,6 +835,10 @@ void apply_hero(Menu& m) {
         std::snprintf(title, sizeof title, "Every hero holds %s", kWeaponChoices[m.weapon]);
     else
         std::snprintf(title, sizeof title, "Each stage's own hero and weapon");
+    if (m.play_as >= DV_PLAY_AS_DRAGONVALOR && m.moves) {
+        const size_t len = std::strlen(title);
+        std::snprintf(title + len, sizeof title - len, ", moving as %s", kMovesChoices[m.moves]);
+    }
     if (!live) {
         /* not in the running plan: switch the feature on for the next start */
         (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, nullptr, "true");
@@ -840,12 +886,13 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
     if (is(item, DV_KEY_GEM_EVERY)) { m.gem_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "gem_every", text); return 1; }
     if (is(item, DV_KEY_SCROLL_EVERY)) { m.scroll_every = value; std::snprintf(text, sizeof text, "%d", value); set_mod(m, DV_CHEATS_PKG, DV_CHEATS_FEAT, "scroll_every", text); return 1; }
     if (is(item, DV_KEY_SKIP_INTRO)) { m.skip_intro = value ? 1 : 0; set_mod(m, DV_SKIP_PKG, DV_SKIP_FEAT, nullptr, value ? "true" : "false"); return 1; }
-    if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON)) {
+    if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON) || is(item, DV_KEY_MOVES)) {
         /* only picked here: Enter (or Apply, or closing the menu) asks in a
          * dialog and apply_hero() does it */
-        const bool w = is(item, DV_KEY_WEAPON);
-        if (value < 0 || value > (w ? DV_WEAPON_CHOICES - 1 : 9)) return 0;
-        (w ? m.weapon_pend : m.play_as_pend) = value;
+        const bool w = is(item, DV_KEY_WEAPON), mv = is(item, DV_KEY_MOVES);
+        if (value < 0 || value > (mv ? DV_MOVES_CHOICES - 1 : w ? DV_WEAPON_CHOICES - 1 : DV_PLAY_AS_CHOICES - 1))
+            return 0;
+        (mv ? m.moves_pend : w ? m.weapon_pend : m.play_as_pend) = value;
         std::snprintf(text, sizeof text, "Press %s to apply", accept_name(m));
         recomp_runtime_ui_set_status(m.ui, hero_pending(m) ? text : "");
         return 0;   /* 1 would let recomp-ui show "Saved" */
@@ -1150,6 +1197,7 @@ int cb_is_enabled(void* ctx, const RecompRuntimeUiItem* item) {
     if (is(item, DV_KEY_GO_NOW)) return warp_possible() && !m.host->netplay_active() ? 1 : 0;
     if (is(item, DV_KEY_SECRET_GO)) return trip_possible() && !m.host->netplay_active() ? 1 : 0;
     if (is(item, DV_KEY_HERO_APPLY)) return hero_pending(m) ? 1 : 0;
+    if (is(item, DV_KEY_MOVES)) return moves_matter(m) ? 1 : 0;
     return 1;
 }
 
@@ -1165,9 +1213,13 @@ void row_info(void* ctx, const RecompRuntimeUiItem* item, DvMenuRowInfo* out) {
         else if (m.host->disc_count() < n) std::snprintf(out->note, sizeof out->note, "not set up");
     } else if (is(item, RECOMP_RUNTIME_UI_KEY_RETURN_TO_LAUNCHER) || is(item, RECOMP_RUNTIME_UI_KEY_QUIT)) {
         out->danger = true;
-    } else if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON)) {
-        out->pending = is(item, DV_KEY_PLAY_AS) ? m.play_as_pend != m.play_as : m.weapon_pend != m.weapon;
+    } else if (is(item, DV_KEY_PLAY_AS) || is(item, DV_KEY_WEAPON) || is(item, DV_KEY_MOVES)) {
+        out->pending = is(item, DV_KEY_PLAY_AS) ? m.play_as_pend != m.play_as
+                       : is(item, DV_KEY_WEAPON) ? m.weapon_pend != m.weapon
+                                                 : moves_matter(m) && m.moves_pend != m.moves;
         if (out->pending) std::snprintf(out->note, sizeof out->note, "not applied");
+        else if (is(item, DV_KEY_MOVES) && !moves_matter(m))
+            std::snprintf(out->note, sizeof out->note, "the heroes keep theirs");
     } else if (is(item, DV_KEY_HERO_APPLY) && hero_pending(m)) {
         std::snprintf(out->note, sizeof out->note, in_action_stage() ? "restarts the stage" : "from the next stage");
     }
@@ -1205,6 +1257,7 @@ void set_open_locked(Menu& m, bool open) {
         /* the Hero rows start from what is applied; no dialog left over */
         m.play_as_pend = m.play_as;
         m.weapon_pend = m.weapon;
+        m.moves_pend = m.moves;
         m.dialog.open = false;
         m.states.open = false;
         m.saved_count = -1;
@@ -1258,7 +1311,7 @@ void dialog_confirm(Menu& m) {
  * keeps the current one). Draw thread, like the menu's other mod_set calls. */
 void adopt_save_choice(Menu& m) {
     if (dv_heroswap_adopt_hero[0])
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < DV_PLAY_AS_CHOICES; ++i)
             if (std::strcmp(kPlayAsValues[i], dv_heroswap_adopt_hero) == 0 && i != m.play_as) {
                 m.play_as = m.play_as_pend = i;
                 (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[i]);
@@ -1283,6 +1336,7 @@ void dialog_cancel(Menu& m, bool button) {
     if (kind == DV_DIALOG_HERO_CLOSE && button) {
         m.play_as_pend = m.play_as;
         m.weapon_pend = m.weapon;
+        m.moves_pend = m.moves;
         set_open_locked(m, false);
     }
     m.dialog_slot = -1;
@@ -1319,7 +1373,7 @@ void dispatch(Menu& m, int input, bool repeat) {
     }
     if (input == RECOMP_RUNTIME_UI_INPUT_ACCEPT && m.ui->in_section) {
         const RecompRuntimeUiItem* it = selected_item(m);
-        if (it && (is(it, DV_KEY_PLAY_AS) || is(it, DV_KEY_WEAPON))) {
+        if (it && (is(it, DV_KEY_PLAY_AS) || is(it, DV_KEY_WEAPON) || is(it, DV_KEY_MOVES))) {
             if (repeat) return;
             if (hero_pending(m)) open_hero_dialog(m, false);
             else recomp_runtime_ui_set_status(m.ui, "Change it with Left / Right");
@@ -1508,14 +1562,19 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
         char hero[32];
         m.play_as = 0;
         if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "hero", hero, sizeof hero))
-            for (int i = 1; i < 10; i++)
+            for (int i = 1; i < DV_PLAY_AS_CHOICES; i++)
                 if (std::strcmp(hero, kPlayAsValues[i]) == 0) m.play_as = i;
         m.weapon = 0;
         if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "weapon", hero, sizeof hero))
             for (int i = 1; i < DV_WEAPON_CHOICES; i++)
                 if (std::strcmp(hero, kWeaponValues[i]) == 0) m.weapon = i;
+        m.moves = 0;
+        if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "moves", hero, sizeof hero))
+            for (int i = 1; i < DV_MOVES_CHOICES; i++)
+                if (std::strcmp(hero, kMovesValues[i]) == 0) m.moves = i;
         m.play_as_pend = m.play_as;
         m.weapon_pend = m.weapon;
+        m.moves_pend = m.moves;
     }
     if (!m.imgui) {
         IMGUI_CHECKVERSION();
@@ -1844,7 +1903,9 @@ void p_draw(void* ctx, int width, int height) {
         const int idx = psx_mod_read_byte(0x80086318u);        /* g_Hero.index */
         hd.hero = idx >= 0 && idx < 9;
         if (hd.hero) {
-            std::snprintf(hd.name, sizeof hd.name, "%s", kPlayAsChoices[idx + 1]);
+            /* the bodies hold their moves' hero's index: their own name when one is played */
+            const bool body = m.play_as >= DV_PLAY_AS_DRAGONVALOR;
+            std::snprintf(hd.name, sizeof hd.name, "%s", kPlayAsChoices[body ? m.play_as : idx + 1]);
             hd.area = (int16_t)psx_mod_read_half(0x800A2F18u);
             hd.stage = (int16_t)psx_mod_read_half(0x800A2F1Au);
             hd.hp = psx_mod_read_half(0x8008A5AEu);

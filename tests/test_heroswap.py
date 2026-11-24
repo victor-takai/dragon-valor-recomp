@@ -5,10 +5,17 @@
                                      [--build build-debug] [--port N] [--play SECONDS] [--weapon HERO2]
 
 --state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
+--scene-shots N, with --leave into a stage that opens with a story scene
+(3/1), takes N screenshots of it (test_heroswap_scene_NN.png), pressing
+Cross between them: the portraits and the names in its dialogues.
 --menu-weapon W then picks weapon model W (or `hero`) on the menu's Hero >
 Weapon row and confirms it in the dialog: the stage must restart with it.
+--menu-moves M (own clovis arlen ... anita) then picks M on Hero > Moves (a
+body only) and confirms it: the stage must restart with the bodies in M's
+kit; --ref-after FOLDER (the reference of that kit) compares the pack in RAM.
 --weapon W sets the feature's `weapon` option: HERO holds weapon model W
-(azos soul kadum igunis felippe dark red purple turquoise; the reference
+(azos soul kadum igunis felippe dark red purple turquoise raimun jeanne
+cutlass; the reference
 then comes from `heroswap.py build ... --weapon A S` with W's source stage,
 e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen with Kadum).
 --menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Hero > Play as
@@ -16,7 +23,16 @@ row and confirms it in the dialog (Enter, then Enter on "Restart the
 stage"): the stage must restart with HERO2 as the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
 
+--moves HERO2 sets the `moves` option: the bodies wear HERO2's kit (its
+moves and voice; g_Hero.index HERO2's); the reference then dresses HERO2's
+kit stage, e.g. `heroswap.py build 7 1 1 7 --prune --body shalya` for
+Shalya with Anna's moves.
+
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
+a body (dragonvalor oldclovis skeleton raimun lodonya shalya fannah jeanne
+phillipkadum: another character in the prologue Clovis's kit, g_Hero.index
+stays Clovis's 0; reference `heroswap.py build 0 1 1 7 --prune --body NAME`,
+Fannah's with `--weapon 3 1 80 0`),
 or `default`: a state.toml that does not name the package, as on a fresh
 install, so the feature runs as its manifest ships it (on, each stage's own
 hero, the hero's own weapon). The stage must then load untouched (no
@@ -69,10 +85,56 @@ PACK = 0x800C5E98          # row 0 of ACTION: the action pack while a stage runs
 HERO_INDEX = 0x80086318    # g_Hero.index
 HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
-HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
+HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "mihael10",
+          "gerome12", "dragonvalor", "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne",
+          "phillipkadum"]   # the menu's Play as order (after "Each stage's own")
+LOOKS = {"mihael10": 7, "gerome12": 5}   # a hero's other look (its area's kit): that hero's g_Hero.index
+BODIES = HEROES[11:]      # characters on the prologue Clovis's kit (g_Hero.index 0)
+
+
+def hname(value):
+    """The plugin's name for a hero option value (its log lines, the menu)."""
+    return {"dragonvalor": "Dragon Valor", "oldclovis": "Old Clovis", "phillipkadum": "Phillip (Kadum)",
+            "mihael10": "Mihael (area 10)", "gerome12": "Gerome (area 12)"}.get(value, value.capitalize())
+
+
+MOVES = None              # --moves: the hero whose kit the bodies wear (None: the prologue Clovis's)
+MOVES_VALUES = ["own", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
+
+
+def trails(pack):
+    """(colour_a, fade_a, colour_b, fade_b) of every native-6 instruction
+    (TrailStartTwoNodes, 8 words) in a pack's bytes, sorted."""
+    n = len(pack) // 4
+    ws = struct.unpack(f"<{n}I", pack[:4 * n])
+    return sorted((ws[i + 3], ws[i + 4], ws[i + 6], ws[i + 7]) for i in range(n - 7) if ws[i] == 0x08062208)
+
+
+def gindex(hero):
+    """g_Hero.index for a HEROES index: a body plays its moves' hero's part
+    (Clovis's 0 for the prologue Clovis's)."""
+    if hero >= 0 and HEROES[hero] in BODIES:
+        return HEROES.index(MOVES) if MOVES else 0
+    if hero >= 0 and HEROES[hero] in LOOKS:
+        return LOOKS[HEROES[hero]]
+    return hero
+
+
+def letters(glyphs):
+    """Text of name glyph codes (decomp docs/FORMATS.md, Text: the low ten
+    bits index the glyph, the rest its advance)."""
+    out = ""
+    for w in glyphs:
+        if w in (0x1800, 0x3000):
+            out += " "
+            continue
+        i = (w & 31) * 21 + ((w >> 5) & 31)
+        out += chr(ord("A") + i - 43) if 43 <= i <= 68 else chr(ord("a") + i - 69) if 69 <= i <= 94 else "#"
+    return out
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
 # and their source stages: 1/1 4/15 8/1 10/2 4/3 10/1 11/1 12/6 12/1)
-WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise"]
+WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise",
+           "raimun", "jeanne", "cutlass"]
 DISC2 = ROOT.parent / "Dragon Valor (USA) (Disc 2)" / "Dragon Valor (USA) (Disc 2).cue"
 
 
@@ -80,6 +142,15 @@ def container(b):
     n = struct.unpack_from("<I", b)[0]
     offs = struct.unpack_from(f"<{n + 1}I", b, 4)
     return [b[offs[i]:offs[i + 1]] for i in range(n)]
+
+
+def vab_split(code):
+    """(header part, body) of a VAB_CODE section (decomp tools/vab.py)."""
+    count = struct.unpack_from("<i", code, 8)[0]
+    h = 12 + 16 * count
+    ps = struct.unpack_from("<H", code, h + 0x12)[0]
+    end = h + 0x20 + 0x800 + 0x200 * ps + 0x200
+    return code[:end], code[end:]
 
 
 def tims(b):
@@ -109,11 +180,27 @@ def main(argv):
     slot, leave, menu_hero = 10, (1, 9), None
     if prime:
         args.remove("--prime-disc2")
+    global MOVES
     weapon = menu_weapon = None
-    for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu", "--weapon", "--menu-weapon"):
+    if "--moves" in args:
+        i = args.index("--moves")
+        MOVES = args[i + 1]
+        del args[i:i + 2]
+    scene_shots = 0
+    if "--scene-shots" in args:
+        i = args.index("--scene-shots")
+        scene_shots = int(args[i + 1])
+        del args[i:i + 2]
+    menu_moves = ref_after = None
+    for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu", "--weapon", "--menu-weapon",
+                 "--menu-moves", "--ref-after"):
         if flag in args:
             i = args.index(flag)
-            if flag == "--weapon":
+            if flag == "--menu-moves":
+                menu_moves = args[i + 1]
+            elif flag == "--ref-after":
+                ref_after = Path(args[i + 1]).resolve()
+            elif flag == "--weapon":
                 weapon = args[i + 1]
             elif flag == "--menu-weapon":
                 menu_weapon = args[i + 1]
@@ -140,12 +227,21 @@ def main(argv):
     if default and ref:
         sys.exit("--ref compares a swapped stage: not with `default`")
 
-    expect_head, expect_vram = None, {}
+    expect_head, expect_vram, expect_pack, expect_bank = None, {}, None, None
     if ref:
         spec = (ref / "heroswap.txt").read_text(encoding="utf-8")
         files = {int(n): name for n, name in re.findall(r"^file (\d+) (\S+) ", spec, re.M)}
         pack = (ref / files[1]).read_bytes()
         expect_head = pack[:4 * (int.from_bytes(pack[:4], "little") + 2)]
+        expect_pack = pack
+        # the hero's sound bank: its header in the pack (the entry that starts
+        # VAB_CODE), its body in file 0's whole copy (uploaded to the SPU)
+        offs = struct.unpack_from(f"<{struct.unpack_from('<I', pack)[0] + 1}I", pack, 4)
+        bank_at = next((offs[i], offs[i + 1]) for i in range(len(offs) - 1)
+                       if pack[offs[i]:offs[i] + 8] == b"VAB_CODE")
+        whole = next(e for e in container((ref / files[0]).read_bytes())
+                     if e[:8] == b"VAB_CODE" and len(vab_split(e)[1]))
+        expect_bank = (bank_at, vab_split(whole)[1])
         chain = [t for e in container((ref / files[0]).read_bytes()) for t in tims(e)]
         page = [t for t in chain if any(r and overlaps(r, HERO_PAGE) for r in (t[0], t[2]))]
         portrait = [t for t in chain if t[2] == PORTRAIT]
@@ -172,7 +268,7 @@ id = "play-as"
 enabled = true
 [feature.values]
 hero = "{hero_name}"
-""" + (f'weapon = "{weapon}"\n' if weapon else "")
+""" + (f'weapon = "{weapon}"\n' if weapon else "") + (f'moves = "{MOVES}"\n' if MOVES else "")
     if default:
         state_text = "format_version = 2\n"
     results, pid = [], None
@@ -258,7 +354,7 @@ hero = "{hero_name}"
         while time.time() - t0 < 60 and "play as" not in log_text():
             time.sleep(1)
         lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
-        shown = "each stage's hero" if default else hero_name.capitalize()
+        shown = "each stage's hero" if default else hname(hero_name)
         check("plugin active, play as " + shown,
               any(f"play as {shown}" in l for l in lines), " | ".join(lines))
         print(f"state {slot}:", cli("state", "load", str(slot)).splitlines()[-1])
@@ -319,16 +415,74 @@ hero = "{hero_name}"
                   str(rd(HERO_INDEX, 1)[0]))
             leave = None      # the leave check below is about a chosen hero
         else:
-            check(f"{ts} laid out for {hero_name.capitalize()}", f"stage {ts} as {hero_name.capitalize()}" in text)
+            check(f"{ts} laid out for {hname(hero_name)}", f"stage {ts} as {hname(hero_name)}" in text)
         if not default:
             if weapon:
-                check(f"{hero_name.capitalize()} holds weapon {weapon}",
-                      f"stage {ts} as {hero_name.capitalize()} with weapon {weapon}:" in text)
+                check(f"{hname(hero_name)} holds weapon {weapon}",
+                      f"stage {ts} as {hname(hero_name)} with weapon {weapon}:" in text)
             check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
             check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
-            check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+            check(f"g_Hero.index = {gindex(hero)}", rd(HERO_INDEX, 1)[0] == gindex(hero), str(rd(HERO_INDEX, 1)[0]))
+            # the Status screen's name: g_HeroNames[g_Hero.index] (a body's own
+            # name, but the skeleton's, which has none: its moves' hero's)
+            gi = rd(HERO_INDEX, 1)[0]
+            ptr = int.from_bytes(rd(0x800C5E14 + 4 * gi, 4), "little")
+            raw = rd(ptr, 32) if 0x800BBF04 <= ptr < 0x800BBF84 else b""
+            glyphs = []
+            for k in range(0, len(raw), 2):
+                g = int.from_bytes(raw[k:k + 2], "little")
+                if g == 0x8000:
+                    break
+                glyphs.append(g)
+            want_name = {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis", "phillipkadum": "Phillip",
+                         "mihael10": "Mihael", "gerome12": "Gerome",
+                         "skeleton": hname(MOVES or "clovis")}.get(hero_name, hname(hero_name))
+            check(f"the Status screen's name is {want_name}", letters(glyphs) == want_name, letters(glyphs))
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
+        if expect_pack:
+            # the hero's behaviour script (the entry op 3 names at +8): its
+            # moves, a body's special (the grown Clovis's), byte for byte
+            n_ = int.from_bytes(expect_pack[:4], "little")
+            offs_ = struct.unpack_from(f"<{n_ + 1}I", expect_pack, 4)
+            se_ = int.from_bytes(expect_pack[offs_[0] + 8:offs_[0] + 12], "little")
+            want_s = expect_pack[offs_[se_]:offs_[se_ + 1]]
+            got_s = b"".join(rd(PACK + offs_[se_] + o, min(0x8000, len(want_s) - o))
+                             for o in range(0, len(want_s), 0x8000))
+            check(f"hero script in RAM = the reference's (entry {se_}, {len(want_s)} B)", got_s == want_s)
+        if expect_pack:
+            # the sword trails (native 6 instructions: colours and fades),
+            # every one in the pack, against the reference's (a body's own
+            # colours, the hero's otherwise)
+            ram = b"".join(rd(PACK + o, min(0x8000, len(expect_pack) - o)) for o in range(0, len(expect_pack), 0x8000))
+            got, want = trails(ram), trails(expect_pack)
+            main = max(set(want), key=want.count) if want else None
+            check("sword trail colours = the reference's", got == want,
+                  f"{len(got)} trails, main " + (" ".join(f"{v:06X}" for v in main) if main else "none"))
+        if expect_bank:
+            (b0, b1), body = expect_bank
+            # libsnd keeps its own words in each ProgAtr's reserved bytes
+            # (+8..+15 of the 128 records after the VabHdr): left out
+            h = 12 + 16 * struct.unpack_from("<i", expect_pack, b0 + 8)[0]
+            prog = range(h + 0x20, h + 0x20 + 0x800)
+            diff = [i for i in range(b1 - b0) if ram[b0 + i] != expect_pack[b0 + i]
+                    and not (i in prog and (i - prog.start) % 16 >= 8)]
+            spans, start = [], None
+            for k, i in enumerate(diff):
+                if start is None:
+                    start = i
+                if k + 1 == len(diff) or diff[k + 1] != i + 1:
+                    spans.append(f"0x{start:X}-0x{i:X}")
+                    start = None
+            check("hero sound bank header in the pack = the reference's (ProgAtr reserved words aside)", not diff,
+                  f"{b1 - b0} bytes; differ at " + ", ".join(spans[:12]))
+            # the body as the SPU holds it: slot 1's address (g_SoundSpuAddr[1])
+            spu = int.from_bytes(rd(0x800ADB84, 4), "little")
+            got_body = b"".join(bytes.fromhex(rpc(port, "spu_ram", addr=spu + o, len=min(4096, len(body) - o))["hex"])
+                                for o in range(0, len(body), 4096))
+            same = sum(a == b for a, b in zip(got_body, body))
+            check("hero sound bank body in SPU RAM = the reference's (the voice)", got_body == body,
+                  f"SPU 0x{spu:05X}, {same} of {len(body)} bytes")
         for label, (rect, data) in expect_vram.items():
             x, y, w, h = rect
             rows = []
@@ -406,8 +560,8 @@ hero = "{hero_name}"
                     time.sleep(0.3)
                 time.sleep(4)
                 text = log_text()
-                label = "its own hero" if pick == "stage" else pick.capitalize()
-                want = index_before if pick == "stage" else HEROES.index(pick)
+                label = "its own hero" if pick == "stage" else hname(pick)
+                want = index_before if pick == "stage" else gindex(HEROES.index(pick))
                 check(f"menu -> {pick}: {ts} restarted as {label}", f"restarts as {label}" in text and seen17,
                       next((l for l in reversed(text.splitlines()) if "restarts as" in l), "no restart line"))
                 check(f"menu -> {pick}: no GAME OVER on the way", 9 not in modes, f"modes seen {sorted(modes)}")
@@ -447,7 +601,7 @@ hero = "{hero_name}"
                 time.sleep(0.3)
             time.sleep(4)
             tail = log_text().split("restarts as")[-1]
-            who = (hero_name if hero >= 0 else HEROES[index_before]).capitalize()   # `default`: the stage's own
+            who = hname(hero_name if hero >= 0 else HEROES[index_before])   # `default`: the stage's own
             want = (f"stage {ts} as {who} with weapon {menu_weapon}:"
                     if menu_weapon != "hero" else f"stage {ts} as {who}:")
             check(f"menu Weapon -> {menu_weapon}: {ts} restarted with it", want in tail,
@@ -456,15 +610,59 @@ hero = "{hero_name}"
             rpc(port, "screenshot", path=str(bdir / f"test_heroswap_weapon_{menu_weapon}.png"))
             weapon = None if menu_weapon == "hero" else menu_weapon
 
+        if menu_moves:
+            # Hero > Moves, the third row (MOVES_VALUES order), on a body:
+            # confirmed in the dialog; the stage restarts and the bodies wear
+            # the new kit. --ref-after: the reference of that kit (its pack,
+            # whole, against the one in RAM).
+            def mkey(name, n=1):
+                for _ in range(n):
+                    rpc(port, "host_key", name=name)
+                    time.sleep(0.35)
+            steps = MOVES_VALUES.index(menu_moves) - MOVES_VALUES.index(MOVES or "own")
+            time.sleep(2)
+            restarts0 = log_text().count("restarts as")
+            mkey("Escape"); time.sleep(0.4)
+            mkey("Down"); mkey("Return")
+            mkey("Down", 2)
+            mkey("Right" if steps > 0 else "Left", abs(steps))
+            mkey("Return"); mkey("Return"); time.sleep(0.5)
+            t0 = time.time()
+            while time.time() - t0 < 40:
+                if rd(MODE, 1)[0] == 8 and log_text().count("restarts as") > restarts0:
+                    break
+                time.sleep(0.3)
+            time.sleep(4)
+            tail = log_text().split("restarts as")[-1]
+            who = "the prologue Clovis" if menu_moves == "own" else hname(menu_moves)
+            check(f"menu Moves -> {menu_moves}: the bodies wear {who}'s moves", f"bodies wear {who}'s moves" in tail,
+                  next((l for l in tail.splitlines() if "bodies wear" in l), "no line after the restart"))
+            check(f"menu Moves -> {menu_moves}: {ts} rebuilt", f"stage {ts} pack rebuilt" in tail)
+            if ref_after:
+                spec = (ref_after / "heroswap.txt").read_text(encoding="utf-8")
+                files = {int(n): name for n, name in re.findall(r"^file (\d+) (\S+) ", spec, re.M)}
+                want_pack = (ref_after / files[1]).read_bytes()
+                ram = b"".join(rd(PACK + o, min(0x8000, len(want_pack) - o)) for o in range(0, len(want_pack), 0x8000))
+                head = 4 * (int.from_bytes(want_pack[:4], "little") + 2)
+                check(f"menu Moves -> {menu_moves}: pack in RAM has the reference head ({ref_after.name})",
+                      ram[:head] == want_pack[:head])
+            check(f"menu Moves -> {menu_moves}: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")
+            MOVES = None if menu_moves == "own" else menu_moves   # the body now plays that hero's part
+
         if leave:
             ok = reload_into(*leave)
             text = log_text()
             ls = f"{leave[0]}/{leave[1]}"
             check(f"{ls} is running", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
-            check(f"{ls} rebuilt for {hero_name.capitalize()} too",
-                  f"stage {ls} as {hero_name.capitalize()}" in text and f"stage {ls} pack rebuilt" in text)
-            check(f"g_Hero.index still {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+            check(f"{ls} rebuilt for {hname(hero_name)} too",
+                  f"stage {ls} as {hname(hero_name)}" in text and f"stage {ls} pack rebuilt" in text)
+            check(f"g_Hero.index still {gindex(hero)}", rd(HERO_INDEX, 1)[0] == gindex(hero), str(rd(HERO_INDEX, 1)[0]))
             rpc(port, "screenshot", path=str(bdir / "test_heroswap_left.png"))
+            for k in range(scene_shots):
+                # a story scene that opens the stage: its dialogues, Cross between shots
+                time.sleep(1.2)
+                rpc(port, "screenshot", path=str(bdir / f"test_heroswap_scene_{k:02}.png"))
+                cli("press", "cross")
         h = cli("health")
         print("  health:", h.replace("\n", "; "))
         nums = [int(x) for x in re.findall(r"total=(\d+)", h)]

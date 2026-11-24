@@ -21,7 +21,7 @@ game_id = "SLUS-01092"
 [[feature]]
 id = "play-as"
 name = "Play as"
-description = "Any hero, holding any sword. Every action stage loads with the chosen hero: model, moves, voice, portrait and name, story scenes included; the sword changes only its look. Change it any time in the in-game menu (Hero): the stage restarts with the choice. Anna, Mihael, Anita and six of the swords are read from disc 2 once it has been started with this on; the first start reads the disc for a few seconds. Scenes keep the motions made for the stage's own hero."
+description = "Any hero, or the prologue's Dragon Valor, holding any sword. Every action stage loads with the chosen hero: model, moves, voice, portrait and name, story scenes included; the sword changes only its look. Change it any time in the in-game menu (Hero): the stage restarts with the choice. Anna, Mihael, Anita, the looks and six of the swords are read from disc 2 once it has been started with this on; the first start reads the disc for a few seconds. Scenes keep the motions made for the stage's own hero."
 group = "Game"
 default_enabled = true
 channel = "experimental"
@@ -74,11 +74,103 @@ label = "Mihael"
 value = "anita"
 label = "Anita"
 
+[[option.choice]]
+value = "mihael10"
+label = "Mihael (area 10)"
+
+[[option.choice]]
+value = "gerome12"
+label = "Gerome (area 12)"
+
+[[option.choice]]
+value = "dragonvalor"
+label = "Dragon Valor (prologue)"
+
+[[option.choice]]
+value = "oldclovis"
+label = "Old Clovis (chapter 3)"
+
+[[option.choice]]
+value = "skeleton"
+label = "Skeleton (chapter 1)"
+
+[[option.choice]]
+value = "raimun"
+label = "Raimun"
+
+[[option.choice]]
+value = "lodonya"
+label = "Lodonya (the black knight)"
+
+[[option.choice]]
+value = "shalya"
+label = "Shalya"
+
+[[option.choice]]
+value = "fannah"
+label = "Fannah"
+
+[[option.choice]]
+value = "jeanne"
+label = "Princess Jeanne"
+
+[[option.choice]]
+value = "phillipkadum"
+label = "Phillip (Kadum)"
+
+[[option]]
+feature = "play-as"
+id = "moves"
+label = "Moves"
+description = "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), the prologue's, or a hero's (Anna or Anita suit Shalya, Fannah and Jeanne). The nine heroes and their other looks keep their own. Anna's, Mihael's and Anita's are read from disc 2 once it has been started. Applies at the next stage load."
+type = "choice"
+default = "own"
+
+[[option.choice]]
+value = "own"
+label = "Clovis (Young)"
+
+[[option.choice]]
+value = "clovis"
+label = "Clovis"
+
+[[option.choice]]
+value = "arlen"
+label = "Arlen"
+
+[[option.choice]]
+value = "kodel"
+label = "Kodel"
+
+[[option.choice]]
+value = "felippe"
+label = "Felippe"
+
+[[option.choice]]
+value = "phillip"
+label = "Phillip"
+
+[[option.choice]]
+value = "gerome"
+label = "Gerome"
+
+[[option.choice]]
+value = "anna"
+label = "Anna"
+
+[[option.choice]]
+value = "mihael"
+label = "Mihael"
+
+[[option.choice]]
+value = "anita"
+label = "Anita"
+
 [[option]]
 feature = "play-as"
 id = "weapon"
 label = "Weapon"
-description = "The weapon the hero holds: its own, or one of the weapon models the game's heroes hold across both discs (the model and its texture; damage and moves stay the hero's). With Each stage's own above, every stage's hero holds it. The disc-2 weapons (Kadum, Igunis and the last four) are offered once disc 2 has been started with this on. Applies at the next stage load."
+description = "The weapon the hero holds: its own, or one the game's heroes or other characters hold (Raimun, Jeanne, Kodel), the model and its texture; damage and moves stay the hero's. With Each stage's own above, every stage's hero holds it. The disc-2 weapons (Kadum, Igunis, Mihael's, Anna's and Anita's) are offered once disc 2 has been started with this on. Applies at the next stage load."
 type = "choice"
 default = "hero"
 
@@ -121,6 +213,18 @@ label = "Anita's purple sword"
 [[option.choice]]
 value = "turquoise"
 label = "Anita's turquoise sword"
+
+[[option.choice]]
+value = "raimun"
+label = "Raimun's sword"
+
+[[option.choice]]
+value = "jeanne"
+label = "Jeanne's crystal sword"
+
+[[option.choice]]
+value = "cutlass"
+label = "Kodel's cutlass"
 
 [[plugin]]
 feature = "play-as"
