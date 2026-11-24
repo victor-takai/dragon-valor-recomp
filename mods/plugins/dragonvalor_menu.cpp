@@ -84,9 +84,11 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_HERO_APPLY  "dv.heroswap.apply"
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
 const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
-                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
+                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor"};
 const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
-                                     "phillip", "gerome", "anna", "mihael", "anita"};
+                                     "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor"};
+#define DV_PLAY_AS_CHOICES 11
+#define DV_PLAY_AS_DRAGONVALOR 10   /* the prologue's dragon slayer: plays Clovis's part (g_Hero.index 0) */
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
 /* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own, then the
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
@@ -162,8 +164,9 @@ const RecompRuntimeUiItem kItems[] = {
 
     {DV_KEY_PLAY_AS, "Hero", "Play as",
      "The hero of every action stage: model, moves, voice, portrait and name, story scenes included. "
+     "The Dragon Valor is the dragon slayer of the prologue's opening, with Clovis's moves. "
      "Pick one with Left / Right, then confirm it.",
-     RECOMP_RUNTIME_UI_CHOICE, 0, 9, 1, kPlayAsChoices, 10, nullptr},
+     RECOMP_RUNTIME_UI_CHOICE, 0, DV_PLAY_AS_CHOICES - 1, 1, kPlayAsChoices, DV_PLAY_AS_CHOICES, nullptr},
     {DV_KEY_WEAPON, "Hero", "Weapon",
      "The sword the hero holds (its look: damage and moves stay the hero's). Kadum, Igunis and the last "
      "four are read from disc 2 once it has been started. Pick one, then confirm it.",
@@ -844,7 +847,7 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
         /* only picked here: Enter (or Apply, or closing the menu) asks in a
          * dialog and apply_hero() does it */
         const bool w = is(item, DV_KEY_WEAPON);
-        if (value < 0 || value > (w ? DV_WEAPON_CHOICES - 1 : 9)) return 0;
+        if (value < 0 || value > (w ? DV_WEAPON_CHOICES - 1 : DV_PLAY_AS_CHOICES - 1)) return 0;
         (w ? m.weapon_pend : m.play_as_pend) = value;
         std::snprintf(text, sizeof text, "Press %s to apply", accept_name(m));
         recomp_runtime_ui_set_status(m.ui, hero_pending(m) ? text : "");
@@ -1258,7 +1261,7 @@ void dialog_confirm(Menu& m) {
  * keeps the current one). Draw thread, like the menu's other mod_set calls. */
 void adopt_save_choice(Menu& m) {
     if (dv_heroswap_adopt_hero[0])
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < DV_PLAY_AS_CHOICES; ++i)
             if (std::strcmp(kPlayAsValues[i], dv_heroswap_adopt_hero) == 0 && i != m.play_as) {
                 m.play_as = m.play_as_pend = i;
                 (void)m.host->mod_set(DV_HS_PKG, DV_HS_FEAT, "hero", kPlayAsValues[i]);
@@ -1508,7 +1511,7 @@ int p_attach(void* ctx, void* sdl_window, void* gl_context, const PsxMenuHost* h
         char hero[32];
         m.play_as = 0;
         if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "hero", hero, sizeof hero))
-            for (int i = 1; i < 10; i++)
+            for (int i = 1; i < DV_PLAY_AS_CHOICES; i++)
                 if (std::strcmp(hero, kPlayAsValues[i]) == 0) m.play_as = i;
         m.weapon = 0;
         if (psx_mod_option_value(DV_HS_PKG, DV_HS_FEAT, "weapon", hero, sizeof hero))
@@ -1844,7 +1847,9 @@ void p_draw(void* ctx, int width, int height) {
         const int idx = psx_mod_read_byte(0x80086318u);        /* g_Hero.index */
         hd.hero = idx >= 0 && idx < 9;
         if (hd.hero) {
-            std::snprintf(hd.name, sizeof hd.name, "%s", kPlayAsChoices[idx + 1]);
+            /* the Dragon Valor holds Clovis's index: his name when he is the one played */
+            std::snprintf(hd.name, sizeof hd.name, "%s",
+                          kPlayAsChoices[idx == 0 && m.play_as == DV_PLAY_AS_DRAGONVALOR ? DV_PLAY_AS_DRAGONVALOR : idx + 1]);
             hd.area = (int16_t)psx_mod_read_half(0x800A2F18u);
             hd.stage = (int16_t)psx_mod_read_half(0x800A2F1Au);
             hd.hp = psx_mod_read_half(0x8008A5AEu);

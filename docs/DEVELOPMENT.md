@@ -1511,7 +1511,8 @@ worked examples this one follows.
 
 Every action stage loads with the hero the player picks. Package 2.0.0,
 feature `play-as` (channel experimental, on by default since 2026-11-18 at its neutral choices, see below), option `hero`
-(`stage` = each stage's own, or `clovis` … `anita`); the in-game menu's
+(`stage` = each stage's own, or `clovis` … `anita`, or `dragonvalor`: the prologue's dragon slayer,
+see *The Dragon Valor* below); the in-game menu's
 Hero section has the same choice as **Play as**, confirmed in a dialog (the
 first choice also switches the feature on, for the next start, when it is
 off). The choice applies when a
@@ -1800,6 +1801,50 @@ stage's own hero with another weapon: "... as Clovis with weapon soul"),
 and a state whose weapon is not the chosen one gets the notice "Save made
 with the hero's own weapon: Soul from the next stage". Checked in one
 session with a scratch slot (deleted), as above.
+
+**The Dragon Valor (2026-11-23, the player's request: "a way to make the
+'Dragon Valor' of the opening cutscene a playable character").** The dragon
+slayer of the prologue's 0/1: room 1's scene shows him losing to the Dragon,
+in room 2 Clovis finds him dying and takes his sword. He is a scene object
+of room 1's event pack (file 80, its first op 3) with a hero's body, found
+by the decomp (`docs/targets/hero-swap.md`, *A body from a story scene*):
+14 parts whose node templates equal Clovis's but for their entries, parts 1
+(his sword, the prologue's, the same model as Azos) and 2 (the chest) in
+the other order, every part modelled around the same joints, so Clovis's
+animations pose him as they pose Clovis; his texture is one 4-bit TIM of
+file 79 in the heroes' sheet layout ((576, 256), CLUT block (576, 502)),
+his portrait file 80's entry 4 in the heroes' portrait format. He has three
+animations of his own (the fight) and no weld lists. The 10th choice of
+`hero`, `dragonvalor` ("Dragon Valor (prologue)" in the launcher, "Dragon
+Valor" in the menu): the plugin takes his body when it reads 0/1
+(`body_take`) and builds his kit at 1/1 from Clovis's files dressed with it
+(`kit_build_dressed`, a port of the decomp's `heroswap.py dress`): his parts
+in the hero's nodes, the hero's weld lists dropped (they weld Clovis's own
+vertices), his TIM moved whole into the hero page (image at (384, 0), CLUT
+block in the page's last rows, 246..255) with every textured prim's tpage
+and CLUT id and every untextured prim's DR_TPAGE pointed there, his
+portrait in file 0's chain; then `kit_build` as for any hero. So he has
+Clovis's moves, spells and voice; any weapon of the Weapon row goes in his
+hand as in any hero's. He is no hero of the game: `g_Hero.index` holds
+Clovis's 0 (`game_hero`), so the Status screen and the save say Clovis and
+the world map's walker is Clovis's; the dialogues and the epilogues name
+him (his glyph codes, from the speaker line of 0/1's scene, are in
+`kNameGlyphs`: ACTION.BIN's name table has none), and the in-game menu's
+header says Dragon Valor. After a save-state load the hero object's chest
+(node 1), byte for byte his kit's vertex entry, tells his stage from
+Clovis's (`body_in_ram`). Kit and walker are cached as `hero9.kit` /
+`hero9.map`; a cache from before reads disc 1 once more.
+- **Checked** on build-debug: `tests/test_heroswap.py dragonvalor --ref
+  <decomp>/build/heroswap/1-1_dragonvalor_to_1-7` (the reference: `heroswap.py
+  build 1 1 1 7 --prune --body dragonvalor`), 20/20: 1/7 rebuilt (file 0
+  444444 B, pack 252584 B), the pack head, his texture image (384, 0, 64,
+  148) and CLUTs (384, 246, 64, 10) and his portrait in VRAM byte for byte
+  the reference's, `g_Hero.index` 0, the Status screen (his portrait), 20 s
+  of play, 1/9 rebuilt too. With `--leave 3/1 --scene-shots 10` (3/1 opens
+  with Kodel's scene) 15/15: his body in the scene, "Dragon Valor:" with his
+  portrait in the dialogues. The first run found the menu's Play as row
+  refusing a value past 9 (`dragonvalor_menu.cpp`): fixed. Not checked: long
+  play, a boss.
 
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild

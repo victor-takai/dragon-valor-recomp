@@ -29,7 +29,9 @@
  * action stage of the disc: the sizes the rebuild needs to lay the stage
  * out. Kits and tables are cached in mods/cache/dragonvalor.heroswap/ beside
  * the executable, so the next start reads nothing. The other disc's heroes
- * (Anna, Mihael, Anita on disc 2; Clovis to Phillip on disc 1) come from the
+ * (Anna, Mihael, Anita on disc 2; Clovis to Phillip on disc 1; the Dragon
+ * Valor, the prologue's dragon slayer, Clovis's kit dressed with his body
+ * from 0/1, on disc 1: *a body from a story scene*) come from the
  * other disc's image when the runtime's disc roster knows where it is, and a
  * disc changed while the game runs (the game asks for disc 2) is read at the
  * next stage load.
@@ -95,15 +97,22 @@
 #define DV_SECTOR             2048u
 #define DV_NODE               0x70u
 
-#define HERO_COUNT 9
+#define HERO_COUNT 10
 static const char* const kHeroValues[HERO_COUNT] = {
-    "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"};
+    "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor"};
 static const char* const kHeroNames[HERO_COUNT] = {
-    "Clovis", "Arlen", "Kodel", "Felippe", "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
-/* Where each kit comes from: the first stage of the hero's first area. */
+    "Clovis", "Arlen", "Kodel", "Felippe", "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor"};
+/* Where each kit comes from: the first stage of the hero's first area (the
+ * Dragon Valor's: Clovis's, dressed, see *a body from a story scene*). */
 static const int kKitSource[HERO_COUNT][2] = {
-    {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1}};
+    {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1}, {1, 1}};
 static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5};   /* 0x8006CC70 */
+/* The Dragon Valor, the dragon slayer of the prologue's opening scene, is no
+ * hero of the game: his body worn by Clovis's kit. For what the game itself
+ * names by g_Hero.index (the menus, the stats, the save, the world map's
+ * walker) he plays Clovis's part. */
+#define DV_BODY_HERO 9
+static int game_hero(int h) { return h == DV_BODY_HERO ? 0 : h; }
 
 /* The weapon models (hero node 2) of the action stages of both discs, by
  * geometry and look (a scan of the 226 stages, 2026-11-18; decomp
@@ -959,6 +968,16 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
     return 1;
 }
 
+/* The body of a story scene (below, after the weapon code it shares). */
+#define DV_BODY_AREA      0
+#define DV_BODY_STAGE     1
+#define DV_BODY_FILE      80   /* 0/1 room 1's event pack: his object, his portrait */
+#define DV_BODY_TEX_FILE  79   /* the file before it: his texture */
+typedef struct { int ready; Buf prims[14], verts[14], page, portrait; } Body;
+static Body s_body;
+static int body_take(const uint8_t* f80, uint32_t l80, const uint8_t* f79, uint32_t l79);
+static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1);
+
 /* Table and kits of disc 0 (areas 0..6) or 1 (7..12). */
 static int disc_scan(int disc)
 {
@@ -984,6 +1003,14 @@ static int disc_scan(int disc)
             if (!cdr_stage(&d, area, stage, &idx, starts, counts, &nf)) continue;
             f0 = cdr_file(&d, idx, starts[0], counts[0], &l0);
             f1 = cdr_file(&d, idx, starts[1], counts[1], &l1);
+            /* the prologue's 0/1: the Dragon Valor's body, before 1/1 dresses Clovis's kit with it */
+            if (area == DV_BODY_AREA && stage == DV_BODY_STAGE && !s_kits[DV_BODY_HERO].ready && !s_body.ready) {
+                uint32_t l79 = 0, l80 = 0;
+                const uint8_t *f79 = nf > DV_BODY_FILE ? cdr_file(&d, idx, starts[DV_BODY_TEX_FILE], counts[DV_BODY_TEX_FILE], &l79) : NULL;
+                const uint8_t *f80 = nf > DV_BODY_FILE ? cdr_file(&d, idx, starts[DV_BODY_FILE], counts[DV_BODY_FILE], &l80) : NULL;
+                if (!f79 || !f80 || !body_take(f80, l80, f79, l79))
+                    fprintf(stderr, "%s: no Dragon Valor body in 0/1\n", DV_HS_PLUGIN);
+            }
             /* a map stage of a kit's area: the walker for that hero */
             if (f0 && ct_parse(&c0, f0, l0) && c0.n >= 2) {
                 uint32_t ca, ia;
@@ -1011,7 +1038,8 @@ static int disc_scan(int disc)
                             dv_area_hero(area) >= 0 ? &s_kits[dv_area_hero(area)] : NULL, r);
             for (h = 0; h < HERO_COUNT; h++)
                 if (kKitSource[h][0] == area && kKitSource[h][1] == stage && !s_kits[h].ready) {
-                    if (!kit_build(&s_kits[h], f0, l0, f1, l1)) {
+                    if (!(h == DV_BODY_HERO ? kit_build_dressed(&s_kits[h], f0, l0, f1, l1)
+                                            : kit_build(&s_kits[h], f0, l0, f1, l1))) {
                         kit_free(&s_kits[h]);
                         fprintf(stderr, "%s: no kit for %s from %d/%d\n", DV_HS_PLUGIN, kHeroNames[h], area, stage);
                     }
@@ -1425,7 +1453,7 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
          * not an action stage: world map, scenes, the save screen); a chosen
          * hero's name stays in g_Hero.index, so the menus and the save say
          * who is played */
-        if (s_hero >= 0) hold_hero_index(s_hero);
+        if (s_hero >= 0) hold_hero_index(game_hero(s_hero));
         else restore_hero_index();
         return;
     }
@@ -2075,6 +2103,185 @@ static const Kit* arm_kit(int hero, int weapon)
     return &s_armed;
 }
 
+/* --- a body from a story scene ------------------------------------------------
+ * Port of the decomp's tools/heroswap.py `dress` / BODIES (the reference:
+ * `heroswap.py build 1 1 DST_A DST_S --prune --body dragonvalor`, same bytes;
+ * decomp docs/targets/hero-swap.md, A body from a story scene). The Dragon
+ * Valor of the prologue's 0/1 (room 1: the Dragon kills him; room 2: he gives
+ * Clovis his sword) is a scene object of room 1's event pack (file 80, its
+ * first op 3) with a hero's body: 14 parts whose node templates equal
+ * Clovis's but for their entries, parts 1 (his sword) and 2 (the chest) in
+ * the other order, every part modelled around the same joints, so Clovis's
+ * animations pose him as they pose Clovis. His texture is one 4-bit TIM of
+ * file 79 in the heroes' sheet layout ((576, 256), CLUT block (576, 502)),
+ * his portrait file 80's entry 4 in the heroes' portrait format. His kit is
+ * Clovis's (script, moves, animations, voice, shadow) built from 1/1's files
+ * dressed: his parts in the hero's nodes, no weld list (his parts have none;
+ * Clovis's weld Clovis's vertices), his TIM moved whole into the hero page
+ * (image at (384, 0), CLUT block in the page's last rows) with every
+ * textured prim's tpage and CLUT and every untextured prim's DR_TPAGE
+ * pointed there, his portrait in file 0's chain. */
+static const uint8_t kBodyOrder[14] = {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};   /* hero node <- his */
+#define DV_BODY_PORTRAIT  4
+
+static int body_take(const uint8_t* f80, uint32_t l80, const uint8_t* f79, uint32_t l79)
+{
+    static Ct c, ct;
+    static Prog p;
+    static Tim t[64];
+    const uint8_t* e0;
+    uint32_t i, tp = 0xFFFFFFFFu, start = 0, len = 0, ent = 0;
+    int j, r, op3 = -1;
+    s_body.ready = 0;
+    if (!ct_parse(&c, f80, l80) || !prog_walk(&p, CT_E(&c, 0), CT_L(&c, 0))) return 0;
+    e0 = CT_E(&c, 0);
+    for (j = 0; j < p.nops && op3 < 0; j++) if (p.ops[j].op == 3) op3 = j;
+    if (op3 < 0 || le32(e0 + p.ops[op3].pos + 12) != 14) return 0;
+    for (i = 0; i < 14; i++) {
+        uint32_t node = p.ops[op3].pos + 16 + kBodyOrder[i] * DV_NODE;
+        uint32_t pe = le32(e0 + node + 0x68), ve = le32(e0 + node + 0x6C);
+        if (!pe || pe >= c.n || !ve || ve >= c.n || CT_L(&c, pe) < 17 * 16) return 0;
+        s_body.prims[i].n = s_body.verts[i].n = 0;
+        if (!buf_put(&s_body.prims[i], CT_E(&c, pe), CT_L(&c, pe)) ||
+            !buf_put(&s_body.verts[i], CT_E(&c, ve), CT_L(&c, ve)))
+            return 0;
+    }
+    /* his page: the tpage of part 0's first textured prim (word 5 of FT3 /
+     * FT4, 6 of GT3 / GT4); his TIM: in the first entry of file 79 that has
+     * one, the last 4-bit TIM with a CLUT block in that page */
+    for (r = 0; r < 4 && tp == 0xFFFFFFFFu; r++) {
+        const uint8_t* tab = s_body.prims[0].p;
+        uint32_t w1;
+        if (!le16u(tab + 16 * r + 2)) continue;
+        w1 = le32(tab + 16 * r + 4) + 4u * (r < 2 ? 5u : 6u);
+        if (w1 + 4 > s_body.prims[0].n) return 0;
+        tp = (le32(tab + w1) >> 16) & 0x1F;
+    }
+    if (tp == 0xFFFFFFFFu || !ct_parse(&ct, f79, l79)) return 0;
+    for (i = 0; i < ct.n && !len; i++) {
+        int nt = tim_chain(CT_E(&ct, i), CT_L(&ct, i), t, 64, NULL);
+        for (j = 0; j < nt; j++)
+            if (t[j].has_clut && t[j].image[0] / 64 == (tp & 0xF) && t[j].image[1] / 256 == ((tp >> 4) & 1)) {
+                start = t[j].start;
+                len = t[j].end - t[j].start;
+                ent = i;
+            }
+    }
+    s_body.page.n = s_body.portrait.n = 0;
+    if (!len || !buf_put(&s_body.page, CT_E(&ct, ent) + start, len)) return 0;
+    if (DV_BODY_PORTRAIT >= c.n ||
+        tim_chain(CT_E(&c, DV_BODY_PORTRAIT), CT_L(&c, DV_BODY_PORTRAIT), t, 64, NULL) != 1 || !tim_is_portrait(&t[0]) ||
+        !buf_put(&s_body.portrait, CT_E(&c, DV_BODY_PORTRAIT), t[0].end))
+        return 0;
+    s_body.ready = 1;
+    return 1;
+}
+
+static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1)
+{
+    static const uint32_t usize[4] = {0x1C, 0x20, 0x24, 0x2C};   /* records 4..7 */
+    static Ct cp, c0;
+    static Prog p;
+    static TexPrim tp[DV_MAX_TPRIMS];
+    static PageTim src;
+    static Tim t[64];
+    static const uint8_t* ents[4097];
+    static uint32_t lens[4097];
+    static const uint8_t* ents0[16];
+    static uint32_t lens0[16];
+    static Buf prims[14], e0, pk, chain, page, f0b;
+    const uint8_t *s0, *ch;
+    uint32_t i, kk, r, vab, te, pos;
+    int j, n, kh, cy, du, dv, placed = 0, por = 0;
+
+    if (!s_body.ready || !ct_parse(&cp, f1, l1) || !prog_walk(&p, CT_E(&cp, 0), CT_L(&cp, 0)) || p.ops[0].op != 3 ||
+        le32(CT_E(&cp, 0) + 12) != 14 || !page_parse(&src, s_body.page.p, s_body.page.n, 0))
+        return 0;
+    /* his TIM moves whole: image at (384, 0), the CLUT block in the page's last rows */
+    cy = 256 - src.ch;
+    if (src.ox || src.oy || src.iw > 64 || src.cw > 64 || src.ih > cy) return 0;
+    du = (384 - src.cx) / 16;
+    dv = cy - src.cy;
+    s0 = CT_E(&cp, 0);
+    for (i = 0; i < cp.n; i++) { ents[i] = CT_E(&cp, i); lens[i] = CT_L(&cp, i); }
+    for (i = 0; i < 14; i++) {
+        uint32_t pe = le32(s0 + 16 + i * DV_NODE + 0x68), ve = le32(s0 + 16 + i * DV_NODE + 0x6C);
+        uint8_t* tab;
+        if (!pe || pe >= cp.n || !ve || ve >= cp.n) return 0;
+        prims[i].n = 0;
+        if (!buf_put(&prims[i], s_body.prims[i].p, s_body.prims[i].n)) return 0;
+        tab = prims[i].p;
+        if ((n = tex_prims(tab, prims[i].n, tp, DV_MAX_TPRIMS)) < 0) return 0;
+        for (j = 0; j < n; j++) {
+            uint32_t buf;
+            for (buf = 0; buf < 2; buf++) {
+                uint8_t* q0 = tab + tp[j].off + buf * tp[j].size + 4 * tp[j].uvw[0];
+                uint8_t* q1 = tab + tp[j].off + buf * tp[j].size + 4 * tp[j].uvw[1];
+                uint32_t clut = le32(q0) >> 16, tpage = le32(q1) >> 16;
+                if ((int)(tpage & 0x1F) != src.tpage) return 0;
+                clut = (uint32_t)((int)(clut >> 6) + dv) << 6 | (uint32_t)((int)(clut & 0x3F) + du);
+                put32(q0, (clut & 0xFFFF) << 16 | (le32(q0) & 0xFFFF));
+                put32(q1, ((tpage & ~0x1Fu) | DV_HERO_TPAGE) << 16 | (le32(q1) & 0xFFFF));
+            }
+        }
+        /* untextured prims: the draw-mode word (E1) of the DR_TPAGE merged in
+         * front of each (decomp include/dv/r2A_draw.h) names a page too */
+        for (r = 4; r < 8; r++) {
+            uint32_t cnt = le16u(tab + 16 * r + 2), poff = le32(tab + 16 * r + 4), sz = usize[r - 4], buf;
+            for (kk = 0; kk < cnt; kk++)
+                for (buf = 0; buf < 2; buf++) {
+                    uint32_t o = poff + 2 * sz * kk + buf * sz + 4, w;
+                    if (o + 4 > prims[i].n || ((w = le32(tab + o)) >> 24) != 0xE1) return 0;
+                    if ((int)(w & 0x1F) == src.tpage) put32(tab + o, (w & ~0x1Fu) | DV_HERO_TPAGE);
+                }
+        }
+        ents[pe] = prims[i].p;
+        lens[pe] = prims[i].n;
+        ents[ve] = s_body.verts[i].p;
+        lens[ve] = s_body.verts[i].n;
+    }
+    /* entry 0 without the hero's weld lists */
+    for (kh = 1; p.ops[kh].op != 0 && is_hero_op(s0, &p.ops[kh]); kh++) {}
+    e0.n = 0;
+    for (j = 0; j < p.nops; j++)
+        if (!(j < kh && p.ops[j].op == 31) && !buf_put(&e0, s0 + p.ops[j].pos, p.ops[j].size)) return 0;
+    pos = p.ops[p.nops - 1].pos + 4;                        /* any bytes after the end */
+    if (pos < CT_L(&cp, 0) && !buf_put(&e0, s0 + pos, CT_L(&cp, 0) - pos)) return 0;
+    ents[0] = e0.p;
+    lens[0] = e0.n;
+    if (!ct_build(&pk, ents, lens, cp.n)) return 0;
+    /* file 0: his TIM in place of the hero-page TIMs (one, in the first's
+     * place), his portrait in place of the hero's (same size) */
+    page.n = 0;
+    if (!buf_put(&page, src.tim.p, src.tim.n)) return 0;
+    put32(page.p + 0x14, 384u | (uint32_t)cy << 16);
+    put32(page.p + src.ihead + 4, 384u);
+    if (!ct_parse(&c0, f0, l0) || c0.n > 16 || !file0_parts(&c0, &vab, &te)) return 0;
+    ch = CT_E(&c0, te);
+    n = tim_chain(ch, CT_L(&c0, te), t, 64, NULL);
+    chain.n = pos = 0;
+    for (j = 0; j < n; j++) {
+        if (tim_in_page(&t[j])) {
+            if (!buf_put(&chain, ch + pos, t[j].start - pos)) return 0;
+            if (!placed && !buf_put(&chain, page.p, page.n)) return 0;
+            placed = 1;
+            pos = t[j].end;
+        } else if (tim_is_portrait(&t[j])) {
+            if (t[j].end - t[j].start != s_body.portrait.n || !buf_put(&chain, ch + pos, t[j].start - pos) ||
+                !buf_put(&chain, s_body.portrait.p, s_body.portrait.n))
+                return 0;
+            por++;
+            pos = t[j].end;
+        }
+    }
+    if (!placed || !por || !buf_put(&chain, ch + pos, CT_L(&c0, te) - pos)) return 0;
+    for (i = 0; i < c0.n; i++) { ents0[i] = CT_E(&c0, i); lens0[i] = CT_L(&c0, i); }
+    ents0[te] = chain.p;
+    lens0[te] = chain.n;
+    if (!ct_build(&f0b, ents0, lens0, c0.n)) return 0;
+    return kit_build(k, f0b.p, f0b.n, pk.p, pk.n);
+}
+
 /* --- reloads of the hero's texture ----------------------------------------
  * A pack can upload the stage hero's texture into the hero page again (0/1's
  * event file 81, after a scene that used the page): a chain whose hero-page
@@ -2192,10 +2399,17 @@ static int swap_page_reloads(Buf* out, const uint8_t* b, uint32_t len, const Kit
  * the same glyph codes), read when the stage's pack is installed. */
 #define DV_HERO_NAMES 0x800C5E14u
 
+static const uint16_t kNameGlyphs[HERO_COUNT][16];   /* below, with the epilogue */
+static const int kNameLen[HERO_COUNT];
+
 static int read_hero_name(int hero, uint16_t* out)
 {
     uint32_t p, i;
     if (hero < 0 || hero >= HERO_COUNT) return 0;
+    if (hero == DV_BODY_HERO) {                          /* not in the game's table */
+        memcpy(out, kNameGlyphs[hero], sizeof kNameGlyphs[hero]);
+        return kNameLen[hero];
+    }
     p = psx_mod_read_word(DV_HERO_NAMES + 4 * (uint32_t)hero);
     if (p < 0x80000000u || p >= DV_RAM_END - 32 || (p & 1u)) return 0;
     for (i = 0; i < 16; i++) {
@@ -2461,7 +2675,7 @@ static void swap_map_stage(uint32_t pack)
  * line, 0xFCCC + a colour, 0xFFFF the end. ACTION.BIN, where g_HeroNames
  * lives, is not in RAM during MAP.BIN's modes, so the names are kept here
  * (the glyph codes carry each glyph's advance in their top bits). */
-static const uint16_t kNameGlyphs[HERO_COUNT][8] = {
+static const uint16_t kNameGlyphs[HERO_COUNT][16] = {
     {0x2862, 0x1623, 0x1e83, 0x20c4, 0x15c3, 0x1864},                  /* Clovis */
     {0x2822, 0x1c44, 0x1623, 0x1d43, 0x2263},                          /* Arlen */
     {0x2962, 0x1e83, 0x2123, 0x1d43, 0x1623},                          /* Kodel */
@@ -2471,8 +2685,10 @@ static const uint16_t kNameGlyphs[HERO_COUNT][8] = {
     {0x2822, 0x2263, 0x2263, 0x20c3},                                  /* Anna */
     {0x31a2, 0x15c3, 0x25a3, 0x20c3, 0x1d43, 0x1623},                  /* Mihael */
     {0x2822, 0x2263, 0x15c3, 0x1884, 0x20c3},                          /* Anita */
+    /* Dragon Valor: the speaker line of 0/1's scene (file 80), 0x1800 a space */
+    {0x2882, 0x1c44, 0x20c3, 0x2183, 0x1e83, 0x2263, 0x1800, 0x2823, 0x20c3, 0x1623, 0x1e83, 0x1c44},
 };
-static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5};
+static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5, 12};
 
 static void swap_epilogue(uint32_t pack)
 {
@@ -2610,7 +2826,7 @@ static void dv_hs_pack_install_entry(struct CPUState* cpu, uint32_t address)
         if (!psx_mod_host_write_ram(pack, out.p, out.n)) return;
         fprintf(stderr, "%s: stage %d/%d pack rebuilt (%u bytes)\n", DV_HS_PLUGIN, s_swap_area, s_swap_stage, out.n);
         (void)cur;
-        hold_hero_index(s_swap_hero);
+        hold_hero_index(game_hero(s_swap_hero));
     }
 }
 
@@ -2722,6 +2938,18 @@ static int weapon_in_ram(int h)
     return -1;
 }
 
+/* The Dragon Valor's stage keeps Clovis's g_Hero.index: his body is told by
+ * the hero object's chest (node 1), byte for byte his kit's vertex entry. */
+static int body_in_ram(void)
+{
+    const Kit* k = &s_kits[DV_BODY_HERO];
+    uint32_t nodes = psx_mod_read_word(DV_HERO_OBJECT + DV_OBJ_NODES), vp, e;
+    if (!k->ready || nodes < 0x80000000u || nodes >= DV_RAM_END) return 0;
+    vp = psx_mod_read_word(nodes + 1 * DV_NODE + 0x6C);
+    e = kit_node_ref(k, 1, 0x6C);
+    return vp >= 0x80000000u && vp < DV_RAM_END && e && e <= k->nent && ram_is(vp, k->ent[e - 1], k->entlen[e - 1]);
+}
+
 static void resync_after_load(void)
 {
     int area = (int16_t)psx_mod_read_half(DV_STAGE_AREA), stage = (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
@@ -2732,6 +2960,7 @@ static void resync_after_load(void)
     s_saved_hero = s_written_hero = -1;
     if (!s_enabled || psx_mod_read_byte(DV_MODE) != 8 || ah < 0 || h >= HERO_COUNT || !stage_find(area, stage))
         return;   /* not in an action stage: the next stage load decides */
+    if (h == game_hero(DV_BODY_HERO) && body_in_ram()) h = DV_BODY_HERO;
     w = weapon_in_ram(h);
     if (w >= 0 && weapon_is_own(h, w)) w = -1;
     if ((h != ah || w >= 0) && s_kits[h].ready) {
@@ -2751,7 +2980,7 @@ static void resync_after_load(void)
             if (!s_name_old_n || !s_name_new_n || s_swap_same) s_name_old_n = s_name_new_n = 0;
             if (!s_swap_same) {
                 s_saved_hero = ah;  /* the game's own, given back at a stage without a swap */
-                s_written_hero = h;
+                s_written_hero = game_hero(h);
             }
             fprintf(stderr, "%s: save state %d/%d played as %s%s%s: its scenes follow\n", DV_HS_PLUGIN, area, stage,
                     kHeroNames[h], s_swap_armed ? " with weapon " : "", s_swap_armed ? kWeapons[w].id : "");
@@ -2781,10 +3010,7 @@ static void resync_after_load(void)
         if (h != want) {
             if (h == ah) snprintf(dv_heroswap_adopt_hero, sizeof dv_heroswap_adopt_hero, "stage");
             else
-                for (i = 0; kHeroNames[h][i] && i < (int)sizeof dv_heroswap_adopt_hero - 1; i++) {
-                    dv_heroswap_adopt_hero[i] = (char)tolower((unsigned char)kHeroNames[h][i]);
-                    dv_heroswap_adopt_hero[i + 1] = 0;
-                }
+                snprintf(dv_heroswap_adopt_hero, sizeof dv_heroswap_adopt_hero, "%s", kHeroValues[h]);
         }
         snprintf(dv_heroswap_adopt_weapon, sizeof dv_heroswap_adopt_weapon, "%s", w >= 0 ? kWeapons[w].id : "hero");
         dv_heroswap_mismatch = 1;

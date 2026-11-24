@@ -5,6 +5,9 @@
                                      [--build build-debug] [--port N] [--play SECONDS] [--weapon HERO2]
 
 --state 9 (Kodel, 3/1) with --leave 3/3 tests Clovis, who is 1/7's own hero.
+--scene-shots N, with --leave into a stage that opens with a story scene
+(3/1), takes N screenshots of it (test_heroswap_scene_NN.png), pressing
+Cross between them: the portraits and the names in its dialogues.
 --menu-weapon W then picks weapon model W (or `hero`) on the menu's Hero >
 Weapon row and confirms it in the dialog: the stage must restart with it.
 --weapon W sets the feature's `weapon` option: HERO holds weapon model W
@@ -17,6 +20,8 @@ stage"): the stage must restart with HERO2 as the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
 
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
+dragonvalor (the prologue's dragon slayer in Clovis's kit: g_Hero.index stays
+Clovis's 0; reference `heroswap.py build 1 1 1 7 --prune --body dragonvalor`),
 or `default`: a state.toml that does not name the package, as on a fresh
 install, so the feature runs as its manifest ships it (on, each stage's own
 hero, the hero's own weapon). The stage must then load untouched (no
@@ -69,7 +74,17 @@ PACK = 0x800C5E98          # row 0 of ACTION: the action pack while a stage runs
 HERO_INDEX = 0x80086318    # g_Hero.index
 HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
-HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
+HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor"]
+
+
+def hname(value):
+    """The plugin's name for a hero option value (its log lines, the menu)."""
+    return "Dragon Valor" if value == "dragonvalor" else value.capitalize()
+
+
+def gindex(hero):
+    """g_Hero.index for a HEROES index: the Dragon Valor plays Clovis's part (0)."""
+    return 0 if hero >= 0 and HEROES[hero] == "dragonvalor" else hero
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
 # and their source stages: 1/1 4/15 8/1 10/2 4/3 10/1 11/1 12/6 12/1)
 WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise"]
@@ -110,6 +125,11 @@ def main(argv):
     if prime:
         args.remove("--prime-disc2")
     weapon = menu_weapon = None
+    scene_shots = 0
+    if "--scene-shots" in args:
+        i = args.index("--scene-shots")
+        scene_shots = int(args[i + 1])
+        del args[i:i + 2]
     for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu", "--weapon", "--menu-weapon"):
         if flag in args:
             i = args.index(flag)
@@ -258,7 +278,7 @@ hero = "{hero_name}"
         while time.time() - t0 < 60 and "play as" not in log_text():
             time.sleep(1)
         lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
-        shown = "each stage's hero" if default else hero_name.capitalize()
+        shown = "each stage's hero" if default else hname(hero_name)
         check("plugin active, play as " + shown,
               any(f"play as {shown}" in l for l in lines), " | ".join(lines))
         print(f"state {slot}:", cli("state", "load", str(slot)).splitlines()[-1])
@@ -319,14 +339,14 @@ hero = "{hero_name}"
                   str(rd(HERO_INDEX, 1)[0]))
             leave = None      # the leave check below is about a chosen hero
         else:
-            check(f"{ts} laid out for {hero_name.capitalize()}", f"stage {ts} as {hero_name.capitalize()}" in text)
+            check(f"{ts} laid out for {hname(hero_name)}", f"stage {ts} as {hname(hero_name)}" in text)
         if not default:
             if weapon:
-                check(f"{hero_name.capitalize()} holds weapon {weapon}",
-                      f"stage {ts} as {hero_name.capitalize()} with weapon {weapon}:" in text)
+                check(f"{hname(hero_name)} holds weapon {weapon}",
+                      f"stage {ts} as {hname(hero_name)} with weapon {weapon}:" in text)
             check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
             check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
-            check(f"g_Hero.index = {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+            check(f"g_Hero.index = {gindex(hero)}", rd(HERO_INDEX, 1)[0] == gindex(hero), str(rd(HERO_INDEX, 1)[0]))
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
         for label, (rect, data) in expect_vram.items():
@@ -406,8 +426,8 @@ hero = "{hero_name}"
                     time.sleep(0.3)
                 time.sleep(4)
                 text = log_text()
-                label = "its own hero" if pick == "stage" else pick.capitalize()
-                want = index_before if pick == "stage" else HEROES.index(pick)
+                label = "its own hero" if pick == "stage" else hname(pick)
+                want = index_before if pick == "stage" else gindex(HEROES.index(pick))
                 check(f"menu -> {pick}: {ts} restarted as {label}", f"restarts as {label}" in text and seen17,
                       next((l for l in reversed(text.splitlines()) if "restarts as" in l), "no restart line"))
                 check(f"menu -> {pick}: no GAME OVER on the way", 9 not in modes, f"modes seen {sorted(modes)}")
@@ -447,7 +467,7 @@ hero = "{hero_name}"
                 time.sleep(0.3)
             time.sleep(4)
             tail = log_text().split("restarts as")[-1]
-            who = (hero_name if hero >= 0 else HEROES[index_before]).capitalize()   # `default`: the stage's own
+            who = hname(hero_name if hero >= 0 else HEROES[index_before])   # `default`: the stage's own
             want = (f"stage {ts} as {who} with weapon {menu_weapon}:"
                     if menu_weapon != "hero" else f"stage {ts} as {who}:")
             check(f"menu Weapon -> {menu_weapon}: {ts} restarted with it", want in tail,
@@ -461,10 +481,15 @@ hero = "{hero_name}"
             text = log_text()
             ls = f"{leave[0]}/{leave[1]}"
             check(f"{ls} is running", ok, f"{rd16(AREA)}/{rd16(STAGE)} mode {rd(MODE, 1)[0]}")
-            check(f"{ls} rebuilt for {hero_name.capitalize()} too",
-                  f"stage {ls} as {hero_name.capitalize()}" in text and f"stage {ls} pack rebuilt" in text)
-            check(f"g_Hero.index still {hero}", rd(HERO_INDEX, 1)[0] == hero, str(rd(HERO_INDEX, 1)[0]))
+            check(f"{ls} rebuilt for {hname(hero_name)} too",
+                  f"stage {ls} as {hname(hero_name)}" in text and f"stage {ls} pack rebuilt" in text)
+            check(f"g_Hero.index still {gindex(hero)}", rd(HERO_INDEX, 1)[0] == gindex(hero), str(rd(HERO_INDEX, 1)[0]))
             rpc(port, "screenshot", path=str(bdir / "test_heroswap_left.png"))
+            for k in range(scene_shots):
+                # a story scene that opens the stage: its dialogues, Cross between shots
+                time.sleep(1.2)
+                rpc(port, "screenshot", path=str(bdir / f"test_heroswap_scene_{k:02}.png"))
+                cli("press", "cross")
         h = cli("health")
         print("  health:", h.replace("\n", "; "))
         nums = [int(x) for x in re.findall(r"total=(\d+)", h)]

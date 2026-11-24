@@ -259,6 +259,13 @@ the native 60 Hz version.
   `tools/heroswap.py`. Open: long play, 9/10's scene not watched, a scene
   pack installed right after a save-state load not watched
   (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
+  **The Dragon Valor** (2026-11-23, the player's request): the dragon slayer
+  of the prologue's opening scene (0/1) is a 10th Play as choice: his body
+  (a scene object with a hero's 14 parts, found by the decomp), texture and
+  portrait on Clovis's kit, so Clovis's moves; the dialogues and epilogues
+  say Dragon Valor, the Status screen and the save Clovis (no hero of the
+  game). `tests/test_heroswap.py dragonvalor --ref ...` 20/20 (the decomp
+  tool's `--body dragonvalor` bytes), and 3/1's opening scene with him.
 - **Menu fixes from the player's reports** (2026-10-16): Return to launcher
   restarts the program, which opens the launcher (the framework's own
   return only works in netplay builds and closed the game; upstream
