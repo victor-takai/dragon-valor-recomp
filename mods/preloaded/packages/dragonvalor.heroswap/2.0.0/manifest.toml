@@ -78,6 +78,10 @@ label = "Anita"
 value = "dragonvalor"
 label = "Dragon Valor (prologue)"
 
+[[option.choice]]
+value = "oldclovis"
+label = "Old Clovis (chapter 3)"
+
 [[option]]
 feature = "play-as"
 id = "weapon"

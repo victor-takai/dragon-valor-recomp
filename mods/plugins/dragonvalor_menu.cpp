@@ -84,11 +84,14 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 #define DV_KEY_HERO_APPLY  "dv.heroswap.apply"
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
 const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
-                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor"};
+                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor",
+                                      "Old Clovis"};
 const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
-                                     "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor"};
-#define DV_PLAY_AS_CHOICES 11
+                                     "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
+                                     "oldclovis"};
+#define DV_PLAY_AS_CHOICES 12
 #define DV_PLAY_AS_DRAGONVALOR 10   /* the prologue's dragon slayer: plays Clovis's part (g_Hero.index 0) */
+#define DV_PLAY_AS_OLDCLOVIS 11     /* the grown Clovis of chapter 3: g_Hero.index 0 too */
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
 /* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own, then the
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
@@ -165,7 +168,7 @@ const RecompRuntimeUiItem kItems[] = {
 
     {DV_KEY_PLAY_AS, "Hero", "Play as",
      "The hero of every action stage: model, moves, voice, portrait and name, story scenes included. "
-     "The Dragon Valor is the dragon slayer of the prologue's opening, with Clovis's moves. "
+     "The Dragon Valor (the prologue's dragon slayer) and Old Clovis (chapter 3) have Clovis's moves. "
      "Pick one with Left / Right, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_PLAY_AS_CHOICES - 1, 1, kPlayAsChoices, DV_PLAY_AS_CHOICES, nullptr},
     {DV_KEY_WEAPON, "Hero", "Weapon",
@@ -1848,9 +1851,9 @@ void p_draw(void* ctx, int width, int height) {
         const int idx = psx_mod_read_byte(0x80086318u);        /* g_Hero.index */
         hd.hero = idx >= 0 && idx < 9;
         if (hd.hero) {
-            /* the Dragon Valor holds Clovis's index: his name when he is the one played */
-            std::snprintf(hd.name, sizeof hd.name, "%s",
-                          kPlayAsChoices[idx == 0 && m.play_as == DV_PLAY_AS_DRAGONVALOR ? DV_PLAY_AS_DRAGONVALOR : idx + 1]);
+            /* the bodies hold Clovis's index: their name when one of them is played */
+            const bool body = idx == 0 && (m.play_as == DV_PLAY_AS_DRAGONVALOR || m.play_as == DV_PLAY_AS_OLDCLOVIS);
+            std::snprintf(hd.name, sizeof hd.name, "%s", kPlayAsChoices[body ? m.play_as : idx + 1]);
             hd.area = (int16_t)psx_mod_read_half(0x800A2F18u);
             hd.stage = (int16_t)psx_mod_read_half(0x800A2F1Au);
             hd.hp = psx_mod_read_half(0x8008A5AEu);

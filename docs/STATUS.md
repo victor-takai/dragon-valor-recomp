@@ -269,6 +269,11 @@ the native 60 Hz version.
   free: the hero's CLUT block grows up into the page's unused rows. Each
   matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
   raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
+  **Old Clovis** (2026-11-23, the player's request): the grown Clovis of
+  chapter 3 (3/17) is the 11th choice, his body and long sword on Clovis's
+  kit (`test_heroswap.py oldclovis --ref` 20/20). The plugin's cache now
+  lives beside the executable: started from a link, the game ran in another
+  folder and lost the disc-2 weapons (the player saw them all as Clovis's).
   **The Dragon Valor** (2026-11-23, the player's request): the dragon slayer
   of the prologue's opening scene (0/1) is a 10th Play as choice: his body
   (a scene object with a hero's 14 parts, found by the decomp), texture and

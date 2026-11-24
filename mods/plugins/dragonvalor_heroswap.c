@@ -100,22 +100,27 @@
 #define DV_SECTOR             2048u
 #define DV_NODE               0x70u
 
-#define HERO_COUNT 10
+#define HERO_COUNT 11
 static const char* const kHeroValues[HERO_COUNT] = {
-    "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor"};
+    "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
+    "oldclovis"};
 static const char* const kHeroNames[HERO_COUNT] = {
-    "Clovis", "Arlen", "Kodel", "Felippe", "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor"};
+    "Clovis", "Arlen", "Kodel", "Felippe", "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor",
+    "Old Clovis"};
 /* Where each kit comes from: the first stage of the hero's first area (the
- * Dragon Valor's: Clovis's, dressed, see *a body from a story scene*). */
+ * bodies': Clovis's, dressed, see *a body from a story scene*). */
 static const int kKitSource[HERO_COUNT][2] = {
-    {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1}, {1, 1}};
+    {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1}, {1, 1}, {1, 1}};
 static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5};   /* 0x8006CC70 */
-/* The Dragon Valor, the dragon slayer of the prologue's opening scene, is no
- * hero of the game: his body worn by Clovis's kit. For what the game itself
- * names by g_Hero.index (the menus, the stats, the save, the world map's
- * walker) he plays Clovis's part. */
-#define DV_BODY_HERO 9
-static int game_hero(int h) { return h == DV_BODY_HERO ? 0 : h; }
+/* The bodies (choices 9 and 10): characters of story scenes with the heroes'
+ * body, worn by Clovis's kit (see *a body from a story scene*): the Dragon
+ * Valor, the dragon slayer of the prologue's opening scene, and the grown
+ * Clovis Kodel fights in chapter 3 (the player's requests, 2026-11-23). They
+ * are no heroes of the game: for what it names by g_Hero.index (the menus,
+ * the stats, the save, the world map's walker) they play Clovis's part. */
+#define BODY_FIRST 9
+static int is_body(int h) { return h >= BODY_FIRST && h < HERO_COUNT; }
+static int game_hero(int h) { return is_body(h) ? 0 : h; }
 
 /* The weapon models (hero node 2) of the action stages of both discs, by
  * geometry and look (a scan of the 226 stages, 2026-11-18; decomp
@@ -1046,20 +1051,32 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
     return 1;
 }
 
-/* The body of a story scene (below, after the weapon code it shares). */
-#define DV_BODY_AREA      0
-#define DV_BODY_STAGE     1
-#define DV_BODY_FILE      80   /* 0/1 room 1's event pack: his object, his portrait */
-#define DV_BODY_TEX_FILE  79   /* the file before it: his texture */
+/* The bodies of story scenes (taken below, after the weapon code they share;
+ * decomp tools/heroswap.py BODIES): the stage and file of the object (its
+ * first op 3 there: obj), the file of its texture, the TIM of its portrait
+ * (file, entry, k-th TIM of that entry's chain), the hero node each of its
+ * parts goes to. */
+#define BODY_COUNT (HERO_COUNT - BODY_FIRST)
+static const struct {
+    int area, stage, file, obj, tex_file, por_file, por_entry, por_k;
+    uint8_t order[14];
+} kBodies[BODY_COUNT] = {
+    /* the Dragon Valor: 0/1 room 1's event pack; his sword is part 1, his chest part 2 */
+    {0, 1, 80, 0, 79, 80, 4, 0, {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+    /* the grown Clovis: 3/17 room 1's enemy group; his portrait the second of the scene packs' image set */
+    {3, 17, 76, 0, 75, 80, 3, 1, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+};
 typedef struct { int ready; Buf prims[14], verts[14], page, portrait; } Body;
-static Body s_body;
-static int body_take(const uint8_t* f80, uint32_t l80, const uint8_t* f79, uint32_t l79);
-static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1);
+static Body s_bodies[BODY_COUNT];
+static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
+                     uint32_t lp);
+static int kit_build_dressed(Kit* k, const Body* body, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1);
 
 /* Table and kits of disc 0 (areas 0..6) or 1 (7..12). */
 static int disc_scan(int disc)
 {
     static Split s;
+    Buf src_f0 = {0}, src_f1 = {0};   /* Clovis's file 0 and pack (1/1), for the bodies' kits */
     static Ct c0, cp;
     static Tim tims[64];
     uint32_t size = 0, key = 0, idx, starts[256], counts[256];
@@ -1081,14 +1098,21 @@ static int disc_scan(int disc)
             if (!cdr_stage(&d, area, stage, &idx, starts, counts, &nf)) continue;
             f0 = cdr_file(&d, idx, starts[0], counts[0], &l0);
             f1 = cdr_file(&d, idx, starts[1], counts[1], &l1);
-            /* the prologue's 0/1: the Dragon Valor's body, before 1/1 dresses Clovis's kit with it */
-            if (area == DV_BODY_AREA && stage == DV_BODY_STAGE && !s_kits[DV_BODY_HERO].ready && !s_body.ready) {
-                uint32_t l79 = 0, l80 = 0;
-                const uint8_t *f79 = nf > DV_BODY_FILE ? cdr_file(&d, idx, starts[DV_BODY_TEX_FILE], counts[DV_BODY_TEX_FILE], &l79) : NULL;
-                const uint8_t *f80 = nf > DV_BODY_FILE ? cdr_file(&d, idx, starts[DV_BODY_FILE], counts[DV_BODY_FILE], &l80) : NULL;
-                if (!f79 || !f80 || !body_take(f80, l80, f79, l79))
-                    fprintf(stderr, "%s: no Dragon Valor body in 0/1\n", DV_HS_PLUGIN);
-            }
+            /* a body's stage: its parts, texture and portrait (its kit is
+             * built after the scan, from Clovis's files of 1/1) */
+            for (h = 0; h < BODY_COUNT; h++)
+                if (kBodies[h].area == area && kBodies[h].stage == stage && !s_kits[BODY_FIRST + h].ready &&
+                    !s_bodies[h].ready) {
+                    uint32_t lo = 0, lt = 0, lp = 0;
+                    const uint8_t *fo = NULL, *ft = NULL, *fp = NULL;
+                    if (nf > kBodies[h].file && nf > kBodies[h].tex_file && nf > kBodies[h].por_file) {
+                        fo = cdr_file(&d, idx, starts[kBodies[h].file], counts[kBodies[h].file], &lo);
+                        ft = cdr_file(&d, idx, starts[kBodies[h].tex_file], counts[kBodies[h].tex_file], &lt);
+                        fp = cdr_file(&d, idx, starts[kBodies[h].por_file], counts[kBodies[h].por_file], &lp);
+                    }
+                    if (!fo || !ft || !fp || !body_take(h, fo, lo, ft, lt, fp, lp))
+                        fprintf(stderr, "%s: no %s body in %d/%d\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + h], area, stage);
+                }
             /* a map stage of a kit's area: the walker for that hero */
             if (f0 && ct_parse(&c0, f0, l0) && c0.n >= 2) {
                 uint32_t ca, ia;
@@ -1116,8 +1140,14 @@ static int disc_scan(int disc)
                             dv_area_hero(area) >= 0 ? &s_kits[dv_area_hero(area)] : NULL, r);
             for (h = 0; h < HERO_COUNT; h++)
                 if (kKitSource[h][0] == area && kKitSource[h][1] == stage && !s_kits[h].ready) {
-                    if (!(h == DV_BODY_HERO ? kit_build_dressed(&s_kits[h], f0, l0, f1, l1)
-                                            : kit_build(&s_kits[h], f0, l0, f1, l1))) {
+                    if (is_body(h)) {
+                        /* the bodies' kits come after the scan (a body can be
+                         * on a later stage): keep Clovis's files */
+                        if (!src_f1.n && (!buf_put(&src_f0, f0, l0) || !buf_put(&src_f1, f1, l1)))
+                            src_f0.n = src_f1.n = 0;
+                        continue;
+                    }
+                    if (!kit_build(&s_kits[h], f0, l0, f1, l1)) {
                         kit_free(&s_kits[h]);
                         fprintf(stderr, "%s: no kit for %s from %d/%d\n", DV_HS_PLUGIN, kHeroNames[h], area, stage);
                     }
@@ -1137,6 +1167,14 @@ static int disc_scan(int disc)
                 }
         }
     }
+    for (h = 0; h < BODY_COUNT; h++)
+        if (!s_kits[BODY_FIRST + h].ready && s_bodies[h].ready && src_f1.n &&
+            !kit_build_dressed(&s_kits[BODY_FIRST + h], &s_bodies[h], src_f0.p, src_f0.n, src_f1.p, src_f1.n)) {
+            kit_free(&s_kits[BODY_FIRST + h]);
+            fprintf(stderr, "%s: no kit for %s\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + h]);
+        }
+    buf_free(&src_f0);
+    buf_free(&src_f1);
     free(data);
     s_disc_ready[disc] = s_nstages[disc] > 0;
     return s_disc_ready[disc];
@@ -2312,43 +2350,35 @@ static const Kit* arm_kit(int hero, int weapon)
  * (image at (384, 0), CLUT block in the page's last rows) with every
  * textured prim's tpage and CLUT and every untextured prim's DR_TPAGE
  * pointed there, his portrait in file 0's chain. */
-static const uint8_t kBodyOrder[14] = {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};   /* hero node <- his */
-#define DV_BODY_PORTRAIT  4
-
-static int body_take(const uint8_t* f80, uint32_t l80, const uint8_t* f79, uint32_t l79)
+static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
+                     uint32_t lp)
 {
-    static Ct c, ct;
+    static Ct c, ct, cpo;
     static Prog p;
     static Tim t[64];
+    Body* body = &s_bodies[b];
     const uint8_t* e0;
-    uint32_t i, tp = 0xFFFFFFFFu, start = 0, len = 0, ent = 0;
-    int j, r, op3 = -1;
-    s_body.ready = 0;
-    if (!ct_parse(&c, f80, l80) || !prog_walk(&p, CT_E(&c, 0), CT_L(&c, 0))) return 0;
+    uint32_t i, tp, start = 0, len = 0, ent = 0, pe_ = (uint32_t)kBodies[b].por_entry;
+    int j, k = 0, op3 = -1;
+    body->ready = 0;
+    if (!ct_parse(&c, fo, lo) || !prog_walk(&p, CT_E(&c, 0), CT_L(&c, 0))) return 0;
     e0 = CT_E(&c, 0);
-    for (j = 0; j < p.nops && op3 < 0; j++) if (p.ops[j].op == 3) op3 = j;
+    for (j = 0; j < p.nops && op3 < 0; j++)
+        if (p.ops[j].op == 3 && k++ == kBodies[b].obj) op3 = j;
     if (op3 < 0 || le32(e0 + p.ops[op3].pos + 12) != 14) return 0;
     for (i = 0; i < 14; i++) {
-        uint32_t node = p.ops[op3].pos + 16 + kBodyOrder[i] * DV_NODE;
+        uint32_t node = p.ops[op3].pos + 16 + kBodies[b].order[i] * DV_NODE;
         uint32_t pe = le32(e0 + node + 0x68), ve = le32(e0 + node + 0x6C);
         if (!pe || pe >= c.n || !ve || ve >= c.n || CT_L(&c, pe) < 17 * 16) return 0;
-        s_body.prims[i].n = s_body.verts[i].n = 0;
-        if (!buf_put(&s_body.prims[i], CT_E(&c, pe), CT_L(&c, pe)) ||
-            !buf_put(&s_body.verts[i], CT_E(&c, ve), CT_L(&c, ve)))
+        body->prims[i].n = body->verts[i].n = 0;
+        if (!buf_put(&body->prims[i], CT_E(&c, pe), CT_L(&c, pe)) ||
+            !buf_put(&body->verts[i], CT_E(&c, ve), CT_L(&c, ve)))
             return 0;
     }
-    /* his page: the tpage of part 0's first textured prim (word 5 of FT3 /
-     * FT4, 6 of GT3 / GT4); his TIM: in the first entry of file 79 that has
-     * one, the last 4-bit TIM with a CLUT block in that page */
-    for (r = 0; r < 4 && tp == 0xFFFFFFFFu; r++) {
-        const uint8_t* tab = s_body.prims[0].p;
-        uint32_t w1;
-        if (!le16u(tab + 16 * r + 2)) continue;
-        w1 = le32(tab + 16 * r + 4) + 4u * (r < 2 ? 5u : 6u);
-        if (w1 + 4 > s_body.prims[0].n) return 0;
-        tp = (le32(tab + w1) >> 16) & 0x1F;
-    }
-    if (tp == 0xFFFFFFFFu || !ct_parse(&ct, f79, l79)) return 0;
+    /* his page: the tpage of part 0's first textured prim; his TIM: in the
+     * first entry of the texture file that has one, the last TIM with a
+     * CLUT block in that page */
+    if ((tp = first_tpage(body->prims[0].p, body->prims[0].n)) == 0xFFFFFFFFu || !ct_parse(&ct, ft, lt)) return 0;
     for (i = 0; i < ct.n && !len; i++) {
         int nt = tim_chain(CT_E(&ct, i), CT_L(&ct, i), t, 64, NULL);
         for (j = 0; j < nt; j++)
@@ -2358,17 +2388,20 @@ static int body_take(const uint8_t* f80, uint32_t l80, const uint8_t* f79, uint3
                 ent = i;
             }
     }
-    s_body.page.n = s_body.portrait.n = 0;
-    if (!len || !buf_put(&s_body.page, CT_E(&ct, ent) + start, len)) return 0;
-    if (DV_BODY_PORTRAIT >= c.n ||
-        tim_chain(CT_E(&c, DV_BODY_PORTRAIT), CT_L(&c, DV_BODY_PORTRAIT), t, 64, NULL) != 1 || !tim_is_portrait(&t[0]) ||
-        !buf_put(&s_body.portrait, CT_E(&c, DV_BODY_PORTRAIT), t[0].end))
+    body->page.n = body->portrait.n = 0;
+    if (!len || !buf_put(&body->page, CT_E(&ct, ent) + start, len)) return 0;
+    /* his portrait: the k-th TIM of the portrait entry's chain */
+    if (!ct_parse(&cpo, fp, lp) || pe_ >= cpo.n ||
+        tim_chain(CT_E(&cpo, pe_), CT_L(&cpo, pe_), t, 64, NULL) <= kBodies[b].por_k ||
+        !tim_is_portrait(&t[kBodies[b].por_k]) ||
+        !buf_put(&body->portrait, CT_E(&cpo, pe_) + t[kBodies[b].por_k].start,
+                 t[kBodies[b].por_k].end - t[kBodies[b].por_k].start))
         return 0;
-    s_body.ready = 1;
+    body->ready = 1;
     return 1;
 }
 
-static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1)
+static int kit_build_dressed(Kit* k, const Body* body, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1)
 {
     static const uint32_t usize[4] = {0x1C, 0x20, 0x24, 0x2C};   /* records 4..7 */
     static Ct cp, c0;
@@ -2385,8 +2418,8 @@ static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8
     uint32_t i, kk, r, vab, te, pos;
     int j, n, kh, cy, du, dv, placed = 0, por = 0;
 
-    if (!s_body.ready || !ct_parse(&cp, f1, l1) || !prog_walk(&p, CT_E(&cp, 0), CT_L(&cp, 0)) || p.ops[0].op != 3 ||
-        le32(CT_E(&cp, 0) + 12) != 14 || !page_parse(&src, s_body.page.p, s_body.page.n, 0))
+    if (!body->ready || !ct_parse(&cp, f1, l1) || !prog_walk(&p, CT_E(&cp, 0), CT_L(&cp, 0)) || p.ops[0].op != 3 ||
+        le32(CT_E(&cp, 0) + 12) != 14 || !page_parse(&src, body->page.p, body->page.n, 0))
         return 0;
     /* his TIM moves whole: image at (384, 0), the CLUT block in the page's last rows */
     cy = 256 - src.ch;
@@ -2400,7 +2433,7 @@ static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8
         uint8_t* tab;
         if (!pe || pe >= cp.n || !ve || ve >= cp.n) return 0;
         prims[i].n = 0;
-        if (!buf_put(&prims[i], s_body.prims[i].p, s_body.prims[i].n)) return 0;
+        if (!buf_put(&prims[i], body->prims[i].p, body->prims[i].n)) return 0;
         tab = prims[i].p;
         if ((n = tex_prims(tab, prims[i].n, tp, DV_MAX_TPRIMS)) < 0) return 0;
         for (j = 0; j < n; j++) {
@@ -2428,8 +2461,8 @@ static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8
         }
         ents[pe] = prims[i].p;
         lens[pe] = prims[i].n;
-        ents[ve] = s_body.verts[i].p;
-        lens[ve] = s_body.verts[i].n;
+        ents[ve] = body->verts[i].p;
+        lens[ve] = body->verts[i].n;
     }
     /* entry 0 without the hero's weld lists */
     for (kh = 1; p.ops[kh].op != 0 && is_hero_op(s0, &p.ops[kh]); kh++) {}
@@ -2458,8 +2491,8 @@ static int kit_build_dressed(Kit* k, const uint8_t* f0, uint32_t l0, const uint8
             placed = 1;
             pos = t[j].end;
         } else if (tim_is_portrait(&t[j])) {
-            if (t[j].end - t[j].start != s_body.portrait.n || !buf_put(&chain, ch + pos, t[j].start - pos) ||
-                !buf_put(&chain, s_body.portrait.p, s_body.portrait.n))
+            if (t[j].end - t[j].start != body->portrait.n || !buf_put(&chain, ch + pos, t[j].start - pos) ||
+                !buf_put(&chain, body->portrait.p, body->portrait.n))
                 return 0;
             por++;
             pos = t[j].end;
@@ -2597,7 +2630,7 @@ static int read_hero_name(int hero, uint16_t* out)
 {
     uint32_t p, i;
     if (hero < 0 || hero >= HERO_COUNT) return 0;
-    if (hero == DV_BODY_HERO) {                          /* not in the game's table */
+    if (is_body(hero)) {                                 /* not in the game's table */
         memcpy(out, kNameGlyphs[hero], sizeof kNameGlyphs[hero]);
         return kNameLen[hero];
     }
@@ -2878,8 +2911,9 @@ static const uint16_t kNameGlyphs[HERO_COUNT][16] = {
     {0x2822, 0x2263, 0x15c3, 0x1884, 0x20c3},                          /* Anita */
     /* Dragon Valor: the speaker line of 0/1's scene (file 80), 0x1800 a space */
     {0x2882, 0x1c44, 0x20c3, 0x2183, 0x1e83, 0x2263, 0x1800, 0x2823, 0x20c3, 0x1623, 0x1e83, 0x1c44},
+    {0x2862, 0x1623, 0x1e83, 0x20c4, 0x15c3, 0x1864},                  /* the grown Clovis: Clovis */
 };
-static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5, 12};
+static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5, 12, 6};
 
 static void swap_epilogue(uint32_t pack)
 {
@@ -3129,16 +3163,21 @@ static int weapon_in_ram(int h)
     return -1;
 }
 
-/* The Dragon Valor's stage keeps Clovis's g_Hero.index: his body is told by
- * the hero object's chest (node 1), byte for byte his kit's vertex entry. */
+/* A body's stage keeps Clovis's g_Hero.index: the body is told by the hero
+ * object's chest (node 1), byte for byte its kit's vertex entry; -1 if none. */
 static int body_in_ram(void)
 {
-    const Kit* k = &s_kits[DV_BODY_HERO];
     uint32_t nodes = psx_mod_read_word(DV_HERO_OBJECT + DV_OBJ_NODES), vp, e;
-    if (!k->ready || nodes < 0x80000000u || nodes >= DV_RAM_END) return 0;
+    int h;
+    if (nodes < 0x80000000u || nodes >= DV_RAM_END) return -1;
     vp = psx_mod_read_word(nodes + 1 * DV_NODE + 0x6C);
-    e = kit_node_ref(k, 1, 0x6C);
-    return vp >= 0x80000000u && vp < DV_RAM_END && e && e <= k->nent && ram_is(vp, k->ent[e - 1], k->entlen[e - 1]);
+    if (vp < 0x80000000u || vp >= DV_RAM_END) return -1;
+    for (h = BODY_FIRST; h < HERO_COUNT; h++) {
+        const Kit* k = &s_kits[h];
+        if (k->ready && (e = kit_node_ref(k, 1, 0x6C)) && e <= k->nent && ram_is(vp, k->ent[e - 1], k->entlen[e - 1]))
+            return h;
+    }
+    return -1;
 }
 
 static void resync_after_load(void)
@@ -3151,7 +3190,10 @@ static void resync_after_load(void)
     s_saved_hero = s_written_hero = -1;
     if (!s_enabled || psx_mod_read_byte(DV_MODE) != 8 || ah < 0 || h >= HERO_COUNT || !stage_find(area, stage))
         return;   /* not in an action stage: the next stage load decides */
-    if (h == game_hero(DV_BODY_HERO) && body_in_ram()) h = DV_BODY_HERO;
+    if (h == 0) {
+        int bh = body_in_ram();
+        if (bh >= 0) h = bh;
+    }
     w = weapon_in_ram(h);
     if (w >= 0 && weapon_is_own(h, w)) w = -1;
     if ((h != ah || w >= 0) && s_kits[h].ready) {

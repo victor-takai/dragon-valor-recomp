@@ -1876,6 +1876,26 @@ whole sheet, one island of 256 x 192 texels, which fits no hero's page.
   four fit all nine heroes and the Dragon Valor (the decomp tool, every
   pair).
 
+**Old Clovis and the cache's place (2026-11-23, the player's play test).**
+The player asked to play the grown Clovis Kodel fights in chapter 3, whose
+long sword fits no other hero's page: an 11th `hero` choice, `oldclovis`
+("Old Clovis (chapter 3)"), a second body (`kBodies`: 3/17 room 1's enemy
+group, file 76, object 0, the heroes' part order; texture file 75; portrait
+the second TIM of the scene packs' image set, file 80 entry 3; decomp
+`heroswap.py --body oldclovis`). His sheet comes whole into the hero page,
+so his own sword with it. Bodies are taken where their stage is and their
+kits built after the scan from a copy of Clovis's 1/1 files (3/17 comes
+after 1/1). The dialogues name him Clovis, as the game does. Checked:
+`test_heroswap.py oldclovis --ref` 20/20, the Dragon Valor again 20/20.
+The same test session found why the player saw every disc-2 weapon (Mihael's,
+Anna's) fall back to the hero's own: the plugin's cache was a path relative
+to the working directory, and the game started from a link ran elsewhere
+(Windows gives C:\Windows\System32), so the cache was neither read nor
+written and the disc-2 weapon models were never loaded. It now lives beside
+the executable (`SDL_GetBasePath`, as the runtime's `mods/` and the menu's
+settings): the release build started from System32 wrote its cache into
+build-release.
+
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
 itself for every stage.

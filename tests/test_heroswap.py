@@ -74,17 +74,18 @@ PACK = 0x800C5E98          # row 0 of ACTION: the action pack while a stage runs
 HERO_INDEX = 0x80086318    # g_Hero.index
 HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
-HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor"]
+HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
+          "oldclovis"]
 
 
 def hname(value):
     """The plugin's name for a hero option value (its log lines, the menu)."""
-    return "Dragon Valor" if value == "dragonvalor" else value.capitalize()
+    return {"dragonvalor": "Dragon Valor", "oldclovis": "Old Clovis"}.get(value, value.capitalize())
 
 
 def gindex(hero):
-    """g_Hero.index for a HEROES index: the Dragon Valor plays Clovis's part (0)."""
-    return 0 if hero >= 0 and HEROES[hero] == "dragonvalor" else hero
+    """g_Hero.index for a HEROES index: the bodies play Clovis's part (0)."""
+    return 0 if hero >= 0 and HEROES[hero] in ("dragonvalor", "oldclovis") else hero
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
 # and their source stages: 1/1 4/15 8/1 10/2 4/3 10/1 11/1 12/6 12/1)
 WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise",
