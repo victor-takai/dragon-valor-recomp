@@ -2046,8 +2046,12 @@ has its own colour effect on the sword", "and the voices").**
   role, read the same way from its own script (its hit reaction plays one SE
   above 0 hp, another at 0; its attack cry comes with the weapon's swing;
   enemies do not jump, so a second, short attack cry): Raimun and the grown
-  Clovis attack 16, hurt 18, jump 17, death 19; Lodonya attack 17, hurt 18,
-  jump 17, death 19. The first picks read the roles from field names near
+  Clovis attack 16 / 17, hurt 18, jump 17, death 19; Lodonya attack 17 /
+  16, hurt 18, jump 16, death 19. A hero has ten attack cries and a body
+  two: with one cry for all ten the player heard "now it's all the same",
+  so the attack SEs take the two in turn, each at its own pitch
+  (`kAttackPitch`, -2..+2 semitones, the strong and charged attacks lower:
+  the hero tone's centre moved; one VAG per cry): 10 different sounds of 13. The first picks read the roles from field names near
   the calls (the object's +0x8, named `deathTimer`, is set by attacks too):
   the player heard death cries on attacks, a strange jump and a hurt that
   sounded like a hit, and the roles were read again from the code. The
