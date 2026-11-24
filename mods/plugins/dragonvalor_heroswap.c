@@ -1271,7 +1271,10 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 
 #define DV_KIT_MAGIC   0x4B485644u   /* "DVHK" */
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
-#define DV_KIT_VER     2u   /* 2: the bodies' kits from the prologue Clovis, their page baked */
+/* The heroes' kits are still version 1 (a disc-2 hero's kit must survive:
+ * it is only built while disc 2 runs); the bodies' are 2: from the prologue
+ * Clovis's files, their page baked (2026-11-23). */
+#define DV_KIT_VER(h)  (is_body(h) ? 2u : 1u)
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
 static void kit_save(int h)
@@ -1282,7 +1285,7 @@ static void kit_save(int h)
     uint32_t i, ok;
     cache_file(path, sizeof path, "hero%d.kit", h);
     if (!(f = fopen(path, "wb"))) return;
-    ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_KIT_VER) && w32(f, (uint32_t)h) && wbuf(f, k->ops.p, k->ops.n) &&
+    ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_KIT_VER(h)) && w32(f, (uint32_t)h) && wbuf(f, k->ops.p, k->ops.n) &&
          w32(f, k->nrefs);
     for (i = 0; ok && i < k->nrefs; i++) ok = w32(f, k->refs[i]);
     ok = ok && w32(f, k->nent) && w32(f, k->ntail);
@@ -1303,7 +1306,7 @@ static int kit_load(int h)
     cache_file(path, sizeof path, "hero%d.kit", h);
     if (!(f = fopen(path, "rb"))) return 0;
     memset(k, 0, sizeof *k);
-    ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_KIT_VER && r32(f, &v) && v == (uint32_t)h &&
+    ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_KIT_VER(h) && r32(f, &v) && v == (uint32_t)h &&
          rbuf(f, &k->ops, 0x10000) && r32(f, &k->nrefs) && k->nrefs <= 512;
     for (i = 0; ok && i < k->nrefs; i++) ok = r32(f, &k->refs[i]) && k->refs[i] + 4 <= k->ops.n;
     ok = ok && r32(f, &k->nent) && k->nent <= 400 && r32(f, &k->ntail) && k->ntail <= k->nent;

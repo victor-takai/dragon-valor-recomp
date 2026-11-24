@@ -1929,8 +1929,9 @@ back, not a weapon: with the hero's own weapon she holds Kodel's cutlass
   the CLUTs its prims use, in ascending order, four to a row, in the page's
   last rows (29 to 55 CLUTs, 8 to 14 rows); every prim's CLUT id remapped.
   The Dragon Valor and the grown Clovis go the same way, so their pages
-  changed too. The kit cache's version is 2: a cache from before reads
-  disc 1 once more.
+  changed too. The bodies' cached kits are version 2 (`DV_KIT_VER`), the
+  heroes' stay 1: a disc-2 hero's kit, built only while disc 2 runs, is
+  kept; the bodies' old kits are rebuilt on the next start.
 - **Checked** on build-debug, each against the decomp tool's `heroswap.py
   build 0 1 1 7 --prune --body NAME` (Fannah's with `--weapon 3 1 80 0`):
   pack head, hero page image, CLUTs and portrait in VRAM byte for byte,
