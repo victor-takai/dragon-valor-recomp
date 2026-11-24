@@ -262,13 +262,20 @@ the native 60 Hz version.
   **Weapons of other characters** (2026-11-23, the player's request:
   "Raimun's sword"): a scan of every object of both discs with the heroes'
   body (decomp `heroswap.py weapons`) found five more weapons; four are
-  offered: Raimun's sword (chapter 1's boss, 1/20), Jeanne's crystal sword,
-  Mihael's broadsword (Anna's chapter, disc 2) and Kodel's cutlass (3/1's
-  opening scene); the grown Clovis's long sword (3/17) draws from his whole
+  were offered: Raimun's sword (chapter 1's boss, 1/20), Jeanne's crystal
+  sword, Mihael's broadsword (Anna's chapter, disc 2; out again: in play it
+  looks like Azos, the player) and Kodel's cutlass (3/1's opening scene);
+  the grown Clovis's long sword (3/17) draws from his whole
   texture sheet and fits no hero. Raimun's needs more CLUTs than a hero has
   free: the hero's CLUT block grows up into the page's unused rows. Each
   matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
   raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
+  **Eight more bodies** (2026-11-23, the player's request): a skeleton,
+  Raimun, Lodonya, Shalya, Fannah, Jeanne, Felippe with his shield and the
+  Guardian are Play as choices too, all on the prologue Clovis's kit (no
+  shield: the chapter-1 Clovis's moves held a raised empty hand), the hero
+  page baked from each body's texture file; each matches the decomp tool
+  byte for byte (`test_heroswap.py NAME --ref`).
   **Old Clovis** (2026-11-23, the player's request): the grown Clovis of
   chapter 3 (3/17) is the 11th choice, his body and long sword on Clovis's
   kit (`test_heroswap.py oldclovis --ref` 20/20). The plugin's cache now

@@ -85,23 +85,25 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 /* dragonvalor.heroswap's `hero` option: index 0 = each stage's own hero. */
 const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
                                       "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor",
-                                      "Old Clovis"};
+                                      "Old Clovis", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne",
+                                      "Felippe (shield)", "Guardian"};
 const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
                                      "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
-                                     "oldclovis"};
-#define DV_PLAY_AS_CHOICES 12
+                                     "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne",
+                                     "felippeshield", "guardian"};
+#define DV_PLAY_AS_CHOICES 20
 #define DV_PLAY_AS_DRAGONVALOR 10   /* the prologue's dragon slayer: plays Clovis's part (g_Hero.index 0) */
-#define DV_PLAY_AS_OLDCLOVIS 11     /* the grown Clovis of chapter 3: g_Hero.index 0 too */
+#define DV_PLAY_AS_OLDCLOVIS 11     /* the grown Clovis of chapter 3; the bodies after it hold index 0 too */
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
 /* dragonvalor.heroswap's `weapon` option: index 0 = the hero's own, then the
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
 const char* const kWeaponChoices[] = {"The hero's own", "Azos", "Soul", "Kadum", "Igunis", "Felippe's first sword",
                                       "Mihael's dark sword", "Anna's red weapon", "Anita's purple sword",
                                       "Anita's turquoise sword", "Raimun's sword", "Jeanne's crystal sword",
-                                      "Mihael's broadsword", "Kodel's cutlass"};
+                                      "Kodel's cutlass"};
 const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple",
-                                     "turquoise", "raimun", "jeanne", "broadsword", "cutlass"};
-#define DV_WEAPON_CHOICES 14
+                                     "turquoise", "raimun", "jeanne", "cutlass"};
+#define DV_WEAPON_CHOICES 13
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
@@ -168,7 +170,7 @@ const RecompRuntimeUiItem kItems[] = {
 
     {DV_KEY_PLAY_AS, "Hero", "Play as",
      "The hero of every action stage: model, moves, voice, portrait and name, story scenes included. "
-     "The Dragon Valor (the prologue's dragon slayer) and Old Clovis (chapter 3) have Clovis's moves. "
+     "The Dragon Valor and the characters after him have the prologue Clovis's moves. "
      "Pick one with Left / Right, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_PLAY_AS_CHOICES - 1, 1, kPlayAsChoices, DV_PLAY_AS_CHOICES, nullptr},
     {DV_KEY_WEAPON, "Hero", "Weapon",
@@ -1852,7 +1854,7 @@ void p_draw(void* ctx, int width, int height) {
         hd.hero = idx >= 0 && idx < 9;
         if (hd.hero) {
             /* the bodies hold Clovis's index: their name when one of them is played */
-            const bool body = idx == 0 && (m.play_as == DV_PLAY_AS_DRAGONVALOR || m.play_as == DV_PLAY_AS_OLDCLOVIS);
+            const bool body = idx == 0 && m.play_as >= DV_PLAY_AS_DRAGONVALOR;
             std::snprintf(hd.name, sizeof hd.name, "%s", kPlayAsChoices[body ? m.play_as : idx + 1]);
             hd.area = (int16_t)psx_mod_read_half(0x800A2F18u);
             hd.stage = (int16_t)psx_mod_read_half(0x800A2F1Au);

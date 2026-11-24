@@ -11,7 +11,8 @@ Cross between them: the portraits and the names in its dialogues.
 --menu-weapon W then picks weapon model W (or `hero`) on the menu's Hero >
 Weapon row and confirms it in the dialog: the stage must restart with it.
 --weapon W sets the feature's `weapon` option: HERO holds weapon model W
-(azos soul kadum igunis felippe dark red purple turquoise; the reference
+(azos soul kadum igunis felippe dark red purple turquoise raimun jeanne
+cutlass; the reference
 then comes from `heroswap.py build ... --weapon A S` with W's source stage,
 e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen with Kadum).
 --menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Hero > Play as
@@ -20,8 +21,10 @@ stage"): the stage must restart with HERO2 as the menu closes, with no GAME
 OVER and Val / HP kept; the rest of the run continues with HERO2.
 
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
-dragonvalor (the prologue's dragon slayer in Clovis's kit: g_Hero.index stays
-Clovis's 0; reference `heroswap.py build 1 1 1 7 --prune --body dragonvalor`),
+a body (dragonvalor oldclovis skeleton raimun lodonya shalya fannah jeanne
+felippeshield guardian: another character in the prologue Clovis's kit,
+g_Hero.index stays Clovis's 0; reference `heroswap.py build 0 1 1 7 --prune
+--body NAME`, `felippe41` for felippeshield, Fannah's with `--weapon 3 1 80 0`),
 or `default`: a state.toml that does not name the package, as on a fresh
 install, so the feature runs as its manifest ships it (on, each stage's own
 hero, the hero's own weapon). The stage must then load untouched (no
@@ -75,21 +78,23 @@ HERO_INDEX = 0x80086318    # g_Hero.index
 HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
 HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
-          "oldclovis"]
+          "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne", "felippeshield", "guardian"]
+BODIES = HEROES[9:]       # characters on the prologue Clovis's kit (g_Hero.index 0)
 
 
 def hname(value):
     """The plugin's name for a hero option value (its log lines, the menu)."""
-    return {"dragonvalor": "Dragon Valor", "oldclovis": "Old Clovis"}.get(value, value.capitalize())
+    return {"dragonvalor": "Dragon Valor", "oldclovis": "Old Clovis",
+            "felippeshield": "Felippe (shield)"}.get(value, value.capitalize())
 
 
 def gindex(hero):
     """g_Hero.index for a HEROES index: the bodies play Clovis's part (0)."""
-    return 0 if hero >= 0 and HEROES[hero] in ("dragonvalor", "oldclovis") else hero
+    return 0 if hero >= 0 and HEROES[hero] in BODIES else hero
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
 # and their source stages: 1/1 4/15 8/1 10/2 4/3 10/1 11/1 12/6 12/1)
 WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise",
-           "raimun", "jeanne", "broadsword", "cutlass"]
+           "raimun", "jeanne", "cutlass"]
 DISC2 = ROOT.parent / "Dragon Valor (USA) (Disc 2)" / "Dragon Valor (USA) (Disc 2).cue"
 
 

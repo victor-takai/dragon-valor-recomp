@@ -1857,7 +1857,9 @@ an object: Raimun's sword (`raimun`: 1/20 room 2's enemy group, file 84,
 object 0; chapter 1's boss), Jeanne's crystal sword (`jeanne`: 4/1 room 1's
 scene, file 80, object 2), Mihael's broadsword (`broadsword`: 11/4 room 8's
 scene, file 136; Anna's chapter, disc 2) and Kodel's cutlass (`cutlass`: 3/1
-room 1's scene, file 80, object 0; before he takes Azos). `weapon_take_obj`
+room 1's scene, file 80, object 0; before he takes Azos). The broadsword is
+out again since the player's test ("it really is the first weapon,
+identical"): in play it looks like Azos; three remain. `weapon_take_obj`
 takes part 2 of that op 3 and the TIM from the file read before it into the
 same buffer (file - 1), the last TIM with a CLUT block in the weapon's page;
 cached as `weapon_<a>_<s>_f<file>_o<obj>.bin` (the first nine's keys and
@@ -1895,6 +1897,45 @@ written and the disc-2 weapon models were never loaded. It now lives beside
 the executable (`SDL_GetBasePath`, as the runtime's `mods/` and the menu's
 settings): the release build started from System32 wrote its cache into
 build-release.
+
+**Eight more bodies on the prologue Clovis's kit (2026-11-23, the player's
+requests: "these characters would be nice to have", and "the Dragon Valor
+and old Clovis use a Clovis skeleton with a shield, so their hand is
+raised: could it be the first Clovis's?").** The decomp's scan of every
+object of both discs for the heroes' body (`docs/targets/hero-swap.md`,
+*Bodies of other characters*) found eight more characters; each is a
+`hero` choice (`kBodies`, `kHeroValues`): `skeleton` (chapter 1's, 1/5's
+enemy group, file 132; no name and no portrait: the dialogues and the
+portrait stay the kit's), `raimun` (chapter 1's boss, 1/20, file 84),
+`lodonya` (chapter 2's black knight, 2/25, file 76), `shalya` (2/4, file
+80), `fannah` (3/1, file 80 object 1), `jeanne` (4/1, file 80 object 2),
+`felippeshield` (Felippe as 4/1's scenes draw him, with a shield, file 80
+object 4; the stage hero's portrait) and `guardian` (Phillip's twin of
+5/19, file 80; Phillip's portrait). All play the prologue Clovis's part
+for the game (`g_Hero.index` 0, `game_hero`); their names come from their
+scenes' speaker lines (`kNameGlyphs`). Fannah's part 2 is a thing on her
+back, not a weapon: with the hero's own weapon she holds Kodel's cutlass
+(`kBodies[].weapon`).
+
+- The kit source of every body is now the prologue's Clovis (0/1,
+  `kKitSource`), who holds no shield: the chapter-1 Clovis's animations
+  hold a shield up on the left arm, and a body without one lifted an empty
+  hand. The bodies' walker on the world maps stays Clovis's (area 1).
+- Their textures are not all one TIM in the heroes' sheet layout, so
+  `kit_build_dressed` bakes the hero page (decomp `bake_page`): the body's
+  texture file (the file before its own) is uploaded TIM by TIM into a
+  scratch VRAM (`vram_load`), and the page is cut from it: the image, the
+  body's page from its top row to its prims' last texel row, at (384, 0);
+  the CLUTs its prims use, in ascending order, four to a row, in the page's
+  last rows (29 to 55 CLUTs, 8 to 14 rows); every prim's CLUT id remapped.
+  The Dragon Valor and the grown Clovis go the same way, so their pages
+  changed too. The kit cache's version is 2: a cache from before reads
+  disc 1 once more.
+- **Checked** on build-debug, each against the decomp tool's `heroswap.py
+  build 0 1 1 7 --prune --body NAME` (Fannah's with `--weapon 3 1 80 0`):
+  pack head, hero page image, CLUTs and portrait in VRAM byte for byte,
+  `g_Hero.index` 0, the Status screen, 12 s of play, 1/9 rebuilt:
+  all ten 20/20 (dragonvalor, oldclovis, skeleton, raimun, lodonya, shalya, fannah, jeanne, felippeshield, guardian), the in-game shots showing each body with its own texture and its portrait on the Status screen (the skeleton's the prologue Clovis's). Not checked: long play, a boss, their scenes.
 
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
