@@ -122,49 +122,49 @@ label = "Phillip (Kadum)"
 feature = "play-as"
 id = "moves"
 label = "Moves"
-description = "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: the prologue Clovis's, or a hero's (Anna's or Anita's suit Shalya, Fannah and Jeanne). The nine heroes and their other looks keep their own. Anna's, Mihael's and Anita's are read from disc 2 once it has been started. Applies at the next stage load."
+description = "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), the prologue's, or a hero's (Anna or Anita suit Shalya, Fannah and Jeanne). The nine heroes and their other looks keep their own. Anna's, Mihael's and Anita's are read from disc 2 once it has been started. Applies at the next stage load."
 type = "choice"
 default = "own"
 
 [[option.choice]]
 value = "own"
-label = "The prologue Clovis's"
+label = "Clovis (Young)"
 
 [[option.choice]]
 value = "clovis"
-label = "Clovis's"
+label = "Clovis"
 
 [[option.choice]]
 value = "arlen"
-label = "Arlen's"
+label = "Arlen"
 
 [[option.choice]]
 value = "kodel"
-label = "Kodel's"
+label = "Kodel"
 
 [[option.choice]]
 value = "felippe"
-label = "Felippe's"
+label = "Felippe"
 
 [[option.choice]]
 value = "phillip"
-label = "Phillip's"
+label = "Phillip"
 
 [[option.choice]]
 value = "gerome"
-label = "Gerome's"
+label = "Gerome"
 
 [[option.choice]]
 value = "anna"
-label = "Anna's"
+label = "Anna"
 
 [[option.choice]]
 value = "mihael"
-label = "Mihael's"
+label = "Mihael"
 
 [[option.choice]]
 value = "anita"
-label = "Anita's"
+label = "Anita"
 
 [[option]]
 feature = "play-as"

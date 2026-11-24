@@ -111,8 +111,8 @@ const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", 
 #define DV_KEY_MOVES       "dv.heroswap.moves"
 /* dragonvalor.heroswap's `moves` option: whose kit (moves, voice) the
  * characters from the Dragon Valor on wear; index 0 = the prologue Clovis's. */
-const char* const kMovesChoices[] = {"The prologue Clovis's", "Clovis's", "Arlen's", "Kodel's", "Felippe's",
-                                     "Phillip's", "Gerome's", "Anna's", "Mihael's", "Anita's"};
+const char* const kMovesChoices[] = {"Clovis (Young)", "Clovis", "Arlen", "Kodel", "Felippe",
+                                     "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
 const char* const kMovesValues[] = {"own", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna",
                                     "mihael", "anita"};
 #define DV_MOVES_CHOICES 10
@@ -191,8 +191,8 @@ const RecompRuntimeUiItem kItems[] = {
      "four are read from disc 2 once it has been started. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
     {DV_KEY_MOVES, "Hero", "Moves",
-     "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: the "
-     "prologue Clovis's, or a hero's. Anna's and Anita's suit Shalya, Fannah and Jeanne; theirs and Mihael's "
+     "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), "
+     "the prologue's, or a hero's. Anna and Anita suit Shalya, Fannah and Jeanne; they and Mihael "
      "are read from disc 2 once it has been started. Locked while Play as names one of the nine heroes (or each "
      "stage's own): they keep their own. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_MOVES_CHOICES - 1, 1, kMovesChoices, DV_MOVES_CHOICES, nullptr},
@@ -793,7 +793,7 @@ void open_hero_dialog(Menu& m, bool closing) {
     if (m.play_as_pend != m.play_as)
         std::snprintf(title, sizeof title, m.play_as_pend ? "Play as %s?" : "Back to %s?", choice);
     else if (moves_matter(m) && m.moves_pend != m.moves && m.weapon_pend == m.weapon)
-        std::snprintf(title, sizeof title, "The Dragon Valor and the others with %s moves?", kMovesChoices[m.moves_pend]);
+        std::snprintf(title, sizeof title, "The Dragon Valor and the others move as %s?", kMovesChoices[m.moves_pend]);
     else if (m.weapon_pend)
         std::snprintf(title, sizeof title, "Hold %s?", kWeaponChoices[m.weapon_pend]);
     else
@@ -837,7 +837,7 @@ void apply_hero(Menu& m) {
         std::snprintf(title, sizeof title, "Each stage's own hero and weapon");
     if (m.play_as >= DV_PLAY_AS_DRAGONVALOR && m.moves) {
         const size_t len = std::strlen(title);
-        std::snprintf(title + len, sizeof title - len, ", %s moves", kMovesChoices[m.moves]);
+        std::snprintf(title + len, sizeof title - len, ", moving as %s", kMovesChoices[m.moves]);
     }
     if (!live) {
         /* not in the running plan: switch the feature on for the next start */

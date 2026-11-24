@@ -2068,7 +2068,18 @@ has its own colour effect on the sword", "and the voices").**
   effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
   and death are silent (`DV_VOICE_MUTE`: the tones point to one silent VAG)
-  and its hurt stays the kit's. The others have no voice of their own and keep the kit's. `revoice` (a port of the decomp's
+  and its hurt first stayed the kit's; the player heard Clovis there, so it
+  is silent too (the attacker's own hit SE still sounds, from the enemy's
+  bank). The jump back: in the Clovis kits (the prologue's, chapter 1's)
+  SE 38 plays only with anims 127 / 128, the jump back; the grown Clovis
+  jumps back with the same motion and his SE 5 (the player missed "his
+  jump sound"), so on those kits 38 takes it (`kRole` 6, `clovis_kit`); in
+  the other kits 38 is an attack cry too and takes the attack's. The Moves
+  choices read Clovis (Young), Clovis, Arlen... (the player: "the
+  prologue's Clovis could be Clovis (Young)"). Moves from the menu on a
+  body, mid-stage, is checked by `test_heroswap.py oldclovis --menu-moves
+  kodel --ref-after FOLDER` (28/28; the player saw no change, the kit was
+  Kodel's byte for byte). The others have no voice of their own and keep the kit's. `revoice` (a port of the decomp's
   `tools/vab.py revoice`) transplants them into both copies of the kit's
   bank (file 0's whole one, the pack's header-only one): each body VAG
   appended once, the hero tones repointed with the body tone's centre, shift

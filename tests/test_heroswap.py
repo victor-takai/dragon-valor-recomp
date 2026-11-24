@@ -10,6 +10,9 @@
 Cross between them: the portraits and the names in its dialogues.
 --menu-weapon W then picks weapon model W (or `hero`) on the menu's Hero >
 Weapon row and confirms it in the dialog: the stage must restart with it.
+--menu-moves M (own clovis arlen ... anita) then picks M on Hero > Moves (a
+body only) and confirms it: the stage must restart with the bodies in M's
+kit; --ref-after FOLDER (the reference of that kit) compares the pack in RAM.
 --weapon W sets the feature's `weapon` option: HERO holds weapon model W
 (azos soul kadum igunis felippe dark red purple turquoise raimun jeanne
 cutlass; the reference
@@ -96,6 +99,7 @@ def hname(value):
 
 
 MOVES = None              # --moves: the hero whose kit the bodies wear (None: the prologue Clovis's)
+MOVES_VALUES = ["own", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
 
 
 def trails(pack):
@@ -187,10 +191,16 @@ def main(argv):
         i = args.index("--scene-shots")
         scene_shots = int(args[i + 1])
         del args[i:i + 2]
-    for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu", "--weapon", "--menu-weapon"):
+    menu_moves = ref_after = None
+    for flag in ("--build", "--play", "--ref", "--state", "--leave", "--menu", "--weapon", "--menu-weapon",
+                 "--menu-moves", "--ref-after"):
         if flag in args:
             i = args.index(flag)
-            if flag == "--weapon":
+            if flag == "--menu-moves":
+                menu_moves = args[i + 1]
+            elif flag == "--ref-after":
+                ref_after = Path(args[i + 1]).resolve()
+            elif flag == "--weapon":
                 weapon = args[i + 1]
             elif flag == "--menu-weapon":
                 menu_weapon = args[i + 1]
@@ -589,6 +599,45 @@ hero = "{hero_name}"
             check(f"menu Weapon -> {menu_weapon}: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")
             rpc(port, "screenshot", path=str(bdir / f"test_heroswap_weapon_{menu_weapon}.png"))
             weapon = None if menu_weapon == "hero" else menu_weapon
+
+        if menu_moves:
+            # Hero > Moves, the third row (MOVES_VALUES order), on a body:
+            # confirmed in the dialog; the stage restarts and the bodies wear
+            # the new kit. --ref-after: the reference of that kit (its pack,
+            # whole, against the one in RAM).
+            def mkey(name, n=1):
+                for _ in range(n):
+                    rpc(port, "host_key", name=name)
+                    time.sleep(0.35)
+            steps = MOVES_VALUES.index(menu_moves) - MOVES_VALUES.index(MOVES or "own")
+            time.sleep(2)
+            restarts0 = log_text().count("restarts as")
+            mkey("Escape"); time.sleep(0.4)
+            mkey("Down"); mkey("Return")
+            mkey("Down", 2)
+            mkey("Right" if steps > 0 else "Left", abs(steps))
+            mkey("Return"); mkey("Return"); time.sleep(0.5)
+            t0 = time.time()
+            while time.time() - t0 < 40:
+                if rd(MODE, 1)[0] == 8 and log_text().count("restarts as") > restarts0:
+                    break
+                time.sleep(0.3)
+            time.sleep(4)
+            tail = log_text().split("restarts as")[-1]
+            who = "the prologue Clovis" if menu_moves == "own" else hname(menu_moves)
+            check(f"menu Moves -> {menu_moves}: the bodies wear {who}'s moves", f"bodies wear {who}'s moves" in tail,
+                  next((l for l in tail.splitlines() if "bodies wear" in l), "no line after the restart"))
+            check(f"menu Moves -> {menu_moves}: {ts} rebuilt", f"stage {ts} pack rebuilt" in tail)
+            if ref_after:
+                spec = (ref_after / "heroswap.txt").read_text(encoding="utf-8")
+                files = {int(n): name for n, name in re.findall(r"^file (\d+) (\S+) ", spec, re.M)}
+                want_pack = (ref_after / files[1]).read_bytes()
+                ram = b"".join(rd(PACK + o, min(0x8000, len(want_pack) - o)) for o in range(0, len(want_pack), 0x8000))
+                head = 4 * (int.from_bytes(want_pack[:4], "little") + 2)
+                check(f"menu Moves -> {menu_moves}: pack in RAM has the reference head ({ref_after.name})",
+                      ram[:head] == want_pack[:head])
+            check(f"menu Moves -> {menu_moves}: back in play (mode 8)", rd(MODE, 1)[0] == 8, f"mode {rd(MODE, 1)[0]}")
+            MOVES = None if menu_moves == "own" else menu_moves   # the body now plays that hero's part
 
         if leave:
             ok = reload_into(*leave)
