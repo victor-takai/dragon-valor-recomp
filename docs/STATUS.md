@@ -409,7 +409,9 @@ Mods: the project ships `dragonvalor.cheats` 1.4.0 (Infinite HP, Infinite MP,
 gem / scroll every N kills, added 2026-10-15; Unlock gallery, 2026-11-21) and `dragonvalor.skip-intro` (power-on straight to the title menu since
 2026-11-24: the Namco logo keeps only the title-data read it covers, the
 movie and the title's logo flight get the game's own Start skip, all from
-a function-entry hook on the pad copy; the menu in 3.8 s instead of 9.8 s) as bundled
+a function-entry hook on the pad copy; the menu in 3.8 s instead of 9.8 s;
+Fast boot then runs the black boot faster than real time through a mod API
+of `patches/psxrecomp/0005`: menu ~3.4 s sooner from the process start) as bundled
 packages backed by plugins in `mods/plugins/`, verified on and off
 (2026-10-14). The cheats feature is on by default with every option off, so
 the **in-game menu** (Escape / Select+Start; `mods/plugins/dragonvalor_menu.cpp`

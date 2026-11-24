@@ -1101,6 +1101,27 @@ Measured on build-debug with Faster loading on (2026-11-24): the menu was up
 movie starts (the old one showed the Namco logo again for a moment). Left:
 the ~2.5 s of mode 0 and the ~1 s of `TitleEnter`.
 
+- `boot` (**Fast boot**, the same day, the player: "can it be better
+  still?"): what was left is black and needs no watching: `GameInit`'s
+  memory-card probing (the BIOS's `_bu_init` reads both cards' directories
+  at the real card's pace: 74 SIO transactions, ~2.5 s; ~1.2 s of it card
+  2), OPENNING.BIN's read and `TitleEnter`'s uploads, each waiting a VSync.
+  From activation until the title's loop starts (mode 3 sub 1) the plugin
+  holds `psx_mod_hold_acceleration(1, 0)`, a mod API added by
+  `patches/psxrecomp/0005` (`patches/README.md`): the runtime paces that
+  span as it paces an accelerated CD load (every guest VBlank, interrupt and
+  CD deadline as ever, uncapped wall clock, 1 present in 30, accelerated
+  audio sunk). Released for good at the first VBlank of anything else (a
+  save state loaded at once: `test_heroswap.py kodel` 21/21) or after 60 s
+  of guest time. The host runs that code at ~3x real time (the BIOS's card
+  driver) and ~1.5x (the uploads). Measured from the process start, debug
+  build with Faster loading, two runs each: the menu at 10.3 / 10.4 s
+  without it, 6.8 / 7.0 s with it (the guest's part from ~6.9 s to ~3.4 s);
+  `test_skip_intro.py` (no Faster loading) has the menu 1.8 s after the
+  debug server answers, 7.7 s before. The first ~3.5 s are the runtime's own
+  start (an overlay-toolchain worker the `--no-launcher` path joins: the
+  launcher's own screen covers it).
+
 `tests/test_skip_intro.py` writes its own `state.toml` (the feature on with
 every option; `--off` without it; the player's file restored), launches the
 build and checks: the menu within 8 s, the logo's fade-in never run, the

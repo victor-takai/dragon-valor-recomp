@@ -27,7 +27,8 @@
  *
  * With the feature on, power-on reaches the menu in well under half the
  * time: the logo keeps its title-pack read and nothing else (it is never
- * lit), the movie gets Start at once, the title's logo flight gets Start.
+ * lit), the movie gets Start at once, the title's logo flight gets Start,
+ * and the whole black part runs faster than real time (fast boot, below).
  *
  * Everything is done from one place: the entry of the pad-response copy
  * (func_8006C250, listed in game.toml [recompiler] mod_function_entry_funcs),
@@ -56,7 +57,8 @@
 #define DV_PAD_RESPONSE  0x3Cu       /* pad struct: pointer to the SIO response buffer */
 #define PSX_PAD_START    0x0008u
 
-static int g_skip_logo = 1, g_skip_movie = 1, g_skip_title = 1;
+static int g_skip_logo = 1, g_skip_movie = 1, g_skip_title = 1, g_fast_boot = 1;
+static int g_boot_held;              /* psx_mod_hold_acceleration is on (the black boot) */
 static uint32_t g_vblanks;           /* VBlank clock */
 static uint8_t g_prev_mode = 0xFF;
 static uint32_t g_mode_since;        /* VBlank of the current mode's start */
@@ -80,18 +82,52 @@ static int dv_opt_bool(const char* id, int dflt)
     return text[0] == 't' || text[0] == '1';
 }
 
+/* Fast boot (option `boot`): from activation until the title's loop starts
+ * (mode 3 sub 1), the runtime paces the boot like an accelerated load
+ * (psx_mod_hold_acceleration, patches/psxrecomp/0005): every guest VBlank,
+ * interrupt and CD deadline happens as ever, only faster than real time,
+ * while the screen is black: GameInit's memory-card probing (~2.5 s of
+ * authentic SIO reads), OPENNING.BIN's read, the logo's title-pack read, the
+ * movie's skip and TitleEnter's VSync-paced uploads. Released for good at the
+ * first VBlank of anything else (a save state loaded at once, a game mode) or
+ * after 60 s of guest time. */
+#define DV_BOOT_HOLD_MAX_VBLANKS 3600u
+
+static void dv_boot_hold(int on)
+{
+    if (on == g_boot_held) return;
+    if (psx_mod_hold_acceleration(on, 0)) {
+        g_boot_held = on;
+        fprintf(stderr, "dragonvalor.skip-intro: fast boot %s at VBlank %u\n", on ? "on" : "off", g_vblanks);
+    } else if (!on) {
+        g_boot_held = 0;
+    }
+}
+
 static void dv_skip_activate(void)
 {
     g_skip_logo = dv_opt_bool("logo", 1);
     g_skip_movie = dv_opt_bool("movie", 1);
     g_skip_title = dv_opt_bool("title", 1);
-    fprintf(stderr, "dragonvalor.skip-intro: logo %s, movie %s, title animation %s\n",
-            g_skip_logo ? "skipped" : "kept", g_skip_movie ? "skipped" : "kept", g_skip_title ? "skipped" : "kept");
+    g_fast_boot = dv_opt_bool("boot", 1);
+    fprintf(stderr, "dragonvalor.skip-intro: logo %s, movie %s, title animation %s, fast boot %s\n",
+            g_skip_logo ? "skipped" : "kept", g_skip_movie ? "skipped" : "kept", g_skip_title ? "skipped" : "kept",
+            g_fast_boot ? "on" : "off");
+    g_boot_held = 0;
+    if (g_fast_boot && psx_mod_read_byte(DV_MODE) == 0) dv_boot_hold(1);
 }
 
 static void dv_skip_vblank(void)
 {
     g_vblanks++;
+    if (g_boot_held) {
+        uint8_t mode = psx_mod_read_byte(DV_MODE), sub = psx_mod_read_byte(DV_SUB);
+        int black = mode == 0 || mode == 1 || mode == 2 || (mode == 3 && sub == 0);
+        if (!black || g_vblanks > DV_BOOT_HOLD_MAX_VBLANKS) {
+            dv_boot_hold(0);
+            g_fast_boot = 0;                          /* once per start */
+        }
+    }
 }
 
 /* The Namco logo, before this frame's ModeLogo: the fade-in is left out

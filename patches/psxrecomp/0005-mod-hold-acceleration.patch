@@ -1,0 +1,146 @@
+diff --git a/runtime/include/mod_plugins.h b/runtime/include/mod_plugins.h
+--- a/runtime/include/mod_plugins.h
++++ b/runtime/include/mod_plugins.h
+@@ -862,6 +862,22 @@
+                                   uint32_t release_frames);
+ 
+ /*
++ * Hold the same host acceleration over a span the title recognises from guest
++ * state rather than from CD traffic: a boot or loading screen with nothing to
++ * watch (memory-card probing, VRAM uploads paced by VSync, a skipped logo).
++ * While held, every guest VBlank, CD deadline, interrupt and callback is
++ * preserved, as with load acceleration; only wall-clock pacing changes:
++ * wall_clock_multiplier 2..PSX_MOD_LOAD_ACCEL_MAX, or 0 for uncapped host
++ * speed. Presents are thinned as during an accelerated load, and the
++ * accelerated audio output is discarded before SDL (the SPU keeps running).
++ * held = 0 ends the span: authentic pacing from the next VBlank. Call from
++ * the emulation thread (activation, a VBlank or function-entry callback).
++ * Released at every session start; ignored in netplay and self-check
++ * resimulation.
++ */
++int psx_mod_hold_acceleration(int held, uint32_t wall_clock_multiplier);
++
++/*
+  * Select guest-visible CD timing for a game-owned loading feature. divisor
+  * divides the emulated sector delay, so it IS the speed multiplier: 1 is
+  * authentic timing, higher is faster, up to PSX_MOD_DISC_SPEED_MAX. Zero
+diff --git a/runtime/src/main.cpp b/runtime/src/main.cpp
+--- a/runtime/src/main.cpp
++++ b/runtime/src/main.cpp
+@@ -1573,6 +1573,9 @@
+ /* Activation-time request. -1 means no enabled mod owns load acceleration. */
+ static int           g_mod_load_wall_multiplier = -1;
+ static int           g_mod_load_release_frames = -1;
++/* psx_mod_hold_acceleration: a mod-held span paced like an accelerated load. */
++static int           g_mod_accel_hold = 0;
++static int           g_mod_accel_hold_multiplier = 0;
+ static int           g_mod_disc_speed_divisor = -1;
+ static int           g_mod_disc_instant_rate = -1;
+ 
+@@ -1989,6 +1992,20 @@
+     return 1;
+ }
+ 
++extern "C" int psx_mod_hold_acceleration(
++    int held, uint32_t wall_clock_multiplier) {
++    if (wall_clock_multiplier == 1 ||
++        wall_clock_multiplier > PSX_MOD_LOAD_ACCEL_MAX) {
++        std::fprintf(stderr,
++            "psxrecomp: mod rejected acceleration hold (multiplier %u)\n",
++            (unsigned)wall_clock_multiplier);
++        return 0;
++    }
++    g_mod_accel_hold = held ? 1 : 0;
++    g_mod_accel_hold_multiplier = (int)wall_clock_multiplier;
++    return 1;
++}
++
+ extern "C" int psx_mod_set_disc_speed(
+     uint32_t divisor, uint32_t instant_max_per_frame) {
+     /* Any positive divisor is arithmetically safe: cdrom.c divides the sector
+@@ -8714,6 +8731,14 @@
+      * old fast_boot snapshot restore; all guest timing is authentic. */
+     if (psx_bios_hle_boot_turbo_active())
+         turbo_loads_active = 1;
++    /* A mod-held span (psx_mod_hold_acceleration): paced at its own
++     * multiplier, its accelerated audio sunk below. */
++    int mod_hold_active = 0;
++    if (g_mod_accel_hold && !psx_netplay_active() &&
++        !psx_selfcheck_resim_active()) {
++        mod_hold_active = 1;
++        turbo_loads_active = 1;
++    }
+     probe_turbo = turbo_loads_active;
+ 
+     load_transition_note(cdrom_data_read_active(), logical_load_active,
+@@ -8773,7 +8798,8 @@
+      * paths cannot fork peers during the episode window. */
+     if (!psx_netplay_is_resimulating() && !psx_selfcheck_resim_active()) {
+         sdl_audio_update(fmv_skip_active,
+-                         turbo_loads_active && g_turbo_audio_sink_enabled);
++                         turbo_loads_active &&
++                         (g_turbo_audio_sink_enabled || mod_hold_active));
+     }
+ #endif
+ 
+@@ -8894,7 +8920,20 @@
+          * legacy unpaced host-speed path. Pace every simulated guest frame at
+          * the divided period; the presentation skip below remains independent
+          * so rendering cost does not distort the selected multiplier. */
+-        if (g_turbo_load_wall_multiplier >= 2 &&
++        if (mod_hold_active) {
++            /* The mod-held span keeps its own multiplier (0 = uncapped). */
++            if (g_mod_accel_hold_multiplier >= 2 &&
++                g_frame_period_ms > 0.0) {
++                uint64_t perf_start = runtime_perf_section_begin();
++                frame_pacer_wait(
++                    &s_frame_pacer,
++                    g_frame_period_ms / (double)g_mod_accel_hold_multiplier);
++                runtime_perf_section_end(
++                    perf_start, &g_runtime_perf.pacer_ticks);
++                latency_ring_mark(LAT_PACED);
++                turbo_load_paced = true;
++            }
++        } else if (g_turbo_load_wall_multiplier >= 2 &&
+             g_frame_period_ms > 0.0) {
+             uint64_t perf_start = runtime_perf_section_begin();
+             frame_pacer_wait(
+@@ -19066,6 +19105,8 @@
+             policy = ModControllerPresentationPolicy{};
+         g_mod_load_wall_multiplier = -1;
+         g_mod_load_release_frames = -1;
++        g_mod_accel_hold = 0;
++        g_mod_accel_hold_multiplier = 0;
+         g_mod_disc_speed_divisor = -1;
+         g_mod_disc_instant_rate = -1;
+         g_turbo_audio_sink_enabled = g_turbo_audio_sink_config_enabled;
+diff --git a/runtime/tests/test_mod_accel_hold.py b/runtime/tests/test_mod_accel_hold.py
+new file mode 100644
+--- /dev/null
++++ b/runtime/tests/test_mod_accel_hold.py
+@@ -0,0 +1,25 @@
++#!/usr/bin/env python3
++"""Guard the mod-held acceleration span (psx_mod_hold_acceleration)."""
++
++from pathlib import Path
++
++
++ROOT = Path(__file__).resolve().parents[2]
++MAIN = (ROOT / "runtime/src/main.cpp").read_text(encoding="utf-8")
++HEADER = (ROOT / "runtime/include/mod_plugins.h").read_text(encoding="utf-8")
++
++assert "int psx_mod_hold_acceleration(int held, uint32_t wall_clock_multiplier);" in HEADER
++assert "held = 0 ends the span: authentic pacing from the next VBlank." in HEADER
++# Released at every session start, with the load-acceleration request.
++assert """g_mod_load_release_frames = -1;
++        g_mod_accel_hold = 0;
++        g_mod_accel_hold_multiplier = 0;""" in MAIN
++# Never in netplay or self-check resimulation.
++assert """if (g_mod_accel_hold && !psx_netplay_active() &&
++        !psx_selfcheck_resim_active()) {""" in MAIN
++# Its accelerated audio is sunk even when no load acceleration is configured,
++# and it is paced at its own multiplier.
++assert "(g_turbo_audio_sink_enabled || mod_hold_active)" in MAIN
++assert "g_frame_period_ms / (double)g_mod_accel_hold_multiplier" in MAIN
++assert "} else if (g_turbo_load_wall_multiplier >= 2 &&" in MAIN
++print("ok")
