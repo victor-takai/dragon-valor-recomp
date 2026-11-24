@@ -75,8 +75,11 @@
 #define dv_mkdir(p) mkdir((p), 0755)
 #endif
 
+#include <stdarg.h>
+
 #include "cpu_state.h"
 #include "mod_plugins.h"
+#include "psx_sdl.h"   /* SDL_GetBasePath: the executable's folder */
 
 #define DV_HS_PLUGIN          "dragonvalor.heroswap"
 #define DV_HS_PKG             "dragonvalor.heroswap"
@@ -1141,11 +1144,51 @@ static int disc_scan(int disc)
 
 /* --- cache ----------------------------------------------------------------- */
 
+/* The cache lives beside the executable, as the runtime's mods/ does
+ * (main.cpp, exe_dir_from_argv) and the menu's dragonvalor_settings.toml: a
+ * path relative to the working directory failed for a game started from a
+ * link or a shortcut elsewhere (Windows then often runs it in
+ * C:\Windows\System32): the cache was neither found nor written, so the
+ * disc-2 weapons and heroes it held were missing and every disc-2 weapon
+ * fell back to the hero's own (the player's report, 2026-11-23: "everything
+ * falls on Clovis's sword"). */
+static const char* base_dir(void)
+{
+    static char dir[1024];
+    if (!dir[0]) {
+#if defined(PSX_SDL3)
+        const char* b = SDL_GetBasePath();
+        snprintf(dir, sizeof dir, "%s", b ? b : "");
+#else
+        char* b = SDL_GetBasePath();
+        snprintf(dir, sizeof dir, "%s", b ? b : "");
+        if (b) SDL_free(b);
+#endif
+        if (!dir[0]) snprintf(dir, sizeof dir, "./");
+    }
+    return dir;   /* with its trailing separator */
+}
+
+/* <executable's folder>/mods/cache/dragonvalor.heroswap/<name> */
+static void cache_file(char* out, size_t n, const char* fmt, ...)
+{
+    char name[160];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(name, sizeof name, fmt, ap);
+    va_end(ap);
+    snprintf(out, n, "%s" DV_HS_CACHE_DIR "/%s", base_dir(), name);
+}
+
 static void cache_dir(void)
 {
-    dv_mkdir("mods");
-    dv_mkdir("mods/cache");
-    dv_mkdir(DV_HS_CACHE_DIR);
+    char p[1200];
+    snprintf(p, sizeof p, "%smods", base_dir());
+    dv_mkdir(p);
+    snprintf(p, sizeof p, "%smods/cache", base_dir());
+    dv_mkdir(p);
+    snprintf(p, sizeof p, "%s" DV_HS_CACHE_DIR, base_dir());
+    dv_mkdir(p);
 }
 
 static int w32(FILE* f, uint32_t v) { uint8_t t[4]; put32(t, v); return fwrite(t, 1, 4, f) == 4; }
@@ -1175,11 +1218,11 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 
 static void kit_save(int h)
 {
-    char path[256];
+    char path[1200];
     const Kit* k = &s_kits[h];
     FILE* f;
     uint32_t i, ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.kit", h);
+    cache_file(path, sizeof path, "hero%d.kit", h);
     if (!(f = fopen(path, "wb"))) return;
     ok = w32(f, DV_KIT_MAGIC) && w32(f, DV_KIT_VER) && w32(f, (uint32_t)h) && wbuf(f, k->ops.p, k->ops.n) &&
          w32(f, k->nrefs);
@@ -1194,12 +1237,12 @@ static void kit_save(int h)
 
 static int kit_load(int h)
 {
-    char path[256];
+    char path[1200];
     Kit* k = &s_kits[h];
     FILE* f;
     uint32_t v, i;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.kit", h);
+    cache_file(path, sizeof path, "hero%d.kit", h);
     if (!(f = fopen(path, "rb"))) return 0;
     memset(k, 0, sizeof *k);
     ok = r32(f, &v) && v == DV_KIT_MAGIC && r32(f, &v) && v == DV_KIT_VER && r32(f, &v) && v == (uint32_t)h &&
@@ -1230,15 +1273,15 @@ static int kit_load(int h)
 static void weapon_path(char* path, size_t n, int w)
 {
     if (kWeapons[w].file)
-        snprintf(path, n, DV_HS_CACHE_DIR "/weapon_%d_%d_f%d_o%d.bin", kWeapons[w].area, kWeapons[w].stage,
+        cache_file(path, n, "weapon_%d_%d_f%d_o%d.bin", kWeapons[w].area, kWeapons[w].stage,
                  kWeapons[w].file, kWeapons[w].obj);
     else
-        snprintf(path, n, DV_HS_CACHE_DIR "/weapon_%d_%d.bin", kWeapons[w].area, kWeapons[w].stage);
+        cache_file(path, n, "weapon_%d_%d.bin", kWeapons[w].area, kWeapons[w].stage);
 }
 
 static void weapon_save(int w)
 {
-    char path[256];
+    char path[1200];
     const WKit* k = &s_wkits[w];
     FILE* f;
     int ok;
@@ -1252,7 +1295,7 @@ static void weapon_save(int w)
 
 static int weapon_load(int w)
 {
-    char path[256];
+    char path[1200];
     WKit* k = &s_wkits[w];
     FILE* f;
     uint32_t v;
@@ -1269,10 +1312,10 @@ static int weapon_load(int w)
 
 static void mapkit_save(int h)
 {
-    char path[256];
+    char path[1200];
     FILE* f;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.map", h);
+    cache_file(path, sizeof path, "hero%d.map", h);
     if (!(f = fopen(path, "wb"))) return;
     ok = w32(f, DV_MAP_MAGIC) && w32(f, DV_MAP_VER) && w32(f, (uint32_t)h) &&
          fwrite(s_mapkits[h].walker, 1, sizeof s_mapkits[h].walker, f) == sizeof s_mapkits[h].walker &&
@@ -1283,11 +1326,11 @@ static void mapkit_save(int h)
 
 static int mapkit_load(int h)
 {
-    char path[256];
+    char path[1200];
     FILE* f;
     uint32_t v;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/hero%d.map", h);
+    cache_file(path, sizeof path, "hero%d.map", h);
     if (!(f = fopen(path, "rb"))) return 0;
     ok = r32(f, &v) && v == DV_MAP_MAGIC && r32(f, &v) && v == DV_MAP_VER && r32(f, &v) && v == (uint32_t)h &&
          fread(s_mapkits[h].walker, 1, sizeof s_mapkits[h].walker, f) == sizeof s_mapkits[h].walker &&
@@ -1299,9 +1342,9 @@ static int mapkit_load(int h)
 
 static void table_save(int disc, uint32_t key)
 {
-    char path[256];
+    char path[1200];
     FILE* f;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/disc%d.stages", disc + 1);
+    cache_file(path, sizeof path, "disc%d.stages", disc + 1);
     if (!(f = fopen(path, "wb"))) return;
     if (!(w32(f, DV_TABLE_MAGIC) && w32(f, DV_TABLE_VER) && w32(f, key) && w32(f, (uint32_t)s_nstages[disc]) &&
           fwrite(s_stages[disc], sizeof(StageRec), (size_t)s_nstages[disc], f) == (size_t)s_nstages[disc])) {
@@ -1314,11 +1357,11 @@ static void table_save(int disc, uint32_t key)
 
 static int table_load(int disc, uint32_t key)
 {
-    char path[256];
+    char path[1200];
     FILE* f;
     uint32_t v, n;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/disc%d.stages", disc + 1);
+    cache_file(path, sizeof path, "disc%d.stages", disc + 1);
     if (!(f = fopen(path, "rb"))) return 0;
     ok = r32(f, &v) && v == DV_TABLE_MAGIC && r32(f, &v) && v == DV_TABLE_VER && r32(f, &v) && v == key &&
          r32(f, &n) && n <= sizeof s_stages[0] / sizeof s_stages[0][0] &&
