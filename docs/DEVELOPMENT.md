@@ -2038,13 +2038,20 @@ has its own colour effect on the sword", "and the voices").**
   violet, Shalya cyan, Fannah violet -> gold, Jeanne crystal pink; fades a
   ninth of each channel (a whole-word subtraction: a channel must hold 7).
 - *Voices.* Every hero's bank (VAB_CODE: an SE table, then a whole VAB)
-  keeps its voice in SE 32..44 (program 2, SPU voice 23), played by role
-  (from where the script plays them): attack 32 34 35 40 42 43, hurt 33,
-  heavy 37, death 39, special 36 38 41 44. The enemies' banks keep theirs
-  in program 1 (SE 16..20, SPU voice 20). `kBodies[].voice` names the
-  body's SE for each role (first picks, from its own script, to be checked by
-  ear: Raimun, the grown Clovis, Lodonya; the others have no voice of their
-  own and keep the kit's), and `revoice` (a port of the decomp's
+  keeps its voice in SE 32..44 (program 2, SPU voice 23), played by role:
+  attack 32..41 (each starts an attack's hitbox), hurt 42 (the hit
+  reaction, anims 101..108), jump 43 (with a vertical velocity), death 44
+  (anims 119 / 120, at 0 hp). The enemies' banks keep theirs in program 1
+  (SE 16..20, SPU voice 20). `kBodies[].voice` names the body's SE for each
+  role, read the same way from its own script (its hit reaction plays one SE
+  above 0 hp, another at 0; its attack cry comes with the weapon's swing;
+  enemies do not jump, so a second, short attack cry): Raimun and the grown
+  Clovis attack 16, hurt 18, jump 17, death 19; Lodonya attack 17, hurt 18,
+  jump 17, death 19. The first picks read the roles from field names near
+  the calls (the object's +0x8, named `deathTimer`, is set by attacks too):
+  the player heard death cries on attacks, a strange jump and a hurt that
+  sounded like a hit, and the roles were read again from the code. The
+  others have no voice of their own and keep the kit's. `revoice` (a port of the decomp's
   `tools/vab.py revoice`) transplants them into both copies of the kit's
   bank (file 0's whole one, the pack's header-only one): each body VAG
   appended once, the hero tones repointed with the body tone's centre, shift

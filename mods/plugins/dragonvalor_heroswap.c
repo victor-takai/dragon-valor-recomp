@@ -1081,22 +1081,22 @@ static const struct {
     uint8_t order[14];
     int weapon;
     uint32_t trail[4];   /* sword trail: colour_a, fade_a, colour_b, fade_b (0xBBGGRR; retrail) */
-    int8_t voice[5];     /* its bank's SE for each voice role (attack, hurt, heavy, death, special), -1 none */
+    int8_t voice[4];     /* its bank's SE for each voice role (attack, hurt, jump, death), -1 none */
 } kBodies[BODY_COUNT] = {
-    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1}},                /* the Dragon Valor: 0/1's opening scene */
-    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {17, 18, 19, 16, 20}},                 /* the grown Clovis: 3/17's enemy group */
-    {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},    /* a skeleton of chapter 1 */
-    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 19, 19, 17}},                 /* Raimun, chapter 1's boss */
-    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 19, 19, 16}},               /* Lodonya, chapter 2's black knight */
-    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},                /* Shalya */
-    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS, {0xE040A0, 0x180711, 0x40E0FF, 0x07181C}, {-1, -1, -1, -1, -1}},      /* Fannah (part 2: a thing on her back) */
-    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1, {0xFF70E0, 0x1C0C18, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},                  /* Princess Jeanne */
+    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1}},                /* the Dragon Valor: 0/1's opening scene */
+    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19}},                 /* the grown Clovis: 3/17's enemy group */
+    {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1}},    /* a skeleton of chapter 1 */
+    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19}},                 /* Raimun, chapter 1's boss */
+    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19}},               /* Lodonya, chapter 2's black knight */
+    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1}},                /* Shalya */
+    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS, {0xE040A0, 0x180711, 0x40E0FF, 0x07181C}, {-1, -1, -1, -1}},      /* Fannah (part 2: a thing on her back) */
+    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1, {0xFF70E0, 0x1C0C18, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1}},                  /* Princess Jeanne */
     /* Phillip in 5/19's scene where the Guardian gives him Kadum: Phillip's
      * parts but his hips (Kadum on his back) and the sword in his hand. (Felippe
      * as 4/1's scene draws him was here: the hero Felippe's look, out on the
      * player's word, 2026-11-24; the Guardian itself is another, armoured
      * figure: file 80 object 1, not on the heroes' joints.) */
-    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1, {0x0000FF, 0x00001C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1}},
+    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1, {0x0000FF, 0x00001C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1}},
 };
 /* A body as kit_dress takes it: its parts in hero node order, their prims
  * pointed at its baked hero page (body_bake; until then `tex` holds its
@@ -2544,10 +2544,12 @@ static void vram_load(const uint8_t* b, uint32_t len)
  * VAG size table (256 u16, sizes >> 3), then the body. The kit has it twice:
  * whole (file 0, k->vab) and header-only (the pack entry op 52 kind 0 names).
  * Every hero's voice is SE 32..44 (program 2, SPU voice 23), played by role
- * (decomp hero-swap.md, Sound banks): attack 32 34 35 40 42 43, hurt 33,
- * heavy 37, death 39, special 36 38 41 44. A body with a voice (an enemy
+ * (decomp hero-swap.md, Sound banks; read from the code around each call,
+ * after the player heard death cries on attacks): attack 32..41, hurt 42
+ * (the hit reaction), jump 43, death 44. A body with a voice (an enemy
  * group's bank: program 1, SE 16..20) names the SE of its bank for each role
- * (kBodies voice, picked from where its own script plays them). Each named
+ * (kBodies voice: its hit reaction's SE above 0 hp and at 0, its attack cry,
+ * a second short cry for the jump). Each named
  * body SE's VAG is appended once; the hero tones of the role's SEs point to
  * it with the body tone's centre (+ the SEs' note difference), shift and
  * ADSR; a hero VAG no tone uses any more becomes one silent block; the size
@@ -2592,9 +2594,9 @@ static const uint8_t kSilentVag[16] = {0, 1};
 static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* bank, uint32_t blen,
                    const int8_t* roles)
 {
-    static const uint8_t kRole[52] = {   /* hero SE -> role + 1 (attack 1, hurt 2, heavy 3, death 4, special 5) */
-        [32] = 1, [34] = 1, [35] = 1, [40] = 1, [42] = 1, [43] = 1, [33] = 2, [37] = 3, [39] = 4,
-        [36] = 5, [38] = 5, [41] = 5, [44] = 5};
+    static const uint8_t kRole[52] = {   /* hero SE -> role + 1 (attack 1, hurt 2, jump 3, death 4) */
+        [32] = 1, [33] = 1, [34] = 1, [35] = 1, [36] = 1, [37] = 1, [38] = 1, [39] = 1, [40] = 1, [41] = 1,
+        [42] = 2, [43] = 3, [44] = 4};
     static VabInfo v, b;
     static uint8_t hdr[0x8000], silenced[256];
     uint32_t size[256], vs, n, se, fsize = 0;
@@ -2886,7 +2888,7 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
         uint32_t se = le32(k->ops.p + 8);              /* op 3's behaviour script */
         if (trail && se && se <= k->nent) retrail(k->ent[se - 1], k->entlen[se - 1], trail);
     }
-    if (voice && b->bank.n && (voice[0] >= 0 || voice[1] >= 0 || voice[2] >= 0 || voice[3] >= 0 || voice[4] >= 0)) {
+    if (voice && b->bank.n && (voice[0] >= 0 || voice[1] >= 0 || voice[2] >= 0 || voice[3] >= 0)) {
         /* the body's voice in both copies of the kit's bank */
         static Buf nv;
         uint32_t hb = 0;
