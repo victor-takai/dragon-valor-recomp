@@ -87,7 +87,8 @@ def gindex(hero):
     return 0 if hero >= 0 and HEROES[hero] == "dragonvalor" else hero
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
 # and their source stages: 1/1 4/15 8/1 10/2 4/3 10/1 11/1 12/6 12/1)
-WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise"]
+WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise",
+           "raimun", "jeanne", "broadsword", "cutlass"]
 DISC2 = ROOT.parent / "Dragon Valor (USA) (Disc 2)" / "Dragon Valor (USA) (Disc 2).cue"
 
 

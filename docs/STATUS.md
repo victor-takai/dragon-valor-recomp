@@ -259,6 +259,16 @@ the native 60 Hz version.
   `tools/heroswap.py`. Open: long play, 9/10's scene not watched, a scene
   pack installed right after a save-state load not watched
   (`DEVELOPMENT.md`, *This project's package: dragonvalor.heroswap*).
+  **Weapons of other characters** (2026-11-23, the player's request:
+  "Raimun's sword"): a scan of every object of both discs with the heroes'
+  body (decomp `heroswap.py weapons`) found five more weapons; four are
+  offered: Raimun's sword (chapter 1's boss, 1/20), Jeanne's crystal sword,
+  Mihael's broadsword (Anna's chapter, disc 2) and Kodel's cutlass (3/1's
+  opening scene); the grown Clovis's long sword (3/17) draws from his whole
+  texture sheet and fits no hero. Raimun's needs more CLUTs than a hero has
+  free: the hero's CLUT block grows up into the page's unused rows. Each
+  matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
+  raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
   **The Dragon Valor** (2026-11-23, the player's request): the dragon slayer
   of the prologue's opening scene (0/1) is a 10th Play as choice: his body
   (a scene object with a hero's 14 parts, found by the decomp), texture and

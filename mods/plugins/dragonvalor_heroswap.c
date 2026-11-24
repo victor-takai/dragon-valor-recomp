@@ -131,18 +131,37 @@ static int game_hero(int h) { return h == DV_BODY_HERO ? 0 : h; }
  * 12/1 and 12/4 weapon is the purple one's design with a turquoise
  * palette, drawn from another page of its file 0 ((576, 256)): arm_kit
  * moves its texels into the hero page like the others'. */
-#define WEAPON_COUNT 9
-static const struct { const char* id; const char* name; int area, stage; } kWeapons[WEAPON_COUNT] = {
-    {"azos",     "Azos",                  1, 1},
-    {"soul",     "Soul",                  4, 15},
-    {"kadum",    "Kadum",                 8, 1},
-    {"igunis",   "Igunis",                10, 2},
-    {"felippe",  "Felippe's first sword", 4, 3},
-    {"dark",     "Mihael's dark sword",   10, 1},
-    {"red",      "Anna's red weapon",     11, 1},
-    {"purple",   "Anita's purple sword",  12, 6},
-    {"turquoise", "Anita's turquoise sword", 12, 1},
+/* The last four (2026-11-23, the player's request: "Raimun's sword"; decomp
+ * `heroswap.py weapons`, docs/targets/hero-swap.md, Weapons of other
+ * characters) are held by characters with the heroes' body: part 2 of the
+ * object-th op 3 of a room file (file != 0), its texture in the file read
+ * just before it into the same buffer (file - 1). Raimun, chapter 1's boss,
+ * in 1/20 room 2's enemy group; Princess Jeanne in 4/1 room 1's scene;
+ * Mihael in Anna's chapter, 11/4 room 8's scene; Kodel in 3/1's opening
+ * scene, before Azos. (The grown Clovis's long sword of 3/17 draws from his
+ * whole sheet and fits no hero's page.) */
+#define WEAPON_COUNT 13
+static const struct { const char* id; const char* name; int area, stage, file, obj; } kWeapons[WEAPON_COUNT] = {
+    {"azos",       "Azos",                    1, 1, 0, 0},
+    {"soul",       "Soul",                    4, 15, 0, 0},
+    {"kadum",      "Kadum",                   8, 1, 0, 0},
+    {"igunis",     "Igunis",                  10, 2, 0, 0},
+    {"felippe",    "Felippe's first sword",   4, 3, 0, 0},
+    {"dark",       "Mihael's dark sword",     10, 1, 0, 0},
+    {"red",        "Anna's red weapon",       11, 1, 0, 0},
+    {"purple",     "Anita's purple sword",    12, 6, 0, 0},
+    {"turquoise",  "Anita's turquoise sword", 12, 1, 0, 0},
+    {"raimun",     "Raimun's sword",          1, 20, 84, 0},
+    {"jeanne",     "Jeanne's crystal sword",  4, 1, 80, 2},
+    {"broadsword", "Mihael's broadsword",     11, 4, 136, 0},
+    {"cutlass",    "Kodel's cutlass",         3, 1, 80, 0},
 };
+/* The cache key of a weapon model (the first nine's as before). */
+static uint32_t weapon_key(int w)
+{
+    return (uint32_t)(kWeapons[w].area << 8 | kWeapons[w].stage) | (uint32_t)kWeapons[w].file << 16 |
+           (uint32_t)kWeapons[w].obj << 28;
+}
 #define DV_WEAPON_NODE  2u
 
 /* g_Hero.index during an area's chapter: ChapterInit writes g_HeroByArea,
@@ -933,6 +952,62 @@ static uint8_t* disc_data_cdr(int disc, uint32_t* size, uint32_t* key)
  * TIM they draw from, the last 4-bit TIM with a CLUT block of file 0's
  * chain in the page of the first textured prim's tpage (the hero page,
  * but Anita's 12/1-12/4 weapon is drawn from page (576, 256)). */
+/* The tpage bits 0..4 of a prim table's first textured prim (records 0..3 in
+ * order; its second u / v word: word 5 of FT3 / FT4, 6 of GT3 / GT4), or
+ * 0xFFFFFFFF. */
+static uint32_t first_tpage(const uint8_t* tab, uint32_t len)
+{
+    int r;
+    for (r = 0; r < 4; r++) {
+        uint32_t w1;
+        if (!(tab[16 * r + 2] | tab[16 * r + 3] << 8)) continue;
+        w1 = le32(tab + 16 * r + 4) + 4u * (r < 2 ? 5u : 6u);
+        if (w1 + 4 > len) return 0xFFFFFFFFu;
+        return (le32(tab + w1) >> 16) & 0x1F;
+    }
+    return 0xFFFFFFFFu;
+}
+
+/* A character's weapon (kWeapons with a file): part 2 of the obj-th op 3 of
+ * room file fo, its TIM from file ft (the one before it): in the last entry
+ * of ft that has one, the last TIM with a CLUT block in the weapon's page
+ * (decomp tools/heroswap.py weapon_source, the reference). */
+static int weapon_take_obj(WKit* w, const uint8_t* fo, uint32_t lo, int obj, const uint8_t* ft, uint32_t lt)
+{
+    static Ct co, ctx;
+    static Prog p;
+    static Tim t[64];
+    const uint8_t* e0;
+    uint32_t pe, ve, node, tp, i, last = 0, lastlen = 0, lastent = 0;
+    int j, k = 0, nt;
+    if (!ct_parse(&co, fo, lo) || !prog_walk(&p, CT_E(&co, 0), CT_L(&co, 0))) return 0;
+    e0 = CT_E(&co, 0);
+    for (j = 0; j < p.nops; j++)
+        if (p.ops[j].op == 3 && k++ == obj) break;
+    if (j == p.nops || le32(e0 + p.ops[j].pos + 12) != 14) return 0;
+    node = p.ops[j].pos + 16 + DV_WEAPON_NODE * DV_NODE;
+    pe = le32(e0 + node + 0x68);
+    ve = le32(e0 + node + 0x6C);
+    if (!pe || pe >= co.n || !ve || ve >= co.n || CT_L(&co, pe) < 17 * 16) return 0;
+    if ((tp = first_tpage(CT_E(&co, pe), CT_L(&co, pe))) == 0xFFFFFFFFu || !ct_parse(&ctx, ft, lt)) return 0;
+    for (i = 0; i < ctx.n; i++) {
+        nt = tim_chain(CT_E(&ctx, i), CT_L(&ctx, i), t, 64, NULL);
+        for (j = 0; j < nt; j++)
+            if (t[j].has_clut && t[j].image[0] / 64 == (tp & 0xF) && t[j].image[1] / 256 == ((tp >> 4) & 1)) {
+                last = t[j].start;
+                lastlen = t[j].end - t[j].start;
+                lastent = i;
+            }
+    }
+    if (!lastlen) return 0;
+    w->prims.n = w->verts.n = w->page.n = 0;
+    if (!buf_put(&w->prims, CT_E(&co, pe), CT_L(&co, pe)) || !buf_put(&w->verts, CT_E(&co, ve), CT_L(&co, ve)) ||
+        !buf_put(&w->page, CT_E(&ctx, lastent) + last, lastlen))
+        return 0;
+    w->ready = 1;
+    return 1;
+}
+
 static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f1, uint32_t l1)
 {
     static Ct c0, cp;
@@ -1045,9 +1120,18 @@ static int disc_scan(int disc)
                     }
                 }
             for (h = 0; h < WEAPON_COUNT; h++)
-                if (kWeapons[h].area == area && kWeapons[h].stage == stage && !s_wkits[h].ready &&
-                    !weapon_take(&s_wkits[h], f0, l0, f1, l1))
-                    fprintf(stderr, "%s: no %s from %d/%d\n", DV_HS_PLUGIN, kWeapons[h].name, area, stage);
+                if (kWeapons[h].area == area && kWeapons[h].stage == stage && !s_wkits[h].ready) {
+                    int ok, wf = kWeapons[h].file;
+                    if (!wf) {
+                        ok = weapon_take(&s_wkits[h], f0, l0, f1, l1);
+                    } else {
+                        uint32_t lo = 0, lt = 0;
+                        const uint8_t *fo = nf > wf ? cdr_file(&d, idx, starts[wf], counts[wf], &lo) : NULL;
+                        const uint8_t *ft = nf > wf ? cdr_file(&d, idx, starts[wf - 1], counts[wf - 1], &lt) : NULL;
+                        ok = fo && ft && weapon_take_obj(&s_wkits[h], fo, lo, kWeapons[h].obj, ft, lt);
+                    }
+                    if (!ok) fprintf(stderr, "%s: no %s from %d/%d\n", DV_HS_PLUGIN, kWeapons[h].name, area, stage);
+                }
         }
     }
     free(data);
@@ -1142,15 +1226,25 @@ static int kit_load(int h)
 #define DV_WEAPON_MAGIC 0x57485644u   /* "DVHW" */
 #define DV_WEAPON_VER   1u
 
+/* weapon_<area>_<stage>.bin, a character's weapon_<area>_<stage>_f<file>_o<obj>.bin */
+static void weapon_path(char* path, size_t n, int w)
+{
+    if (kWeapons[w].file)
+        snprintf(path, n, DV_HS_CACHE_DIR "/weapon_%d_%d_f%d_o%d.bin", kWeapons[w].area, kWeapons[w].stage,
+                 kWeapons[w].file, kWeapons[w].obj);
+    else
+        snprintf(path, n, DV_HS_CACHE_DIR "/weapon_%d_%d.bin", kWeapons[w].area, kWeapons[w].stage);
+}
+
 static void weapon_save(int w)
 {
     char path[256];
     const WKit* k = &s_wkits[w];
     FILE* f;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%d_%d.bin", kWeapons[w].area, kWeapons[w].stage);
+    weapon_path(path, sizeof path, w);
     if (!(f = fopen(path, "wb"))) return;
-    ok = w32(f, DV_WEAPON_MAGIC) && w32(f, DV_WEAPON_VER) && w32(f, (uint32_t)(kWeapons[w].area << 8 | kWeapons[w].stage)) &&
+    ok = w32(f, DV_WEAPON_MAGIC) && w32(f, DV_WEAPON_VER) && w32(f, weapon_key(w)) &&
          wbuf(f, k->prims.p, k->prims.n) && wbuf(f, k->verts.p, k->verts.n) && wbuf(f, k->page.p, k->page.n);
     fclose(f);
     if (!ok) remove(path);
@@ -1163,10 +1257,10 @@ static int weapon_load(int w)
     FILE* f;
     uint32_t v;
     int ok;
-    snprintf(path, sizeof path, DV_HS_CACHE_DIR "/weapon_%d_%d.bin", kWeapons[w].area, kWeapons[w].stage);
+    weapon_path(path, sizeof path, w);
     if (!(f = fopen(path, "rb"))) return 0;
     ok = r32(f, &v) && v == DV_WEAPON_MAGIC && r32(f, &v) && v == DV_WEAPON_VER && r32(f, &v) &&
-         v == (uint32_t)(kWeapons[w].area << 8 | kWeapons[w].stage) && rbuf(f, &k->prims, 0x100000) &&
+         v == weapon_key(w) && rbuf(f, &k->prims, 0x100000) &&
          rbuf(f, &k->verts, 0x100000) && rbuf(f, &k->page, 0x100000);
     fclose(f);
     k->ready = ok && k->prims.n && k->verts.n && k->page.n;
@@ -1810,6 +1904,34 @@ static int pg_has_slot(const PageTim* p, uint16_t cid)
     return y >= p->cy && y < p->cy + p->ch && x >= p->cx && x + 16 <= p->cx + p->cw && (x - p->cx) % 16 == 0;
 }
 
+/* The page with its CLUT block grown `rows` rows up (zeros). */
+static int pg_more_cluts(PageTim* p, int rows)
+{
+    static const uint8_t zero[128] = {0};
+    Buf t = {0};
+    uint32_t old = 2u * (uint32_t)(p->cw * p->ch), add = 2u * (uint32_t)(p->cw * rows), r;
+    uint8_t hd[12];
+    if (p->cw > 64 || !buf_put(&t, p->tim.p, 0x10)) return 0;
+    put32(hd, 12 + add + old);
+    hd[4] = (uint8_t)p->cx; hd[5] = (uint8_t)(p->cx >> 8);
+    hd[6] = (uint8_t)(p->cy - rows); hd[7] = (uint8_t)((p->cy - rows) >> 8);
+    hd[8] = (uint8_t)p->cw; hd[9] = (uint8_t)(p->cw >> 8);
+    hd[10] = (uint8_t)(p->ch + rows); hd[11] = (uint8_t)((p->ch + rows) >> 8);
+    if (!buf_put(&t, hd, 12)) { buf_free(&t); return 0; }
+    for (r = 0; r < (uint32_t)rows; r++)
+        if (!buf_put(&t, zero, 2u * (uint32_t)p->cw)) { buf_free(&t); return 0; }
+    if (!buf_put(&t, p->tim.p + 0x1C, old) || !buf_put(&t, p->tim.p + p->ihead, p->tim.n - p->ihead)) {
+        buf_free(&t);
+        return 0;
+    }
+    buf_free(&p->tim);
+    p->tim = t;
+    p->cy -= rows;
+    p->ch += rows;
+    p->ihead = 0x10 + 12 + add + old;
+    return 1;
+}
+
 /* The page with its image grown to 64 units x the CLUT block's first row. */
 static int pg_grow(PageTim* p)
 {
@@ -2045,6 +2167,32 @@ static const Kit* arm_kit(int hero, int weapon)
     nt = tim_chain(hk->page.p, hk->page.n, t, 64, NULL);
     if (nt < 1 || !page_parse(&s_armed_page, hk->page.p + t[nt - 1].start, t[nt - 1].end - t[nt - 1].start, 1))
         return NULL;
+    {
+        /* a weapon with more CLUTs than the hero's block has free (Raimun's
+         * six): the block grows up into the page's rows above it, which the
+         * image leaves (heroswap.py arm / PageTim.more_cluts) */
+        uint16_t used[256];
+        int nu = 0, nfree = 0, short_by, rows, x, y, q;
+        for (i = 0; i < n; i++) {
+            if (owner[i] < 0) continue;
+            for (q = 0; q < nu && used[q] != bx[i].clut; q++) {}
+            if (q == nu && nu < 256) used[nu++] = bx[i].clut;
+        }
+        for (y = s_armed_page.cy; y < s_armed_page.cy + s_armed_page.ch; y++)
+            for (x = s_armed_page.cx; x < s_armed_page.cx + s_armed_page.cw; x += 16) {
+                uint16_t id = (uint16_t)((y << 6) | (x / 16));
+                nfree += !(body_clut[id >> 3] & (1 << (id & 7)));
+            }
+        short_by = nu - nfree;
+        if (short_by > 0) {
+            rows = (short_by + s_armed_page.cw / 16 - 1) / (s_armed_page.cw / 16);
+            if (s_armed_page.ih > s_armed_page.cy - rows || !pg_more_cluts(&s_armed_page, rows)) {
+                fprintf(stderr, "%s: no room for %s's CLUTs in %s's page\n", DV_HS_PLUGIN, kWeapons[weapon].name,
+                        kHeroNames[hero]);
+                return NULL;
+            }
+        }
+    }
     if (!place_weapon(&s_armed_page, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
         if (!pg_grow(&s_armed_page) ||
             !place_weapon(&s_armed_page, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {

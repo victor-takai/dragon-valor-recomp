@@ -1846,6 +1846,36 @@ Clovis's (`body_in_ram`). Kit and walker are cached as `hero9.kit` /
   refusing a value past 9 (`dragonvalor_menu.cpp`): fixed. Not checked: long
   play, a boss.
 
+**Weapons of other characters (2026-11-23, the player's request: "Raimun's
+sword").** The weapon models above came from the action stages' heroes. The
+decomp's `heroswap.py weapons` scans every object of both discs with the
+heroes' 14-part body (the hips, chest, head and feet where Clovis's are) for
+a long part 2 in the hand: 52 looks, five new, held by characters who share
+the heroes' body (decomp docs/targets/hero-swap.md, *Weapons of other
+characters*). Four are `weapon` choices, `kWeapons` entries with a file and
+an object: Raimun's sword (`raimun`: 1/20 room 2's enemy group, file 84,
+object 0; chapter 1's boss), Jeanne's crystal sword (`jeanne`: 4/1 room 1's
+scene, file 80, object 2), Mihael's broadsword (`broadsword`: 11/4 room 8's
+scene, file 136; Anna's chapter, disc 2) and Kodel's cutlass (`cutlass`: 3/1
+room 1's scene, file 80, object 0; before he takes Azos). `weapon_take_obj`
+takes part 2 of that op 3 and the TIM from the file read before it into the
+same buffer (file - 1), the last TIM with a CLUT block in the weapon's page;
+cached as `weapon_<a>_<s>_f<file>_o<obj>.bin` (the first nine's keys and
+files unchanged). Raimun's sword needs six CLUTs, more than a hero's block
+has free (four to eight): `arm_kit` then grows the block up by the rows it
+needs (`pg_more_cluts`), into the page's rows between the hero's image and
+its block, which nothing uploads to; the body's CLUTs keep their places.
+The grown Clovis's long sword (3/17) is not offered: its prims draw from his
+whole sheet, one island of 256 x 192 texels, which fits no hero's page.
+- **Checked** on build-debug against the decomp tool (`heroswap.py build
+  2 1 1 7 --prune --weapon AREA STAGE FILE OBJECT`), pack head and hero page
+  image, CLUTs and portrait in VRAM byte for byte: Arlen with Raimun's sword
+  21/21 (the CLUT block (384, 243, 64, 13), grown by a row), with Jeanne's
+  21/21, Kodel's cutlass 21/21, Mihael's broadsword 22/22 (`--prime-disc2`),
+  the Dragon Valor with Raimun's 21/21; Arlen with Kadum still 21/21. The
+  four fit all nine heroes and the Dragon Valor (the decomp tool, every
+  pair).
+
 History: 1.0.0 (2026-11-16) served per-stage folders written by the decomp
 tool (`heroswap.py build SRC_A SRC_S DST_A DST_S`); 2.0.0 does the rebuild
 itself for every stage.

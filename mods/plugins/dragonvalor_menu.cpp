@@ -94,10 +94,11 @@ const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felip
  * weapon models (kWeapons in dragonvalor_heroswap.c). */
 const char* const kWeaponChoices[] = {"The hero's own", "Azos", "Soul", "Kadum", "Igunis", "Felippe's first sword",
                                       "Mihael's dark sword", "Anna's red weapon", "Anita's purple sword",
-                                      "Anita's turquoise sword"};
+                                      "Anita's turquoise sword", "Raimun's sword", "Jeanne's crystal sword",
+                                      "Mihael's broadsword", "Kodel's cutlass"};
 const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple",
-                                     "turquoise"};
-#define DV_WEAPON_CHOICES 10
+                                     "turquoise", "raimun", "jeanne", "broadsword", "cutlass"};
+#define DV_WEAPON_CHOICES 14
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
