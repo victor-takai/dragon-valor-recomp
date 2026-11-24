@@ -2077,7 +2077,14 @@ has its own colour effect on the sword", "and the voices").**
   too, and played the lunge twice: the hero's 135 is it). Checked: the
   script in RAM is the reference's (`test_heroswap.py` compares the hero
   script now) and, played in 1/7 (hold Square, press Cross), 78, 135, 79,
-  136, 195 for about a second, 196, then the stance and the idle. His guard (anim 32, SE 4 and a burst, at random when
+  136, 195 for about a second, 196, then the stance and the idle. SE 45's
+  tone is the 14th slot of program 2, which holds 13 (volume 0, note range
+  0..0): at first the breath did not sound (the player saw no change), so
+  revoice fills an empty hero tone with the body tone's whole attributes
+  and counts it (program tones 13 -> 14, VAB ts 49 -> 50; the decomp's
+  vab.revoice does the same). `spu_events` (polled during the special,
+  `special_play` in the session notes) show the breath's VAG keyed on
+  voice 23 as the tired pose starts and playing to its end. His guard (anim 32, SE 4 and a burst, at random when
   hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
   effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump

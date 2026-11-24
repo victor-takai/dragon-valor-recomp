@@ -2796,6 +2796,22 @@ static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* b
             if (!bvag || bvag > b.vs) return 0;
             size[vs] = b.size[bvag];
         }
+        if (!le16u(code + at + 0x16)) {
+            /* an empty tone of the hero's program (the breath in SE 45: program
+             * 2 holds 13 tones, its 14th slot has volume 0 and the note range
+             * 0..0): the body tone's whole attributes, the program's own
+             * number, and it counts (the program's tones, the VAB's ts) */
+            uint32_t prog = le16u(e + 2), pa = v.h + 0x20 + 0x10 * prog;
+            memcpy(hdr + at, bank + bat, 0x20);
+            hdr[at + 0x14] = (uint8_t)prog;
+            hdr[at + 0x15] = (uint8_t)(prog >> 8);
+            if (hdr[pa] <= le16u(e + 4)) {
+                uint32_t ts = le16u(hdr + v.h + 0x14) + 1u;
+                hdr[pa] = (uint8_t)(le16u(e + 4) + 1);
+                hdr[v.h + 0x14] = (uint8_t)ts;
+                hdr[v.h + 0x15] = (uint8_t)(ts >> 8);
+            }
+        }
         {
             int c = (int)bank[bat + 4] + (int16_t)le16u(e + 6) - (int16_t)le16u(be + 6);
             hdr[at + 4] = (uint8_t)(c < 0 ? 0 : c > 127 ? 127 : c);
