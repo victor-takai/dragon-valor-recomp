@@ -1999,7 +1999,20 @@ them. The bodies' kits are no longer built from 0/1's files at the scan:
   their weld lists, the entries they still name renumbered in order, the
   body's parts in the hero nodes' entries, its page and portrait (the same
   bytes as `kit_build` over the dressed files, as the decomp tool makes
-  them);
+  them); since 2026-11-24 also the body's own weld lists (`kit_add_welds`;
+  the player's screenshot showed a gap at the grown Clovis's waist: without
+  the hero's lists a body had none and its seams opened as a part turned).
+  A list names its parts by their place in its op and an offset in their
+  prims (decomp `PackListRelocate`), and a body's parts keep their prims'
+  layout, so `body_take` keeps the body pack's ops 31 whose parts are all
+  its object's (each part as the hero node that takes it), cached in
+  `body_<value>.bin` (version 5), and the kit gets them as ops 31 right
+  after op 3, their entries at the end (hero tail), as the decomp's
+  `body_welds` / `dress`. Six bodies have lists (the grown Clovis three,
+  Lodonya and Shalya one, Fannah, Jeanne and Phillip (Kadum) two); the
+  Dragon Valor, the skeleton and Raimun have none in their packs. The
+  program is walked again after them (a first build left the voice's op 52
+  lookup on the old positions: no kit for the voiced bodies with lists);
 - `body_kits_refresh`, at every stage load, dresses the ten again when the
   option or the bodies read change; a disc-2 hero's moves need disc 2
   started once (until then the prologue Clovis's).

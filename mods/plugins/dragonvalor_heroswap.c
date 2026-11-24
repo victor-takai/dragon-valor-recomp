@@ -1137,7 +1137,14 @@ static const struct {
 /* A body as kit_dress takes it: its parts in hero node order, their prims
  * pointed at its baked hero page (body_bake; until then `tex` holds its
  * texture file), the page TIM, its portrait (empty: the kit's stays). */
-typedef struct { int ready; Buf prims[14], verts[14], tex, page, portrait, bank, anims[2]; } Body;
+#define DV_BODY_WELDS 4
+typedef struct {
+    int ready;
+    Buf prims[14], verts[14], tex, page, portrait, bank, anims[2];
+    Buf weld[DV_BODY_WELDS];          /* its own weld lists (op 31 of its pack) */
+    uint8_t weldn[DV_BODY_WELDS], weldnode[DV_BODY_WELDS][16];   /* their parts: the hero nodes they go to */
+    uint32_t nweld;
+} Body;
 static Body s_bodies[BODY_COUNT];
 static Kit s_prologue;   /* the prologue Clovis's kit (0/1): the bodies' moves by default */
 static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
@@ -1323,7 +1330,7 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
 #define DV_KIT_VER     1u
 #define DV_BODY_MAGIC  0x42485644u   /* "DVHB" */
-#define DV_BODY_VER    4u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two) */
+#define DV_BODY_VER    5u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two); 5: its weld lists */
 #define DV_PROLOGUE_ID 100u          /* the prologue Clovis's kit's id in its file */
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
@@ -1413,6 +1420,9 @@ static void body_save(int b)
     ok = ok && wbuf(f, y->page.p, y->page.n) && wbuf(f, y->portrait.p, y->portrait.n) &&
          wbuf(f, y->bank.p, y->bank.n);
     for (i = 0; ok && i < 2; i++) ok = wbuf(f, y->anims[i].p, y->anims[i].n);
+    ok = ok && w32(f, y->nweld);
+    for (i = 0; ok && i < (int)y->nweld; i++)
+        ok = wbuf(f, y->weld[i].p, y->weld[i].n) && wbuf(f, y->weldnode[i], y->weldn[i]);
     fclose(f);
     if (!ok) remove(path);
 }
@@ -1434,6 +1444,16 @@ static int body_load(int b)
     ok = ok && rbuf(f, &y->page, 0x100000) && y->page.n && rbuf(f, &y->portrait, 0x10000) &&
          rbuf(f, &y->bank, 0x100000);
     for (i = 0; ok && i < 2; i++) ok = rbuf(f, &y->anims[i], 0x10000) && (!kBodies[b].special[i] || y->anims[i].n);
+    ok = ok && r32(f, &v) && v <= DV_BODY_WELDS;
+    y->nweld = ok ? v : 0;
+    for (i = 0; ok && i < (int)y->nweld; i++) {
+        static Buf nb;
+        uint32_t q;
+        ok = rbuf(f, &y->weld[i], 0x10000) && y->weld[i].n && rbuf(f, &nb, 16) && nb.n >= 1;
+        if (!ok) break;
+        y->weldn[i] = (uint8_t)nb.n;
+        for (q = 0; q < nb.n; q++) ok = ok && nb.p[q] < 14, y->weldnode[i][q] = nb.p[q];
+    }
     fclose(f);
     y->ready = ok;
     return ok;
@@ -2539,6 +2559,34 @@ static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, u
             !buf_put(&body->verts[i], CT_E(&c, ve), CT_L(&c, ve)))
             return 0;
     }
+    {   /* its own weld lists: the ops 31 whose parts are all its object's,
+         * each part as the hero node that takes it (kBodies order) */
+        uint32_t q, r;
+        body->nweld = 0;
+        for (j = 0; j < p.nops; j++) {
+            const Op* o = &p.ops[j];
+            uint32_t le, nodes[16];
+            int ok = o->op == 31 && o->nref >= 2 && o->nref - 1 <= 16 && body->nweld < DV_BODY_WELDS;
+            for (q = 1; ok && q < o->nref; q++) {
+                uint32_t pe = le32(e0 + p.refs[o->ref0 + q]);
+                nodes[q - 1] = 99;
+                for (r = 0; r < 14; r++)
+                    if (le32(e0 + p.ops[op3].pos + 16 + r * DV_NODE + 0x68) == pe) {
+                        uint32_t h2;
+                        for (h2 = 0; h2 < 14; h2++) if (kBodies[b].order[h2] == r) nodes[q - 1] = h2;
+                    }
+                ok = nodes[q - 1] < 14;
+            }
+            if (!ok) continue;
+            le = le32(e0 + p.refs[o->ref0]);
+            if (!le || le >= c.n) continue;
+            body->weld[body->nweld].n = 0;
+            if (!buf_put(&body->weld[body->nweld], CT_E(&c, le), CT_L(&c, le))) return 0;
+            body->weldn[body->nweld] = (uint8_t)(o->nref - 1);
+            for (q = 0; q + 1 < o->nref; q++) body->weldnode[body->nweld][q] = (uint8_t)nodes[q];
+            body->nweld++;
+        }
+    }
     {   /* its special's tired end (its object's slots, kBodies special) */
         uint32_t after = p.ops[op3].pos + 16 + 14 * DV_NODE, cnt = le32(e0 + after), q;
         for (q = 0; q < 2; q++) {
@@ -2688,6 +2736,51 @@ static const uint32_t kSpecialBlock[64] = {
     0x00000053u, 0x00000001u, 0x69690201u, 0x00010503u, 0x00000006u, 0x00000000u,
     0x09012003u, 0x0000000Cu, 0x0000000Fu, 0xD3E20301u,
 };
+
+/* A body's own weld lists in the kit (decomp heroswap.py body_welds,
+ * dress): the hero's are left out (they name the hero's corners), so a body
+ * had none and showed gaps between its parts (the player: a gap at the
+ * grown Clovis's waist). Its lists name its parts by their place in the op's
+ * list and an offset in their prims (PackListRelocate), and its parts keep
+ * their prims' layout: ops 31 right after op 3, naming the hero nodes that
+ * take those parts, their list entries at the end of the kit (hero tail). */
+static int kit_add_welds(Kit* k, const Body* b)
+{
+    static Buf ops;
+    static Prog p;
+    static const uint8_t end[4] = {0};
+    uint32_t at, w, q;
+    int j;
+    if (!b->nweld) return 1;
+    if (k->nent + b->nweld > 400) return 0;
+    at = 16 + le32(k->ops.p + 12) * DV_NODE;
+    at += 4 + 4 * le32(k->ops.p + at);                /* op 3's end */
+    if (at > k->ops.n) return 0;
+    ops.n = 0;
+    if (!buf_put(&ops, k->ops.p, at)) return 0;
+    for (w = 0; w < b->nweld; w++) {
+        if (!buf_u32(&ops, 31) || !buf_u32(&ops, k->nent + 1 + w) || !buf_u32(&ops, b->weldn[w])) return 0;
+        for (q = 0; q < b->weldn[w]; q++)
+            if (!buf_u32(&ops, kit_node_ref(k, b->weldnode[w][q], 0x68))) return 0;
+    }
+    if (!buf_put(&ops, k->ops.p + at, k->ops.n - at) || !buf_put(&ops, end, 4) || !prog_walk(&p, ops.p, ops.n) ||
+        p.nrefs > 512)
+        return 0;
+    for (w = 0; w < b->nweld; w++) {
+        uint8_t* t = (uint8_t*)malloc(b->weld[w].n);
+        if (!t) return 0;
+        memcpy(t, b->weld[w].p, b->weld[w].n);
+        k->ent[k->nent] = t;
+        k->entlen[k->nent] = b->weld[w].n;
+        k->nent++;
+        k->ntail++;
+    }
+    k->ops.n = 0;
+    if (!buf_put(&k->ops, ops.p, ops.n - 4)) return 0;
+    k->nrefs = 0;
+    for (j = 0; j < p.nrefs; j++) k->refs[k->nrefs++] = p.refs[j];
+    return 1;
+}
 
 static int special_patch(Kit* k, const Body* b)
 {
@@ -3080,6 +3173,10 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
                     DV_HS_PLUGIN);
         }
     }
+    /* after the special: its entries are the tail's last; the ops moved, so
+     * the program is walked again (the voice below finds op 52 by it) */
+    if (!kit_add_welds(k, b) || !buf_put(&k->ops, end, 4) || !prog_walk(&p, k->ops.p, k->ops.n)) goto fail;
+    k->ops.n -= 4;
     {
         uint32_t se = le32(k->ops.p + 8);              /* op 3's behaviour script */
         if (trail && se && se <= k->nent) retrail(k->ent[se - 1], k->entlen[se - 1], trail);
