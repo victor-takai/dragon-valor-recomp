@@ -274,9 +274,10 @@ the native 60 Hz version.
   hero's moves and voice (Hero > Moves; Anna's or Anita's for Shalya,
   Fannah and Jeanne), and the Status screen names the body played instead
   of Clovis. Each matches the decomp tool byte for byte.
-  **Eight more bodies** (2026-11-23, the player's request): a skeleton,
-  Raimun, Lodonya, Shalya, Fannah, Jeanne, Felippe with his shield and the
-  Guardian are Play as choices too, all on the prologue Clovis's kit (no
+  **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
+  Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
+  scene; first misnamed the Guardian; a Felippe with shield left, the
+  hero's own look) are Play as choices too, all on the prologue Clovis's kit (no
   shield: the chapter-1 Clovis's moves held a raised empty hand), the hero
   page baked from each body's texture file; each matches the decomp tool
   byte for byte (`test_heroswap.py NAME --ref`).

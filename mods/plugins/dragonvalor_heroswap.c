@@ -100,23 +100,21 @@
 #define DV_SECTOR             2048u
 #define DV_NODE               0x70u
 
-#define HERO_COUNT 19
+#define HERO_COUNT 18
 static const char* const kHeroValues[HERO_COUNT] = {
     "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita",
-    "dragonvalor", "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne", "felippeshield",
-    "guardian"};
+    "dragonvalor", "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne", "phillipkadum"};
 static const char* const kHeroNames[HERO_COUNT] = {
     "Clovis", "Arlen", "Kodel", "Felippe", "Phillip", "Gerome", "Anna", "Mihael", "Anita",
-    "Dragon Valor", "Old Clovis", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne", "Felippe (shield)",
-    "Guardian"};
+    "Dragon Valor", "Old Clovis", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne", "Phillip (Kadum)"};
 /* Where each kit comes from: the first stage of the hero's first area; the
  * bodies' is the prologue's Clovis (0/1), dressed (see *bodies from story
  * scenes*). */
 static const int kKitSource[HERO_COUNT][2] = {
     {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1},
-    {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}};
+    {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}, {0, 1}};
 static const uint8_t kHeroByArea[13] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5};   /* 0x8006CC70 */
-/* The bodies (choices 9..18): characters with the heroes' body, worn by a
+/* The bodies (choices 9..17): characters with the heroes' body, worn by a
  * hero's kit (see *bodies from story scenes*; the player's requests,
  * 2026-11-23): by default the prologue Clovis's, or the one of option
  * `moves` (2026-11-24: "the women could use the female heroes' bodies").
@@ -1086,8 +1084,12 @@ static const struct {
     {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1},                /* Shalya */
     {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS},      /* Fannah (part 2: a thing on her back) */
     {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1},                  /* Princess Jeanne */
-    {4, 1, 80, 4, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1},      /* Felippe as 4/1's scenes draw him */
-    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1},     /* the Guardian, Phillip's twin */
+    /* Phillip in 5/19's scene where the Guardian gives him Kadum: Phillip's
+     * parts but his hips (Kadum on his back) and the sword in his hand. (Felippe
+     * as 4/1's scene draws him was here: the hero Felippe's look, out on the
+     * player's word, 2026-11-24; the Guardian itself is another, armoured
+     * figure: file 80 object 1, not on the heroes' joints.) */
+    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1},
 };
 /* A body as kit_dress takes it: its parts in hero node order, their prims
  * pointed at its baked hero page (body_bake; until then `tex` holds its
@@ -1345,14 +1347,15 @@ static int kit_load(int h)
     return kit_load_as(&s_kits[h], name, (uint32_t)h);
 }
 
-/* A body, baked (body<b>.bin): its parts, page and portrait. */
+/* A body, baked (body_<value>.bin, by its option value: the list of
+ * bodies changed once, 2026-11-24): its parts, page and portrait. */
 static void body_save(int b)
 {
     char path[1200];
     const Body* y = &s_bodies[b];
     FILE* f;
     int i, ok;
-    cache_file(path, sizeof path, "body%d.bin", b);
+    cache_file(path, sizeof path, "body_%s.bin", kHeroValues[BODY_FIRST + b]);
     if (!(f = fopen(path, "wb"))) return;
     ok = w32(f, DV_BODY_MAGIC) && w32(f, DV_BODY_VER) && w32(f, (uint32_t)b);
     for (i = 0; ok && i < 14; i++) ok = wbuf(f, y->prims[i].p, y->prims[i].n) && wbuf(f, y->verts[i].p, y->verts[i].n);
@@ -1368,7 +1371,7 @@ static int body_load(int b)
     FILE* f;
     uint32_t v;
     int i, ok;
-    cache_file(path, sizeof path, "body%d.bin", b);
+    cache_file(path, sizeof path, "body_%s.bin", kHeroValues[BODY_FIRST + b]);
     if (!(f = fopen(path, "rb"))) return 0;
     y->ready = 0;
     ok = r32(f, &v) && v == DV_BODY_MAGIC && r32(f, &v) && v == DV_BODY_VER && r32(f, &v) && v == (uint32_t)b;
@@ -2452,7 +2455,7 @@ static const Kit* arm_kit(int hero, int weapon)
  * the page's last rows), every textured prim's tpage and CLUT and every
  * untextured prim's DR_TPAGE pointed there, and the body's portrait (or the
  * kit's). The bake is done once, when the body is read (body_bake, cached
- * as body<b>.bin); the dress over a kit whenever the kit changes
+ * as body_<value>.bin); the dress over a kit whenever the kit changes
  * (kit_dress, body_kits_refresh). */
 static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
                      uint32_t lp, const uint8_t* f0, uint32_t l0)
@@ -3126,10 +3129,9 @@ static const uint16_t kNameGlyphs[HERO_COUNT][16] = {
     {0x2262, 0x25a3, 0x20c3, 0x1623, 0x2524, 0x20c3},                  /* Shalya (2/4) */
     {0x24c2, 0x20c3, 0x2263, 0x2263, 0x20c3, 0x25a3},                  /* Fannah (3/1) */
     {0x1d42, 0x1d43, 0x20c3, 0x2263, 0x2263, 0x1d43},                  /* Jeanne (4/1) */
-    {0x24c2, 0x1d43, 0x1623, 0x15c3, 0x2004, 0x2004, 0x1d43},          /* Felippe */
-    {0x28e2, 0x1ca4, 0x20c3, 0x1c44, 0x2123, 0x15c3, 0x20c3, 0x2263},  /* Guardian (5/19) */
+    {0x2602, 0x25a3, 0x15c3, 0x1623, 0x1623, 0x15c3, 0x2004},     /* Phillip (Kadum): Phillip */
 };
-static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5, 12, 6, 0, 6, 7, 6, 6, 6, 7, 8};
+static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5, 12, 6, 0, 6, 7, 6, 6, 6, 7};
 
 static void swap_epilogue(uint32_t pack)
 {

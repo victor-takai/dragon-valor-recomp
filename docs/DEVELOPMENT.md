@@ -1903,15 +1903,27 @@ requests: "these characters would be nice to have", and "the Dragon Valor
 and old Clovis use a Clovis skeleton with a shield, so their hand is
 raised: could it be the first Clovis's?").** The decomp's scan of every
 object of both discs for the heroes' body (`docs/targets/hero-swap.md`,
-*Bodies of other characters*) found eight more characters; each is a
+*Bodies of other characters*) found eight more characters (seven since
+2026-11-24, see below); each is a
 `hero` choice (`kBodies`, `kHeroValues`): `skeleton` (chapter 1's, 1/5's
 enemy group, file 132; no name and no portrait: the dialogues and the
 portrait stay the kit's), `raimun` (chapter 1's boss, 1/20, file 84),
 `lodonya` (chapter 2's black knight, 2/25, file 76), `shalya` (2/4, file
 80), `fannah` (3/1, file 80 object 1), `jeanne` (4/1, file 80 object 2),
-`felippeshield` (Felippe as 4/1's scenes draw him, with a shield, file 80
-object 4; the stage hero's portrait) and `guardian` (Phillip's twin of
-5/19, file 80; Phillip's portrait). All play the prologue Clovis's part
+and `phillipkadum` ("Phillip (Kadum)": Phillip as 5/19's scene draws him
+when the Guardian gives him Kadum, file 80 object 0: Phillip's parts but
+his hips, with Kadum on his back, and the sword in his hand; Phillip's
+portrait and name). Until 2026-11-24 it was called the Guardian, a speaker
+of that scene; the Guardian is another, armoured figure (object 1, not on
+the heroes' joints), and `felippeshield` (Felippe as 4/1's scene draws him,
+file 80 object 4) is gone: the hero Felippe's look but for the sword (the
+player: "Felippe and Felippe shield are the same model"). The bodies' cache files
+are named by option value (`body_<value>.bin`) since, so a change of the
+list never reads another body's file. Checked: `test_heroswap.py
+phillipkadum --ref` (`heroswap.py build 0 1 1 7 --prune --body
+phillipkadum`) 21/21, the Status screen "Phillip"; its first run, which
+read disc 1 again for the renamed cache files, missed only the frame-rate
+check (214 frames in 8 s); Jeanne with Anita's moves 21/21 again. All play the prologue Clovis's part
 for the game (`g_Hero.index` 0, `game_hero`); their names come from their
 scenes' speaker lines (`kNameGlyphs`). Fannah's part 2 is a thing on her
 back, not a weapon: with the hero's own weapon she holds Kodel's cutlass

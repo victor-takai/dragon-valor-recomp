@@ -86,12 +86,12 @@ const int kTextureFilterValues[] = {PSX_TEXTURE_FILTER_NEAREST, PSX_TEXTURE_FILT
 const char* const kPlayAsChoices[] = {"Each stage's own", "Clovis", "Arlen", "Kodel", "Felippe",
                                       "Phillip", "Gerome", "Anna", "Mihael", "Anita", "Dragon Valor",
                                       "Old Clovis", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne",
-                                      "Felippe (shield)", "Guardian"};
+                                      "Phillip (Kadum)"};
 const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felippe",
                                      "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
                                      "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne",
-                                     "felippeshield", "guardian"};
-#define DV_PLAY_AS_CHOICES 20
+                                     "phillipkadum"};
+#define DV_PLAY_AS_CHOICES 19
 #define DV_PLAY_AS_DRAGONVALOR 10   /* the prologue's dragon slayer: plays Clovis's part (g_Hero.index 0) */
 #define DV_PLAY_AS_OLDCLOVIS 11     /* the grown Clovis of chapter 3; the bodies after it hold index 0 too */
 #define DV_KEY_WEAPON      "dv.heroswap.weapon"
@@ -186,7 +186,7 @@ const RecompRuntimeUiItem kItems[] = {
      "four are read from disc 2 once it has been started. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
     {DV_KEY_MOVES, "Hero", "Moves",
-     "Whose moves and voice the characters after Anita (the Dragon Valor to the Guardian) have: the "
+     "Whose moves and voice the characters after Anita (the Dragon Valor to Phillip (Kadum)) have: the "
      "prologue Clovis's, or a hero's. Anna's and Anita's suit Shalya, Fannah and Jeanne; theirs and Mihael's "
      "are read from disc 2 once it has been started. The nine heroes keep their own. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_MOVES_CHOICES - 1, 1, kMovesChoices, DV_MOVES_CHOICES, nullptr},

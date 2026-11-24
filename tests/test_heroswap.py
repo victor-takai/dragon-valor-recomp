@@ -27,9 +27,9 @@ Shalya with Anna's moves.
 
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
 a body (dragonvalor oldclovis skeleton raimun lodonya shalya fannah jeanne
-felippeshield guardian: another character in the prologue Clovis's kit,
-g_Hero.index stays Clovis's 0; reference `heroswap.py build 0 1 1 7 --prune
---body NAME`, `felippe41` for felippeshield, Fannah's with `--weapon 3 1 80 0`),
+phillipkadum: another character in the prologue Clovis's kit, g_Hero.index
+stays Clovis's 0; reference `heroswap.py build 0 1 1 7 --prune --body NAME`,
+Fannah's with `--weapon 3 1 80 0`),
 or `default`: a state.toml that does not name the package, as on a fresh
 install, so the feature runs as its manifest ships it (on, each stage's own
 hero, the hero's own weapon). The stage must then load untouched (no
@@ -83,14 +83,14 @@ HERO_INDEX = 0x80086318    # g_Hero.index
 HERO_PAGE = (384, 0, 64, 256)
 PORTRAIT = (960, 432, 40, 64)
 HEROES = ["clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita", "dragonvalor",
-          "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne", "felippeshield", "guardian"]
+          "oldclovis", "skeleton", "raimun", "lodonya", "shalya", "fannah", "jeanne", "phillipkadum"]
 BODIES = HEROES[9:]       # characters on the prologue Clovis's kit (g_Hero.index 0)
 
 
 def hname(value):
     """The plugin's name for a hero option value (its log lines, the menu)."""
     return {"dragonvalor": "Dragon Valor", "oldclovis": "Old Clovis",
-            "felippeshield": "Felippe (shield)"}.get(value, value.capitalize())
+            "phillipkadum": "Phillip (Kadum)"}.get(value, value.capitalize())
 
 
 MOVES = None              # --moves: the hero whose kit the bodies wear (None: the prologue Clovis's)
@@ -394,7 +394,7 @@ hero = "{hero_name}"
                 if g == 0x8000:
                     break
                 glyphs.append(g)
-            want_name = {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis", "felippeshield": "Felippe",
+            want_name = {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis", "phillipkadum": "Phillip",
                          "skeleton": hname(MOVES or "clovis")}.get(hero_name, hname(hero_name))
             check(f"the Status screen's name is {want_name}", letters(glyphs) == want_name, letters(glyphs))
         if expect_head:

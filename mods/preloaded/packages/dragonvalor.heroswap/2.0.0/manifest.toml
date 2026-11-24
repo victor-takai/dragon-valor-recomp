@@ -107,18 +107,14 @@ value = "jeanne"
 label = "Princess Jeanne"
 
 [[option.choice]]
-value = "felippeshield"
-label = "Felippe, with shield"
-
-[[option.choice]]
-value = "guardian"
-label = "The Guardian (Phillip's twin)"
+value = "phillipkadum"
+label = "Phillip (Kadum)"
 
 [[option]]
 feature = "play-as"
 id = "moves"
 label = "Moves"
-description = "Whose moves and voice the characters after Anita (the Dragon Valor to the Guardian) have: the prologue Clovis's, or a hero's (Anna's or Anita's suit Shalya, Fannah and Jeanne). The nine heroes keep their own. Anna's, Mihael's and Anita's are read from disc 2 once it has been started. Applies at the next stage load."
+description = "Whose moves and voice the characters after Anita (the Dragon Valor to Phillip (Kadum)) have: the prologue Clovis's, or a hero's (Anna's or Anita's suit Shalya, Fannah and Jeanne). The nine heroes keep their own. Anna's, Mihael's and Anita's are read from disc 2 once it has been started. Applies at the next stage load."
 type = "choice"
 default = "own"
 
