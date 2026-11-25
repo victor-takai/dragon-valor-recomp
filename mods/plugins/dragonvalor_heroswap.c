@@ -107,7 +107,7 @@ static const char* const kHeroValues[HERO_COUNT] = {
     "mihael10", "gerome12"};
 static const char* const kHeroNames[HERO_COUNT] = {
     "Clovis", "Arlen", "Kodel", "Felippe", "Phillip", "Gerome", "Anna", "Mihael", "Anita",
-    "Dragon Valor", "Old Clovis", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne", "Phillip (Kadum)",
+    "Dragon Valor", "Clovis (Old)", "Skeleton", "Raimun", "Lodonya", "Shalya", "Fannah", "Jeanne", "Phillip (Kadum)",
     "Mihael (area 10)", "Gerome (area 12)"};
 /* Where each kit comes from: the first stage of the hero's first area; the
  * bodies' is the prologue's Clovis (0/1), dressed (see *bodies from story
@@ -1094,7 +1094,9 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
  * tools/heroswap.py BODIES): the stage, room file and object (its obj-th op
  * 3) of the character, its texture in the file before (file - 1), its
  * portrait (a scene pack's image set: file, entry, k-th TIM; BODY_POR_STAGE:
- * the body's stage hero's, from its file 0; BODY_POR_NONE: the kit's stays),
+ * the body's stage hero's, from its file 0; BODY_POR_BLANK: the kit's
+ * blanked, none drawn, the skeleton's at the player's word, 2026-11-25;
+ * BODY_POR_NONE: the kit's stays),
  * the hero node each of its parts goes to, the weapon held when the
  * `weapon` option is the hero's own (-1: its own part 2), and its sword
  * trail's colours (retrail; 2026-11-24, the player: "each model has its own
@@ -1102,6 +1104,7 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
  * (the grown Clovis, the skeleton, Raimun), Kadum's for Phillip (Kadum)
  * (Mihael's, 8/1), the others chosen after their look; the fades a ninth of
  * each channel where its script gives none. */
+#define BODY_POR_BLANK (-3)
 #define BODY_POR_STAGE (-2)
 #define BODY_POR_NONE  (-1)
 #define DV_VOICE_KIT   (-1)   /* kBodies voice: the kit's own SE stays */
@@ -1130,7 +1133,7 @@ static const struct {
     {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
     {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 21, 22, 23, 24, 25},
      {1, 1, 2, 480, 256}},               /* the grown Clovis: 3/17's enemy group */
-    {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
+    {1, 5, 132, 0, BODY_POR_BLANK, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
     {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1, -1}, {0}},               /* Raimun, chapter 1's boss */
     {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1, -1}, {0}},             /* Lodonya, chapter 2's black knight */
     {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* Shalya */
@@ -3055,7 +3058,11 @@ static int slash_patch(uint8_t* s, uint32_t n)
  * the run's (their yield becomes a jump to a hook that yields, checks and
  * goes on); it turns slot 4 on (SetCurrentSpell turns 1..4 off at stage
  * starts and spell changes), faces the auto-aim, plays his 23, 24, 25 (slots
- * 189..191) with his cry (SE 36, his by the body's voice), then the idle.
+ * 189..191) with his cry (SE 36, his by the body's voice), then the idle; at
+ * the throw two rings of six of the ball's own trail sparks leave his hand
+ * (my addition, the player: "it could have fire particles as he throws it";
+ * his own effect there, a third object, is a purple cloud of energy whose
+ * texture finds no room in the page beside the ball's).
  * Its texture (his texture file's TIM at (480, 256)) moves into the hero
  * page (shot_texture; its 64 x 64 sprite makes the page's image grow, as far
  * as it reaches: the rows under it stay free for a weapon's CLUTs). The shot's own
@@ -3063,7 +3070,7 @@ static int slash_patch(uint8_t* s, uint32_t n)
  * of sound slot 1, and the grown Clovis no longer fit in 1/9, 8/1 and 7/34,
  * where he fits without them (225 action stages of 226); the enemy's own hit
  * reaction still sounds. */
-#define DV_SHOT_WORDS 99
+#define DV_SHOT_WORDS 237
 #define DV_SHOT_ENTS  (2 + 3 * DV_SHOT_PARTS)   /* script, the dummies' script, prims, verts, animations */
 static const uint32_t kShotEdits[4][3] = {     /* word, the disc's, the hero's */
     {157, 0x0000FFFFu, 0x0000FFFCu},           /* native attach obj=-1 -> -4 */
@@ -3073,11 +3080,11 @@ static const uint32_t kShotEdits[4][3] = {     /* word, the disc's, the hero's *
 };
 static const uint32_t kShotDummy[6] = {0x00010703u, 0x0000001Cu, 0x00000000u, 0x69690101u, 0x69690201u, 0};
 static const uint32_t kShotBlock[DV_SHOT_WORDS] = {
-    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x000E0301u, 0x005E0301u,
-    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00080301u, 0x00590301u,
-    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00020301u, 0x00540301u,
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x000E0301u, 0x00E80301u,
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00080301u, 0x00E30301u,
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00020301u, 0x00DE0301u,
     0x050C1F03u, 0x00000000u, 0x00000000u, 0x000C0803u, 0x00000000u, 0x5A5A5A5Au,
-    0x05013104u, 0x00000250u, 0x0000000Cu, 0x00000000u, 0x00020301u, 0x00490301u,
+    0x05013104u, 0x00000250u, 0x0000000Cu, 0x00000000u, 0x00020301u, 0x00D30301u,
     0x00050703u, 0x0000095Cu, 0x00000043u, 0x09012003u, 0x00000019u, 0x00000010u,
     0x00010703u, 0x0000001Du, 0x00000001u, 0x00010603u, 0x00000038u, 0x00000000u,
     0x00010703u, 0x0000001Eu, 0x00000000u, 0x00010703u, 0x000000C0u, 0x00000000u,
@@ -3087,6 +3094,29 @@ static const uint32_t kShotBlock[DV_SHOT_WORDS] = {
     0x00000002u, 0x01051203u, 0x00000050u, 0x0000000Bu, 0x24012301u, 0x050C1F03u,
     0x00000000u, 0x00000000u, 0x000C0803u, 0x00000000u, 0x5A5A5A5Au, 0x05013104u,
     0x00000250u, 0x0000000Cu, 0x00000000u, 0x00050503u, 0x00000252u, 0x00000001u,
+    0x01061203u, 0x00000050u, 0x0000000Bu, 0x0B01220Bu, 0x003C0000u, 0x0000FFF4u,
+    0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u,
+    0x00000011u, 0x00450010u, 0x0B01220Bu, 0x003C0000u, 0x02ABFFF4u, 0xC0001F1Fu,
+    0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u,
+    0x00450010u, 0x0B01220Bu, 0x003C0000u, 0x0555FFF4u, 0xC0001F1Fu, 0x5E5A0076u,
+    0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u,
+    0x0B01220Bu, 0x003C0000u, 0x0800FFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu,
+    0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu,
+    0x003C0000u, 0x0AABFFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u,
+    0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x003C0000u,
+    0x0D55FFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u,
+    0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x01061203u, 0x00000050u, 0x0000000Cu,
+    0x0B01220Bu, 0x00230000u, 0x0155FFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu,
+    0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu,
+    0x00230000u, 0x0400FFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u,
+    0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u,
+    0x06ABFFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u,
+    0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u, 0x0955FFFAu,
+    0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u,
+    0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u, 0x0C00FFFAu, 0xC0001F1Fu,
+    0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u,
+    0x00450010u, 0x0B01220Bu, 0x00230000u, 0x0EABFFFAu, 0xC0001F1Fu, 0x5E5A0076u,
+    0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u,
     0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u, 0x00000402u, 0x000020BFu,
     0x00010603u, 0x0000004Au, 0x00000000u, 0x69690101u, 0x01011203u, 0x00000053u,
     0x00000001u, 0x69690201u, 0x00040301u,
@@ -3094,7 +3124,7 @@ static const uint32_t kShotBlock[DV_SHOT_WORDS] = {
 static const uint8_t kShotHooks[3][2] = {{11, 2}, {17, 1}, {18, 1}};   /* anim self, N, 0, 2, 0 (its first) and its
                                                                         * k-th yield: the idle's loop, walk, run */
 static const uint8_t kShotHookAt[3] = {0, 6, 12};                     /* their hooks in the block */
-static const uint8_t kShotExits[5][2] = {{5, 0}, {11, 1}, {17, 2}, {29, 3}, {98, 3}};   /* jump word: 0..2 on after
+static const uint16_t kShotExits[5][2] = {{5, 0}, {11, 1}, {17, 2}, {29, 3}, {236, 3}};   /* jump word: 0..2 on after
                                                                         * hook k's yield, 3 the idle */
 static const uint8_t kShotLen[2] = {23, 76};                          /* words that take the script's length */
 
@@ -3624,8 +3654,26 @@ static void retrail(uint8_t* sc, uint32_t len, const uint32_t* trail)
     }
 }
 
+/* The TIM with every colour of its CLUT and every texel 0: nothing drawn
+ * (heroswap.py blank_tim; colour 0 is the PSX's transparent one). */
+static void tim_blank(uint8_t* t, uint32_t n)
+{
+    uint32_t o = 0x10, bn;
+    if (n < 0x1C) return;
+    if (le32(t + 12) & 8) {                            /* the CLUT block, then the image's */
+        bn = le32(t + o);
+        if (bn < 12 || o + bn > n) return;
+        memset(t + o + 12, 0, bn - 12);
+        o += bn;
+    }
+    if (o + 12 > n) return;
+    bn = le32(t + o);
+    if (bn < 12 || o + bn > n) return;
+    memset(t + o + 12, 0, bn - 12);
+}
+
 static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail, const int8_t* voice,
-                     int own_moves)
+                     int own_moves, int blank_portrait)
 {
     static Prog p;
     static Buf ops;
@@ -3684,6 +3732,7 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
         !buf_put(&k->portrait, b->portrait.n ? b->portrait.p : d->portrait.p,
                  b->portrait.n ? b->portrait.n : d->portrait.n))
         goto fail;
+    if (blank_portrait) tim_blank(k->portrait.p, k->portrait.n);
     k->npage = 1;
     if (own_moves && b->anims[0].n) {                  /* Moves > Clovis (Old): his tired end, slash, shot */
         int sp = special_patch(k, b);
@@ -3751,7 +3800,8 @@ static void body_kits_refresh(void)
     if (key == built_for && n == built_n) return;
     for (b = 0; b < BODY_COUNT; b++) {
         Kit* k = &s_kits[BODY_FIRST + b];
-        if (!n || !s_bodies[b].ready || !kit_dress(k, d, &s_bodies[b], kBodies[b].trail, kBodies[b].voice, own)) {
+        if (!n || !s_bodies[b].ready || !kit_dress(k, d, &s_bodies[b], kBodies[b].trail, kBodies[b].voice, own,
+                                                    kBodies[b].por_file == BODY_POR_BLANK)) {
             kit_free(k);
             if (n && s_bodies[b].ready) fprintf(stderr, "%s: no kit for %s\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + b]);
         }
@@ -3764,7 +3814,7 @@ static void body_kits_refresh(void)
         fprintf(stderr, "%s: %s's moves not read yet (start disc %d once): the prologue Clovis's\n", DV_HS_PLUGIN,
                 kHeroNames[s_moveset], kKitSource[s_moveset][0] >= 7 ? 2 : 1);
     fprintf(stderr, "%s: %d bodies wear %s's moves%s\n", DV_HS_PLUGIN, n,
-            want >= 0 ? kHeroNames[want] : "the prologue Clovis", own ? " (Clovis (Old): Old Clovis's own in his)" : "");
+            want >= 0 ? kHeroNames[want] : "the prologue Clovis", own ? " (Clovis (Old): the grown Clovis's own in his)" : "");
 }
 
 /* --- reloads of the hero's texture ----------------------------------------
@@ -4165,7 +4215,7 @@ static const uint16_t kNameGlyphs[HERO_COUNT][16] = {
     /* Dragon Valor: the speaker line of 0/1's scene (file 80), 0x1800 a space */
     {0x2882, 0x1c44, 0x20c3, 0x2183, 0x1e83, 0x2263, 0x1800, 0x2823, 0x20c3, 0x1623, 0x1e83, 0x1c44},
     {0x2862, 0x1623, 0x1e83, 0x20c4, 0x15c3, 0x1864},                  /* the grown Clovis: Clovis */
-    {0},                                                               /* a skeleton: no name (the dialogues keep theirs) */
+    {0x2262, 0x2203, 0x1d43, 0x1623, 0x1d43, 0x1884, 0x1e83, 0x2263},  /* a skeleton: Skeleton (the player, 2026-11-25) */
     {0x2642, 0x20c3, 0x15c3, 0x2e43, 0x1ca4, 0x2263},                  /* Raimun (1/20's speaker lines) */
     {0x2582, 0x1e83, 0x2123, 0x1e83, 0x2263, 0x2524, 0x20c3},          /* Lodonya (2/25) */
     {0x2262, 0x25a3, 0x20c3, 0x1623, 0x2524, 0x20c3},                  /* Shalya (2/4) */
@@ -4175,7 +4225,7 @@ static const uint16_t kNameGlyphs[HERO_COUNT][16] = {
     {0x31a2, 0x15c3, 0x25a3, 0x20c3, 0x1d43, 0x1623},                  /* Mihael (area 10): Mihael */
     {0x28e2, 0x1d43, 0x1c44, 0x1e83, 0x2e43, 0x1d43},                  /* Gerome (area 12): Gerome */
 };
-static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5, 12, 6, 0, 6, 7, 6, 6, 6, 7, 6, 6};
+static const int kNameLen[HERO_COUNT] = {6, 5, 5, 7, 7, 6, 4, 6, 5, 12, 6, 8, 6, 7, 6, 6, 6, 7, 6, 6};
 
 static void swap_epilogue(uint32_t pack)
 {
@@ -4563,7 +4613,8 @@ static void dv_hs_savestate_loaded(void)
  * with any other hero the game's own layout comes back. Written only over a
  * table (the nine pointers inside the text block, each name ended inside
  * it): another module, MAP.BIN, has other data there. A body with no name
- * (the skeleton) keeps its moves' hero's. */
+ * would keep its moves' hero's (the skeleton had none until 2026-11-25: the
+ * player, "Skeleton"; its glyphs are the font's, decomp docs/FORMATS.md). */
 #define DV_HERO_NAME_TEXT 0x800BBF04u
 #define DV_HERO_NAME_HW   64u
 static void name_table(int gi, int look, uint16_t* blk, uint32_t* ptr)

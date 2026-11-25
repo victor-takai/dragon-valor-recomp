@@ -303,7 +303,9 @@ the native 60 Hz version.
   decomp tool byte for byte. The grown Clovis's strong attack takes his own
   strong-attack cry, his own sound on the jump back and, after his special
   (the strong attack: the same animations), his tired end with his breath;
-  the skeleton, which has no voice, is silent. With Moves > Clovis (Old)
+  the skeleton, which has no voice, is silent, shows no portrait and is
+  named Skeleton (2026-11-25, the player's word). The grown Clovis is
+  "Clovis (Old)" in Play as, as in Moves. With Moves > Clovis (Old)
   (2026-11-24, the player's request; shown when he is picked) he has his
   own moves: his charged attack is the double slash he fights Kodel with as
   a boss (his own animations and reach; tried first as the combo's end,
@@ -311,7 +313,8 @@ the native 60 Hz version.
   Moves he moves as that kit. His guard is the heroes' own (standing still,
   a hit from the front or a side is blocked). His energy shot is on L2
   (2026-11-25, the player's request: "the fire attack"): his own wind-up,
-  blink and recovery, his cry, and his ball of fire flying from his hand,
+  blink and recovery, his cry, a burst of fire sparks from his hand (my
+  addition, at the player's word) and his ball of fire flying from it,
   hitting the enemies it meets (power 8), held back by walls; its
   projectile takes the last spell object slot (with spell 4 or 5 at level
   3 selected, L2 does nothing until the next stage), and its own two

@@ -88,7 +88,7 @@ label = "Dragon Valor (prologue)"
 
 [[option.choice]]
 value = "oldclovis"
-label = "Old Clovis (chapter 3)"
+label = "Clovis (Old)"
 
 [[option.choice]]
 value = "skeleton"
@@ -122,7 +122,7 @@ label = "Phillip (Kadum)"
 feature = "play-as"
 id = "moves"
 label = "Moves"
-description = "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), the prologue's, or a hero's (Anna or Anita suit Shalya, Fannah and Jeanne). Clovis (Old) is Old Clovis's own: his boss slash on the charged attack, his tired end after the special, his fire shot on L2; the others move as Clovis (Young). The nine heroes and their other looks keep their own. Anna's, Mihael's and Anita's are read from disc 2 once it has been started. Applies at the next stage load."
+description = "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), the prologue's, or a hero's (Anna or Anita suit Shalya, Fannah and Jeanne). Clovis (Old) is the grown Clovis's own: his boss slash on the charged attack, his tired end after the special, his fire shot on L2; the others move as Clovis (Young). The nine heroes and their other looks keep their own. Anna's, Mihael's and Anita's are read from disc 2 once it has been started. Applies at the next stage load."
 type = "choice"
 default = "own"
 

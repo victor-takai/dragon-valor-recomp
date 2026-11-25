@@ -98,7 +98,7 @@ BODIES = HEROES[11:]      # characters on the prologue Clovis's kit (g_Hero.inde
 
 def hname(value):
     """The plugin's name for a hero option value (its log lines, the menu)."""
-    return {"dragonvalor": "Dragon Valor", "oldclovis": "Old Clovis", "phillipkadum": "Phillip (Kadum)",
+    return {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis (Old)", "phillipkadum": "Phillip (Kadum)",
             "mihael10": "Mihael (area 10)", "gerome12": "Gerome (area 12)"}.get(value, value.capitalize())
 
 
@@ -433,8 +433,7 @@ hero = "{hero_name}"
             check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
             check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
             check(f"g_Hero.index = {gindex(hero)}", rd(HERO_INDEX, 1)[0] == gindex(hero), str(rd(HERO_INDEX, 1)[0]))
-            # the Status screen's name: g_HeroNames[g_Hero.index] (a body's own
-            # name, but the skeleton's, which has none: its moves' hero's)
+            # the Status screen's name: g_HeroNames[g_Hero.index] (a body's own)
             gi = rd(HERO_INDEX, 1)[0]
             ptr = int.from_bytes(rd(0x800C5E14 + 4 * gi, 4), "little")
             raw = rd(ptr, 32) if 0x800BBF04 <= ptr < 0x800BBF84 else b""
@@ -445,8 +444,7 @@ hero = "{hero_name}"
                     break
                 glyphs.append(g)
             want_name = {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis", "phillipkadum": "Phillip",
-                         "mihael10": "Mihael", "gerome12": "Gerome",
-                         "skeleton": hname("clovis" if MOVES in PROLOGUE_MOVES else MOVES)}.get(hero_name, hname(hero_name))
+                         "mihael10": "Mihael", "gerome12": "Gerome"}.get(hero_name, hname(hero_name))
             check(f"the Status screen's name is {want_name}", letters(glyphs) == want_name, letters(glyphs))
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)

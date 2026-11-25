@@ -48,7 +48,7 @@ lists them; that screen remaps them and Select there restores the defaults.
 | R1 / R2 | Duck |
 | Start | Pause |
 
-Playing as the grown Clovis (Hero > Play as > Old Clovis) with Hero > Moves
+Playing as the grown Clovis (Hero > Play as > Clovis (Old)) with Hero > Moves
 > Clovis (Old), L2 fires his ball of fire (standing, walking or running; L1
 still dashes).
 

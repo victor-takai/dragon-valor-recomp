@@ -2027,8 +2027,13 @@ played, the body's name first under its index, the other names after it
 (one that no longer fits made empty: only the played index is read), and
 puts the game's layout back with any other hero; it writes only over a
 table that is one (the nine pointers inside the block, each name ended in
-it), since other modules have other data there. The skeleton has no name
-and keeps its moves' hero's. The dialogues' renames now take every name
+it), since other modules have other data there. The skeleton had no name
+and kept its moves' hero's; since 2026-11-25 (the player: "rename it
+Skeleton", and "remove the portrait") it is "Skeleton" (the font's glyphs,
+decomp docs/FORMATS.md: row | column << 5 | advance << 10) and its portrait
+is the kit's blanked (`BODY_POR_BLANK`, `tim_blank`: every colour and texel
+0, nothing drawn; heroswap.py `blank_tim`). The Play as row names the grown
+Clovis "Clovis (Old)", as the Moves row. The dialogues' renames now take every name
 from `kNameGlyphs` (the nine heroes' rows checked against ACTION.BIN), since
 the table in RAM can hold a body's.
 
@@ -2173,7 +2178,12 @@ has its own colour effect on the sword", "and the voices").**
   yield becomes a jump to a hook that yields, checks raw L2 pressed and goes
   on into the state (L1 keeps Dash; L2 is Dash too in the default map, but
   the check comes first). The move faces the auto-aim, plays 189..191 (his
-  23..25), his cry (SE 36) and the signal; then the idle. `shot_texture`
+  23..25), his cry (SE 36) and the signal; then the idle. At the throw
+  (frames 11 and 12 of his 24) two rings of six of the ball's own trail
+  sparks leave his hand (my addition, the player: "it could have fire
+  particles as he throws it"; his own effect there is a purple cloud of
+  energy, a third object whose texture finds no room in the page beside
+  the ball's). `shot_texture`
   moves its texture (his texture file's TIM at (480, 256)) into the hero
   page with the weapon's placement (`move_texture`, shared with `arm_kit`;
   `kit_page_use` counts the shot's texels, so a weapon armed after it leaves
