@@ -303,7 +303,25 @@ the native 60 Hz version.
   decomp tool byte for byte. The grown Clovis's strong attack takes his own
   strong-attack cry, his own sound on the jump back and, after his special
   (the strong attack: the same animations), his tired end with his breath;
-  the skeleton, which has no voice, is silent.
+  the skeleton, which has no voice, is silent, shows no portrait and is
+  named Skeleton (2026-11-25, the player's word). The grown Clovis is
+  "Clovis (Old)" in Play as, as in Moves. With Moves > Clovis (Old)
+  (2026-11-24, the player's request; shown when he is picked) he has his
+  own moves: his charged attack is the double slash he fights Kodel with as
+  a boss (his own animations and reach; tried first as the combo's end,
+  which the player did not like) and his special ends tired; with the other
+  Moves he moves as that kit. His guard is the heroes' own (standing still,
+  a hit from the front or a side is blocked). His energy shot is on L2
+  (2026-11-25, the player's request: "the fire attack"): his own wind-up,
+  blink and recovery with his charge (purple sparks drawn in to his hand),
+  his cry and the shot's own sound, a burst of fire sparks from his hand (my
+  addition, at the player's word) and his ball of fire flying from it,
+  hitting the enemies it meets (power 8), held back by walls; its
+  projectile takes the last spell object slot (with spell 4 or 5 at level
+  3 selected, L2 does nothing until the next stage); in 7/34 the shot's
+  sound is left out so that he still fits there (sound memory). Stages
+  may now use 16 KB more RAM than the game's largest layout: measured
+  free (only the RAM stack is above, and it stays at its top).
   **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
   Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
   scene; first misnamed the Guardian; a Felippe with shield left, the

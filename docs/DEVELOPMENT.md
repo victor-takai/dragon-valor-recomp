@@ -1590,9 +1590,16 @@ What the plugin (`mods/plugins/dragonvalor_heroswap.c`) does:
   sizes and raises row 0 (`g_StageBufferSizes[0]`, 0x80078B20: file 0 and
   then the action pack, whole sectors) and sound slot 1 (`g_SoundBodySize[1]`,
   0x80077DBC: the VAB body rounded up to 64) when needed, unless the stage
-  buffers would then end past 0x801EE69C or the sound slots take more than
-  476096 bytes (the largest layouts the game itself uses: that stage keeps
-  its hero). Otherwise it gives back the hero index a swap replaced.
+  buffers would then end past 0x801F269C or the sound slots take more than
+  476096 bytes (the largest layouts the game itself uses, 0x801EE69C for
+  the buffers, and 16 KB: that stage keeps its hero). The 16 KB were
+  measured (2026-11-25): above the buffers lies only the RAM stack from
+  0x801FFFF4 down, which the game uses only for CD callbacks, sound calls
+  and two natives (it runs on the scratchpad's, `SetSp(0x1F800400)`); its
+  lowest word written in test states 10 and 9 (their whole run since boot) is
+  0x801FFBC0, and several minutes of stages (fights, magic, a death and its
+  Continue, 1/9, the boss stage 1/20, the scene of 3/1) with 16 KB past
+  0x801EE69C under a pattern wrote none of it. Otherwise it gives back the hero index a swap replaced.
 - **`PackInstall` (0x80035E48, a0 = the file just read).** In a swapped
   stage, file 0 and the action pack, both read to ACTION's heap (0x800C5E98),
   are rebuilt in RAM before the install: file 0 takes the kit's VAB,
@@ -2027,8 +2034,13 @@ played, the body's name first under its index, the other names after it
 (one that no longer fits made empty: only the played index is read), and
 puts the game's layout back with any other hero; it writes only over a
 table that is one (the nine pointers inside the block, each name ended in
-it), since other modules have other data there. The skeleton has no name
-and keeps its moves' hero's. The dialogues' renames now take every name
+it), since other modules have other data there. The skeleton had no name
+and kept its moves' hero's; since 2026-11-25 (the player: "rename it
+Skeleton", and "remove the portrait") it is "Skeleton" (the font's glyphs,
+decomp docs/FORMATS.md: row | column << 5 | advance << 10) and its portrait
+is the kit's blanked (`BODY_POR_BLANK`, `tim_blank`: every colour and texel
+0, nothing drawn; heroswap.py `blank_tim`). The Play as row names the grown
+Clovis "Clovis (Old)", as the Moves row. The dialogues' renames now take every name
 from `kNameGlyphs` (the nine heroes' rows checked against ACTION.BIN), since
 the table in RAM can hold a body's.
 
@@ -2097,9 +2109,121 @@ has its own colour effect on the sword", "and the voices").**
   and counts it (program tones 13 -> 14, VAB ts 49 -> 50; the decomp's
   vab.revoice does the same). `spu_events` (polled during the special,
   `special_play` in the session notes) show the breath's VAG keyed on
-  voice 23 as the tired pose starts and playing to its end. His guard (anim 32, SE 4 and a burst, at random when
-  hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
-  effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
+  voice 23 as the tired pose starts and playing to its end. *His slash*
+  (2026-11-24, the player: "the boss's moveset, or something like it",
+  then "only the third hit"): as a boss (3/17 file 76 entry 60) he has a
+  slash of his own (anims 20, 21, 22; kind 1, power 5, his reach and trail),
+  an energy shot (23..25 and a projectile object of his group, entry 67,
+  made to hit the hero and drawn from his page: not ported, it needs an
+  object slot that hits enemies), the slash then the shot, and the strong
+  attack above (decomp `docs/targets/hero-swap.md`, *The boss's moves*).
+  His slash is two cuts (anim 21: a level cut, a held pose, a turn into a
+  rising cut). Tried first as the standing combo's third hit: whole, the
+  player saw "two hits"; its first cut alone (then the kit's 51) did not
+  please; the player chose the charged attack. `slash_patch` (the decomp's
+  `slash`) makes the slash the charged attack's release on a Clovis kit:
+  the release's `anim self, 76, 0, 1, 5` (once) becomes a jump to
+  `kSlashBlock` (`DV_SLASH_WORDS`, 92: the decomp's SLASH_TEXT assembled by
+  objscript.py, after the special's block) and a `wait` never run. The
+  block repeats the release's settings and `sound.stop 1, 15` (the charge's
+  hum; `DV_SLASH_PRE` words, checked equal to the script's), plays his 21
+  whole and his 22, then the idle: the charge stands for his wind-up (the
+  decomp decoded and compared the poses: from 75 to his 21 the pose moves
+  less than the game's own release, 75 to 76). The hit (kind 1, power 5,
+  his reach, frames 3..22; the hero's 76 is kind 3, power 8) and trail
+  words are his, the swing sound (SE 4, frames 2 and 17) and the cry (SE
+  36, the charged attack's, kept at the player's word) the kit's; its three
+  exits are the release's (attack held after 76 and after 77: charge again;
+  the idle), read from it in order and checked by what comes before each.
+  His animations take slots 192, 193 (`body_oldclovis.bin` version 8: his
+  21, 22; 6 and 7 held the combo's versions). The combo is the kit's.
+  Played in 1/7: 46, 48, 50, 51, then 74, 75 (the hum), 192 (the hum
+  stopped, his cry keyed on voice 23, the hit armed), 193, the idle. The
+  hit's damage is the charged attack's: a hero's hit takes
+  `g_Hero.attack[g_Hero.hitIndex]` (decomp collision.c, section 3), and the
+  charge set hitIndex 3; atkPower only has to be non-zero, so his power 5
+  changes nothing; his kind 1 makes the enemy reel where the hero's 76
+  (kind 3) knocks it down, and the target's cooldown lasts the rest of the
+  animation, so the two cuts hit an enemy once. *Clovis (Old)* (2026-11-24,
+  the player: "I want Clovis (Old) in the moves"): his own moves (the slash,
+  the tired end, the shot below) go in only with Moves > Clovis (Old) (`moves` =
+  `oldclovis`, `DV_MOVES_OLD`: the prologue Clovis's kit, `kit_dress` with
+  `own_moves`; the other bodies move as Clovis (Young)); with Clovis (Young),
+  Clovis or a hero's moves he moves as that kit, his voice kept. The menu
+  shows Clovis (Old) when Old Clovis is picked in Play as with Moves on
+  Clovis (Young), and Clovis (Young) again when another character is picked:
+  his own moves are his default there. The decomp's reference is `build 0 1
+  ... --body oldclovis --own-moves`. His guard (anim 32, SE 4 and a burst, when
+  hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is the
+  heroes' own guard (his 32 / 33 are their 99 / 100 byte for byte): a hit from
+  the front or a side while a hero stands still (anim 11) sparks and the
+  reaction script skips the damage (decomp collision.c section 4, the hero
+  script's L17B3 -> L1784), so Old Clovis has it too; not a voice role.
+  *His energy shot, on L2* (2026-11-25, the player: "and the fire attack?";
+  L2 my proposal, as the guard needs no button; decomp hero-swap.md, "His
+  energy shot", `shot_moves` / `shot_install` / `shot_texture`): as the
+  boss he plays his anims 23, 24 (blinking) and 25, and at 24's 12th frame
+  the deathTimer of his group's next object, a ball of fire (entry 67: a
+  ring of quads and an additive sprite, the effects page's sparks behind)
+  set to 1 makes it fly from his hand along his facing for 25 frames, kind
+  3, power 8. An object that hits enemies must be one of g_Objects[1..4]
+  (CollisionUpdate's attackers; 41..72 would hit the hero too), the spell
+  objects: a spell's pack puts its objects from 1 on, and only spells 4 and
+  5 at level 3 (in 3/17's files) reach 4. So the kit puts the projectile in
+  g_Objects[4]: after the hero's ops, op 6 class 5 and three op 3s for 1..3
+  (`kShotDummy`, off at once; a hidden node each, a copy of the hero's
+  weapon node, as SpellCancel / SpellObjectsReset trade g_Objects[1]'s
+  hidden node with the hero's node 2 while a power-up is on), then the
+  projectile's, its entries right after the hero's script (`shot_install`):
+  its script's address is then the hero's plus the hero script's length,
+  which the move checks before it turns slot 4 on (SetCurrentSpell turns
+  1..4 off at stage starts and spell changes) and fires (with spell 4 or 5
+  at level 3 selected, L2 does nothing until the next stage). Its script is
+  the boss's but for `kShotEdits`: attach to obj -4 (the hero, from slot 4),
+  its direction the hero's facing (the boss passed his through acc), no hit
+  sound. `shot_patch` hooks the idle's loop and the walk (not the run, the
+  player's word: running, L2 is the Dash it is for every hero): their
+  yield becomes a jump to a hook that yields, checks raw L2 pressed and goes
+  on into the state (L1 keeps Dash; L2 is Dash too in the default map, but
+  the check comes first). The move faces the auto-aim, plays 189..191 (his
+  23..25), his cry (SE 36), the shot's sound and the signal; then the
+  idle. At the throw
+  (frames 11 and 12 of his 24) two rings of six of the ball's own trail
+  sparks leave his hand (my addition, the player: "it could have fire
+  particles as he throws it"). The charge (the player: "the particles going
+  toward him, like a charge"): his file's third object (entry 70: 3 nodes
+  of 20 additive sprites, purple sparks drawn in to his hand over its
+  30-frame animation), started with the shot (its deathTimer,
+  `objects+0xAB28`) and following his node 0 point every frame. It hits
+  nothing, so it lives in g_Objects[74] (op 6 class 7, `DV_FREE_CLASS`):
+  every object loop runs and draws 0..75 and no pack selects class 7, so no
+  spell takes it. Its script is the boss's but for `kChargeEdits` (attach
+  to obj -74, its yaw the hero's); its 64 x 64 texture finds no room in the
+  page beside the ball's, so it goes at half size (`bobj_half`: 32 x 32,
+  the top-left texel of each 2 x 2, the sprites' u / v halved; my choice,
+  the sprites being small on screen). The shot's two objects are `BObj`s
+  (`bobj_take`, `bobj_op`). `shot_texture`
+  moves its texture (his texture file's TIM at (480, 256)) into the hero
+  page with the weapon's placement (`move_texture`, shared with `arm_kit`;
+  `kit_page_use` counts the shot's texels, so a weapon armed after it leaves
+  them; its 64 x 64 sprite grows the page's image to the 232 rows it
+  reaches, `pg_trim`, so Raimun's sword's six CLUTs still fit). The shot's
+  sound (the player: "the sound of the fireball as the grown Clovis lets it
+  go"; the hero's magic charge, SE 12, tried first, was not it): his SE 1
+  on the hero's SE 46 (revoice role 9, voice 22; the cry is on 23). It adds
+  9 KB to file 0 and sound slot 1: 1/9 and 8/1 fit with it thanks to
+  the 16 KB measured above the stage buffers (the player found the sound
+  gone in 1/9, the stage after 1/7's town), 7/34 does not (SPU RAM); there
+  `dv_hs_buffers_entry` takes the kit's lite variant
+  (`lite_of`: its VAB, bank header and script built without it in
+  `kit_dress`; the player's choice over dropping his tired breath), so he
+  plays wherever he did (225 action stages of 226; `body_oldclovis.bin`
+  version 10). Its hit's sound (SE 3) is not kept. Played in 1/7: L2, then 189,
+  190, 191, 11; slot 4 flags 0x43, at frame 11 of 190 deathTimer 1, anim 1,
+  atkKind 3, flying from his hand (fired into a wall it stays at his hand
+  until its 25 frames are up); aimed at an enemy of 10 hp, the first shot
+  left it 2,
+  the second killed it. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
   and death are silent (`DV_VOICE_MUTE`: the tones point to one silent VAG)
   and its hurt first stayed the kit's; the player heard Clovis there, so it

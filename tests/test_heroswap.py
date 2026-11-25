@@ -26,7 +26,11 @@ OVER and Val / HP kept; the rest of the run continues with HERO2.
 --moves HERO2 sets the `moves` option: the bodies wear HERO2's kit (its
 moves and voice; g_Hero.index HERO2's); the reference then dresses HERO2's
 kit stage, e.g. `heroswap.py build 7 1 1 7 --prune --body shalya` for
-Shalya with Anna's moves.
+Shalya with Anna's moves. `oldclovis` (Clovis (Old)) is the prologue
+Clovis's kit with the grown Clovis's own moves (`build 0 1 ... --body
+oldclovis --own-moves`); the menu picks it with him whenever Moves is on
+Clovis (Young), so `oldclovis` without --moves, or with `--moves own`, runs
+as Clovis (Old) too.
 
 HERO is one of clovis arlen kodel felippe phillip gerome anna mihael anita,
 a body (dragonvalor oldclovis skeleton raimun lodonya shalya fannah jeanne
@@ -94,12 +98,14 @@ BODIES = HEROES[11:]      # characters on the prologue Clovis's kit (g_Hero.inde
 
 def hname(value):
     """The plugin's name for a hero option value (its log lines, the menu)."""
-    return {"dragonvalor": "Dragon Valor", "oldclovis": "Old Clovis", "phillipkadum": "Phillip (Kadum)",
+    return {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis (Old)", "phillipkadum": "Phillip (Kadum)",
             "mihael10": "Mihael (area 10)", "gerome12": "Gerome (area 12)"}.get(value, value.capitalize())
 
 
 MOVES = None              # --moves: the hero whose kit the bodies wear (None: the prologue Clovis's)
-MOVES_VALUES = ["own", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael", "anita"]
+MOVES_VALUES = ["own", "oldclovis", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna", "mihael",
+                "anita"]
+PROLOGUE_MOVES = (None, "own", "oldclovis")   # the prologue Clovis's kit (Clovis (Old): with Old Clovis's own)
 
 
 def trails(pack):
@@ -114,7 +120,7 @@ def gindex(hero):
     """g_Hero.index for a HEROES index: a body plays its moves' hero's part
     (Clovis's 0 for the prologue Clovis's)."""
     if hero >= 0 and HEROES[hero] in BODIES:
-        return HEROES.index(MOVES) if MOVES else 0
+        return 0 if MOVES in PROLOGUE_MOVES else HEROES.index(MOVES)
     if hero >= 0 and HEROES[hero] in LOOKS:
         return LOOKS[HEROES[hero]]
     return hero
@@ -355,8 +361,14 @@ hero = "{hero_name}"
             time.sleep(1)
         lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
         shown = "each stage's hero" if default else hname(hero_name)
-        check("plugin active, play as " + shown,
-              any(f"play as {shown}" in l for l in lines), " | ".join(lines))
+        # The runtime's own first lines (its overlay toolchain's) are written
+        # to the same log from another stream and can land on the plugin's
+        # (seen with the grown Clovis's own moves, whose kits take longer to
+        # build: "play as C" + the toolchain line's end); then the check waits
+        # for the plugin's next "play as" line, at the end of the run.
+        active = any(f"play as {shown}" in l for l in lines)
+        if active:
+            check("plugin active, play as " + shown, True, " | ".join(lines))
         print(f"state {slot}:", cli("state", "load", str(slot)).splitlines()[-1])
         time.sleep(4)
         # test state 10 was made as Clovis (9 as Kodel): with another hero or a
@@ -397,6 +409,10 @@ hero = "{hero_name}"
             time.sleep(4)
             check(f"picked {hero_name} again in the menu: the stage restarted",
                   log_text().count("restarts as") > restarts0, "")
+            if hero_name == "oldclovis" and MOVES in (None, "own"):
+                # picking him with Moves on Clovis (Young) shows his own,
+                # Clovis (Old), and applies it with him
+                MOVES = "oldclovis"
         target = (rd16(AREA), rd16(STAGE))
         ts = f"{target[0]}/{target[1]}"
         print(f"  state {slot} is {ts}, mode {rd(MODE, 1)[0]}, hero index {index_before}")
@@ -423,8 +439,7 @@ hero = "{hero_name}"
             check("file 0 rebuilt", f"stage {ts} file 0 rebuilt" in text)
             check("action pack rebuilt", f"stage {ts} pack rebuilt" in text)
             check(f"g_Hero.index = {gindex(hero)}", rd(HERO_INDEX, 1)[0] == gindex(hero), str(rd(HERO_INDEX, 1)[0]))
-            # the Status screen's name: g_HeroNames[g_Hero.index] (a body's own
-            # name, but the skeleton's, which has none: its moves' hero's)
+            # the Status screen's name: g_HeroNames[g_Hero.index] (a body's own)
             gi = rd(HERO_INDEX, 1)[0]
             ptr = int.from_bytes(rd(0x800C5E14 + 4 * gi, 4), "little")
             raw = rd(ptr, 32) if 0x800BBF04 <= ptr < 0x800BBF84 else b""
@@ -435,8 +450,7 @@ hero = "{hero_name}"
                     break
                 glyphs.append(g)
             want_name = {"dragonvalor": "Dragon Valor", "oldclovis": "Clovis", "phillipkadum": "Phillip",
-                         "mihael10": "Mihael", "gerome12": "Gerome",
-                         "skeleton": hname(MOVES or "clovis")}.get(hero_name, hname(hero_name))
+                         "mihael10": "Mihael", "gerome12": "Gerome"}.get(hero_name, hname(hero_name))
             check(f"the Status screen's name is {want_name}", letters(glyphs) == want_name, letters(glyphs))
         if expect_head:
             check("pack in RAM has the reference head (heroswap.py)", rd(PACK, len(expect_head)) == expect_head)
@@ -634,7 +648,7 @@ hero = "{hero_name}"
                 time.sleep(0.3)
             time.sleep(4)
             tail = log_text().split("restarts as")[-1]
-            who = "the prologue Clovis" if menu_moves == "own" else hname(menu_moves)
+            who = "the prologue Clovis" if menu_moves in PROLOGUE_MOVES else hname(menu_moves)
             check(f"menu Moves -> {menu_moves}: the bodies wear {who}'s moves", f"bodies wear {who}'s moves" in tail,
                   next((l for l in tail.splitlines() if "bodies wear" in l), "no line after the restart"))
             check(f"menu Moves -> {menu_moves}: {ts} rebuilt", f"stage {ts} pack rebuilt" in tail)
@@ -667,6 +681,10 @@ hero = "{hero_name}"
         print("  health:", h.replace("\n", "; "))
         nums = [int(x) for x in re.findall(r"total=(\d+)", h)]
         check("no unknown dispatch / segment miss", nums and not any(nums), h.replace("\n", "; "))
+        if not active:
+            lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
+            check("plugin active, play as " + shown + " (its first line garbled: a later one)",
+                  any(f"play as {shown}" in l for l in lines), " | ".join(lines))
         print("  plugin log:")
         for line in log_text().splitlines():
             if "dragonvalor.heroswap" in line:
