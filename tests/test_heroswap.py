@@ -361,8 +361,14 @@ hero = "{hero_name}"
             time.sleep(1)
         lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
         shown = "each stage's hero" if default else hname(hero_name)
-        check("plugin active, play as " + shown,
-              any(f"play as {shown}" in l for l in lines), " | ".join(lines))
+        # The runtime's own first lines (its overlay toolchain's) are written
+        # to the same log from another stream and can land on the plugin's
+        # (seen with the grown Clovis's own moves, whose kits take longer to
+        # build: "play as C" + the toolchain line's end); then the check waits
+        # for the plugin's next "play as" line, at the end of the run.
+        active = any(f"play as {shown}" in l for l in lines)
+        if active:
+            check("plugin active, play as " + shown, True, " | ".join(lines))
         print(f"state {slot}:", cli("state", "load", str(slot)).splitlines()[-1])
         time.sleep(4)
         # test state 10 was made as Clovis (9 as Kodel): with another hero or a
@@ -675,6 +681,10 @@ hero = "{hero_name}"
         print("  health:", h.replace("\n", "; "))
         nums = [int(x) for x in re.findall(r"total=(\d+)", h)]
         check("no unknown dispatch / segment miss", nums and not any(nums), h.replace("\n", "; "))
+        if not active:
+            lines = [l for l in log_text().splitlines() if "dragonvalor.heroswap" in l]
+            check("plugin active, play as " + shown + " (its first line garbled: a later one)",
+                  any(f"play as {shown}" in l for l in lines), " | ".join(lines))
         print("  plugin log:")
         for line in log_text().splitlines():
             if "dragonvalor.heroswap" in line:

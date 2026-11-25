@@ -49,8 +49,8 @@ lists them; that screen remaps them and Select there restores the defaults.
 | Start | Pause |
 
 Playing as the grown Clovis (Hero > Play as > Clovis (Old)) with Hero > Moves
-> Clovis (Old), L2 fires his ball of fire (standing, walking or running; L1
-still dashes).
+> Clovis (Old), L2 fires his ball of fire (standing or walking; running, it
+dashes as before; L1 still dashes).
 
 Combination moves (Square + Cross, dash attacks, the impale after a double
 jump) are the game's; the first stage's tutorial boxes introduce them.

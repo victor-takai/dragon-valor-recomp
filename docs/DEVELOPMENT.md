@@ -2174,25 +2174,36 @@ has its own colour effect on the sword", "and the voices").**
   at level 3 selected, L2 does nothing until the next stage). Its script is
   the boss's but for `kShotEdits`: attach to obj -4 (the hero, from slot 4),
   its direction the hero's facing (the boss passed his through acc), no hit
-  sound. `shot_patch` hooks the idle's loop, the walk and the run: their
+  sound. `shot_patch` hooks the idle's loop and the walk (not the run, the
+  player's word: running, L2 is the Dash it is for every hero): their
   yield becomes a jump to a hook that yields, checks raw L2 pressed and goes
   on into the state (L1 keeps Dash; L2 is Dash too in the default map, but
   the check comes first). The move faces the auto-aim, plays 189..191 (his
   23..25), his cry (SE 36) and the signal; then the idle. At the throw
   (frames 11 and 12 of his 24) two rings of six of the ball's own trail
   sparks leave his hand (my addition, the player: "it could have fire
-  particles as he throws it"; his own effect there is a purple cloud of
-  energy, a third object whose texture finds no room in the page beside
-  the ball's). `shot_texture`
+  particles as he throws it"). The charge (the player: "the particles going
+  toward him, like a charge"): his file's third object (entry 70: 3 nodes
+  of 20 additive sprites, purple sparks drawn in to his hand over its
+  30-frame animation), started with the shot (its deathTimer,
+  `objects+0xAB28`) and following his node 0 point every frame. It hits
+  nothing, so it lives in g_Objects[74] (op 6 class 7, `DV_FREE_CLASS`):
+  every object loop runs and draws 0..75 and no pack selects class 7, so no
+  spell takes it. Its script is the boss's but for `kChargeEdits` (attach
+  to obj -74, its yaw the hero's); its 64 x 64 texture finds no room in the
+  page beside the ball's, so it goes at half size (`bobj_half`: 32 x 32,
+  the top-left texel of each 2 x 2, the sprites' u / v halved; my choice,
+  the sprites being small on screen). The shot's two objects are `BObj`s
+  (`bobj_take`, `bobj_op`). `shot_texture`
   moves its texture (his texture file's TIM at (480, 256)) into the hero
   page with the weapon's placement (`move_texture`, shared with `arm_kit`;
   `kit_page_use` counts the shot's texels, so a weapon armed after it leaves
   them; its 64 x 64 sprite grows the page's image to the 232 rows it
   reaches, `pg_trim`, so Raimun's sword's six CLUTs still fit). Not ported:
-  his charge flash (a third object) and the shot's two sounds (his SEs 1
+  the shot's two sounds (his SEs 1
   and 3): 13 KB more of file 0 and of sound slot 1, and he no longer fit in
   1/9, 8/1 and 7/34, where he fits without them (225 action stages of 226,
-  as before; `body_oldclovis.bin` version 9). Played in 1/7: L2, then 189,
+  as before; `body_oldclovis.bin` version 10). Played in 1/7: L2, then 189,
   190, 191, 11; slot 4 flags 0x43, at frame 11 of 190 deathTimer 1, anim 1,
   atkKind 3, flying from his hand (fired into a wall it stays at his hand
   until its 25 frames are up); aimed at an enemy of 10 hp, the first shot
