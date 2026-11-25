@@ -313,14 +313,13 @@ the native 60 Hz version.
   Moves he moves as that kit. His guard is the heroes' own (standing still,
   a hit from the front or a side is blocked). His energy shot is on L2
   (2026-11-25, the player's request: "the fire attack"): his own wind-up,
-  blink and recovery with his charge (purple sparks drawn in to his hand,
-  the magic's charging sound),
-  his cry, a burst of fire sparks from his hand (my
+  blink and recovery with his charge (purple sparks drawn in to his hand),
+  his cry and the shot's own sound, a burst of fire sparks from his hand (my
   addition, at the player's word) and his ball of fire flying from it,
   hitting the enemies it meets (power 8), held back by walls; its
   projectile takes the last spell object slot (with spell 4 or 5 at level
-  3 selected, L2 does nothing until the next stage), and its own two
-  sounds are left out so that he still fits in every stage he did.
+  3 selected, L2 does nothing until the next stage); in 1/9, 8/1 and
+  7/34 the shot's sound is left out so that he still fits there.
   **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
   Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
   scene; first misnamed the Guardian; a Felippe with shield left, the

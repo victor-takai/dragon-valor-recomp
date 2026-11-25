@@ -498,6 +498,11 @@ typedef struct {
     Buf page;                 /* the hero-page TIMs laid end to end */
     uint32_t npage;
     Buf portrait;
+    /* a body's shot's sound left out (lite_of; for the stages it does not
+     * fit): the VAB, the bank header entry lite_hb, the script entry
+     * lite_se; lite_vab.n 0: none */
+    Buf lite_vab, lite_bank, lite_script;
+    uint32_t lite_hb, lite_se;
 } Kit;
 
 static Kit s_kits[HERO_COUNT];
@@ -569,6 +574,9 @@ static void kit_free(Kit* k)
     buf_free(&k->vab);
     buf_free(&k->page);
     buf_free(&k->portrait);
+    buf_free(&k->lite_vab);
+    buf_free(&k->lite_bank);
+    buf_free(&k->lite_script);
     memset(k, 0, sizeof *k);
 }
 
@@ -1111,7 +1119,7 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
 #define DV_VOICE_MUTE  (-2)   /* kBodies voice: silent */
 #define DV_SPECIAL_N   7      /* kBodies special: the tired end's two animations, the slash's two (his 21, 22),
                                * the shot's three (his 23, 24, 25) */
-#define DV_VOICE_N     7      /* kBodies voice: its roles */
+#define DV_VOICE_N     8      /* kBodies voice: its roles */
 #define BODY_ORDER_SWAP12 {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_SAME   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_ARMS   {0, 1, 2, 3, 4, 6, 5, 7, 8, 9, 11, 10, 12, 13}
@@ -1121,7 +1129,7 @@ static const struct {
     int weapon;
     uint32_t trail[4];   /* sword trail: colour_a, fade_a, colour_b, fade_b (0xBBGGRR; retrail) */
     int8_t voice[DV_VOICE_N];   /* its bank's SE for each voice role (attack, hurt, jump, death, strong,
-                                 * back-jump, tired): DV_VOICE_KIT the kit's own
+                                 * back-jump, tired, the shot): DV_VOICE_KIT the kit's own
                                  * (strong, back-jump: silent), DV_VOICE_MUTE silent */
     uint8_t special[DV_SPECIAL_N];  /* its slots of the special's tired end (tired, recovery), of its
                                      * slash (the cuts, recovery) and of its shot (wind-up, the shot,
@@ -1132,21 +1140,21 @@ static const struct {
                                      * `charge`, the charge around him: op 3 cobj, its TIM at (ctex_x,
                                      * ctex_y) of entry ctex_entry (shot_take) */
 } kBodies[BODY_COUNT] = {
-    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
-    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 21, 22, 23, 24, 25},
+    {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
+    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20, 1}, {54, 57, 21, 22, 23, 24, 25},
      {1, 1, 2, 480, 256, 1, 2, 2, 464, 384}},               /* the grown Clovis: 3/17's enemy group */
-    {1, 5, 132, 0, BODY_POR_BLANK, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
-    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1, -1}, {0}},               /* Raimun, chapter 1's boss */
-    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1, -1}, {0}},             /* Lodonya, chapter 2's black knight */
-    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* Shalya */
-    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS, {0xE040A0, 0x180711, 0x40E0FF, 0x07181C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},      /* Fannah (part 2: a thing on her back) */
-    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1, {0xFF70E0, 0x1C0C18, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                  /* Princess Jeanne */
+    {1, 5, 132, 0, BODY_POR_BLANK, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
+    {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1, -1, -1}, {0}},               /* Raimun, chapter 1's boss */
+    {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1, -1, -1}, {0}},             /* Lodonya, chapter 2's black knight */
+    {2, 4, 80, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0xFFC000, 0x1C1500, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1, -1}, {0}},                /* Shalya */
+    {3, 1, 80, 1, 80, 3, 1, BODY_ORDER_ARMS, WEAPON_CUTLASS, {0xE040A0, 0x180711, 0x40E0FF, 0x07181C}, {-1, -1, -1, -1, -1, -1, -1, -1}, {0}},      /* Fannah (part 2: a thing on her back) */
+    {4, 1, 80, 2, 80, 4, 2, BODY_ORDER_ARMS, -1, {0xFF70E0, 0x1C0C18, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1, -1}, {0}},                  /* Princess Jeanne */
     /* Phillip in 5/19's scene where the Guardian gives him Kadum: Phillip's
      * parts but his hips (Kadum on his back) and the sword in his hand. (Felippe
      * as 4/1's scene draws him was here: the hero Felippe's look, out on the
      * player's word, 2026-11-24; the Guardian itself is another, armoured
      * figure: file 80 object 1, not on the heroes' joints.) */
-    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1, {0x0000FF, 0x00001C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},
+    {5, 19, 80, 0, BODY_POR_STAGE, 0, 0, BODY_ORDER_SAME, -1, {0x0000FF, 0x00001C, 0xFFFFFF, 0x1C1C1C}, {-1, -1, -1, -1, -1, -1, -1, -1}, {0}},
 };
 /* A body as kit_dress takes it: its parts in hero node order, their prims
  * pointed at its baked hero page (body_bake; until then `tex` holds its
@@ -1750,6 +1758,24 @@ static int s_moveset = -1;                 /* option `moves`: the hero (0..8) wh
 #define DV_MOVES_OLD (-2)                   /* `moves` = "oldclovis", Clovis (Old): the prologue Clovis's kit, the grown
                                             * Clovis's own moves in it (special_patch); the others as Clovis (Young) */
 static int s_swap_armed, s_swap_same;      /* the swap's kit is the armed one / the stage's own hero */
+static int s_swap_lite;                    /* ... in its lite variant (lite_of) */
+
+/* A kit with its body's shot's sound left out (heroswap.py build's lite: the
+ * Moves > Clovis (Old) kit where its layout with the sound does not fit,
+ * 1/9, 8/1, 7/34 on the discs): a copy of `k` but the VAB, the bank header
+ * and the script, or `k` itself without a lite variant. */
+static const Kit* lite_of(const Kit* k)
+{
+    static Kit s_lite;
+    if (!k->lite_vab.n || !k->lite_hb || k->lite_hb > k->nent || !k->lite_se || k->lite_se > k->nent) return k;
+    s_lite = *k;
+    s_lite.vab = k->lite_vab;
+    s_lite.ent[k->lite_hb - 1] = k->lite_bank.p;
+    s_lite.entlen[k->lite_hb - 1] = k->lite_bank.n;
+    s_lite.ent[k->lite_se - 1] = k->lite_script.p;
+    s_lite.entlen[k->lite_se - 1] = k->lite_script.n;
+    return &s_lite;
+}
 static Kit s_armed;                        /* a hero's kit with another weapon model (arm_kit) */
 static const Kit* arm_kit(int hero, int weapon);
 static int weapon_is_own(int hero, int w);
@@ -1855,7 +1881,7 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     uint32_t f0, pk, need, body, area64, sizes[10], snd[12], i;
     (void)cpu;
     (void)address;
-    int ah = dv_area_hero(area), eh, ew;
+    int ah = dv_area_hero(area), eh, ew, lite;
     s_swap = 0;
     dv_heroswap_restart_request = 0;   /* a stage loads anyway */
     if (!s_enabled) return;
@@ -1890,22 +1916,27 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
         restore_hero_index();
         return;
     }
-    for (i = 0; i < 10; i++) sizes[i] = psx_mod_read_word(DV_STAGE_BUFFER_SIZES + 4 * i);
-    for (i = 0; i < 12; i++) snd[i] = psx_mod_read_word(DV_SOUND_BODY_SIZE + 4 * i);
-    rebuilt_sizes(r, k, &f0, &pk);
-    need = (sectors_bytes(f0) > sectors_bytes(pk) ? sectors_bytes(f0) : sectors_bytes(pk)) / 4;
-    if (need > sizes[0]) sizes[0] = need;
-    body = vab_body(k->vab.p, k->vab.n);
-    area64 = (body + 63) / 64 * 64;
-    if (area64 > snd[1]) snd[1] = area64;
-    if (r->copy_parts) {
-        /* a story scene's copy of the hero is swapped too: its event pack
-         * (warp row, g_StageBufferSizes[8]) grows by the parts' difference */
-        uint32_t kparts, kweld;
-        int32_t grow;
-        kit_part_bytes(k, &kparts, &kweld);
-        grow = (int32_t)(kparts + kweld) - (int32_t)(r->copy_parts + r->copy_weld) + 256;
-        if (grow > 0) sizes[8] += sectors_bytes((uint32_t)grow) / 4;
+    for (lite = 0;; lite++) {                  /* the kit, else its lite variant (the shot's sound out) */
+        for (i = 0; i < 10; i++) sizes[i] = psx_mod_read_word(DV_STAGE_BUFFER_SIZES + 4 * i);
+        for (i = 0; i < 12; i++) snd[i] = psx_mod_read_word(DV_SOUND_BODY_SIZE + 4 * i);
+        rebuilt_sizes(r, k, &f0, &pk);
+        need = (sectors_bytes(f0) > sectors_bytes(pk) ? sectors_bytes(f0) : sectors_bytes(pk)) / 4;
+        if (need > sizes[0]) sizes[0] = need;
+        body = vab_body(k->vab.p, k->vab.n);
+        area64 = (body + 63) / 64 * 64;
+        if (area64 > snd[1]) snd[1] = area64;
+        if (r->copy_parts) {
+            /* a story scene's copy of the hero is swapped too: its event pack
+             * (warp row, g_StageBufferSizes[8]) grows by the parts' difference */
+            uint32_t kparts, kweld;
+            int32_t grow;
+            kit_part_bytes(k, &kparts, &kweld);
+            grow = (int32_t)(kparts + kweld) - (int32_t)(r->copy_parts + r->copy_weld) + 256;
+            if (grow > 0) sizes[8] += sectors_bytes((uint32_t)grow) / 4;
+        }
+        if (arena_end(sizes, area, stage) <= DV_ARENA_END_MAX && spu_end(snd) <= DV_SPU_END_MAX) break;
+        if (lite || lite_of(k) == k) break;
+        k = lite_of(k);
     }
     if (arena_end(sizes, area, stage) > DV_ARENA_END_MAX || spu_end(snd) > DV_SPU_END_MAX) {
         fprintf(stderr, "%s: stage %d/%d: %s does not fit (buffers end 0x%08X, sound %u B): own hero\n",
@@ -1921,19 +1952,23 @@ static void dv_hs_buffers_entry(struct CPUState* cpu, uint32_t address)
     s_swap_stage = stage;
     s_swap_hero = eh;
     s_swap_armed = ew >= 0;
+    s_swap_lite = lite > 0;
     s_swap_same = eh == area_look(area);        /* only the weapon changes: portrait and names stay */
     s_orig_portrait.n = 0;
     memset(s_hero_verts_len, 0, sizeof s_hero_verts_len);   /* noted again from this stage's pack */
     s_name_old_n = s_name_new_n = 0;
-    fprintf(stderr, "%s: stage %d/%d as %s%s%s: file 0 %u B, pack %u B, row 0 %u words, slot 1 %u B\n",
+    fprintf(stderr, "%s: stage %d/%d as %s%s%s%s: file 0 %u B, pack %u B, row 0 %u words, slot 1 %u B\n",
             DV_HS_PLUGIN, area, stage, kHeroNames[eh], ew >= 0 ? " with weapon " : "",
-            ew >= 0 ? kWeapons[ew].id : "", f0, pk, sizes[0], snd[1]);
+            ew >= 0 ? kWeapons[ew].id : "", s_swap_lite ? " (without the shot's sound: it does not fit)" : "",
+            f0, pk, sizes[0], snd[1]);
 }
 
-/* The kit the swap uses: the chosen hero's, or the armed one. */
+/* The kit the swap uses: the chosen hero's, or the armed one; its lite
+ * variant where the full one did not fit. */
 static const Kit* swap_kit(void)
 {
-    return s_swap_armed && s_armed.ready ? &s_armed : &s_kits[s_swap_hero];
+    const Kit* k = s_swap_armed && s_armed.ready ? &s_armed : &s_kits[s_swap_hero];
+    return s_swap_lite ? lite_of(k) : k;
 }
 
 /* The stage hero's portrait and hero-page TIMs, from the stage's own file 0
@@ -2884,6 +2919,9 @@ static int vab_info(const uint8_t* e, uint32_t len, VabInfo* v)
 
 static const uint8_t kSilentVag[16] = {0, 1};
 #define DV_KIT_SPECIAL 2   /* revoice: the special was put in (45 is its breath) */
+#define DV_KIT_SHOT    4   /* revoice: the shot's sound (46, on voice 22) */
+#define DV_SHOT_SE     46
+#define DV_SHOT_VOICE  22
 
 /* Fewer cries (2026-11-24, the player: "the triple combo: keep the voice at
  * its end, the other attacks none; keep the jump, the hurt, the death", then
@@ -3106,10 +3144,8 @@ static int slash_patch(uint8_t* s, uint32_t n)
  * (their yield becomes a jump to a hook that yields, checks and goes on;
  * not the run's, the player's word: running, L2 is Dash); it turns slot 4 on (SetCurrentSpell turns 1..4 off at stage
  * starts and spell changes), faces the auto-aim, plays his 23, 24, 25 (slots
- * 189..191) with his cry (SE 36, his by the body's voice) and, from the
- * start to the throw, the hero's magic charge (SE 12, which the kits play
- * while a spell is held; the player: "the magic's sound on the fireball
- * too"), then the idle; at
+ * 189..191) with his cry (SE 36, his by the body's voice) and the shot's
+ * sound at the throw (below), then the idle; at
  * the throw two rings of six of the ball's own trail sparks leave his hand
  * (my addition, the player: "it could have fire particles as he throws it").
  * The charge (the player: "the particles going toward him, like a
@@ -3123,12 +3159,16 @@ static int slash_patch(uint8_t* s, uint32_t n)
  * goes at half size (bobj_half; my choice, the sprites being small).
  * Its texture (his texture file's TIM at (480, 256)) moves into the hero
  * page (shot_texture; its 64 x 64 sprite makes the page's image grow, as far
- * as it reaches: the rows under it stay free for a weapon's CLUTs). The shot's own
- * two sounds (his bank's SE 1 and 3) are not kept: 13 KB more of file 0 and
- * of sound slot 1, and the grown Clovis no longer fit in 1/9, 8/1 and 7/34,
- * where he fits without them (225 action stages of 226); the enemy's own hit
- * reaction still sounds. */
-#define DV_SHOT_WORDS 236
+ * as it reaches: the rows under it stay free for a weapon's CLUTs). The
+ * shot's sound (the player: "the sound of the fireball as the grown Clovis
+ * lets it go"; the hero's magic charge, tried first, was not it): his bank's
+ * SE 1 on the hero's SE 46 (revoice role 9, on SPU voice 22: the cry is on
+ * 23). It adds 9 KB to file 0 and to sound slot 1, and 1/9, 8/1 and 7/34 no
+ * longer fit with it: there the stage load takes the kit's lite variant
+ * (lite_of: the VAB and bank header without it, the block's sound a no-op;
+ * the player's choice), so he plays wherever he did. Its hit's sound (SE 3)
+ * is not kept: the enemy's own hit reaction sounds. */
+#define DV_SHOT_WORDS 235
 static const uint32_t kShotEdits[4][3] = {     /* word, the disc's, the hero's */
     {157, 0x0000FFFFu, 0x0000FFFCu},           /* native attach obj=-1 -> -4 */
     {158, 0x0C012003u, 0x05012003u},           /* mov.h self+0x32, acc -> objects+0x32 */
@@ -3146,54 +3186,55 @@ static const uint32_t kChargeEdits[7][3] = {   /* word, the disc's, the hero's *
 };
 static const uint32_t kShotDummy[6] = {0x00010703u, 0x0000001Cu, 0x00000000u, 0x69690101u, 0x69690201u, 0};
 static const uint32_t kShotBlock[DV_SHOT_WORDS] = {
-    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00080301u, 0x00E70301u,
-    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00020301u, 0x00E20301u,
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00080301u, 0x00E60301u,
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00020301u, 0x00E10301u,
     0x050C1F03u, 0x00000000u, 0x00000000u, 0x000C0803u, 0x00000000u, 0x5A5A5A5Au,
-    0x05013104u, 0x00000250u, 0x0000000Cu, 0x00000000u, 0x00020301u, 0x00D70301u,
+    0x05013104u, 0x00000250u, 0x0000000Cu, 0x00000000u, 0x00020301u, 0x00D60301u,
     0x00050703u, 0x0000095Cu, 0x00000043u, 0x00050503u, 0x00002ACAu, 0x00000001u,
-    0x0C012301u, 0x09012003u, 0x00000019u, 0x00000010u, 0x00010703u, 0x0000001Du,
-    0x00000001u, 0x00010603u, 0x00000038u, 0x00000000u, 0x00010703u, 0x0000001Eu,
-    0x00000000u, 0x00010703u, 0x000000C0u, 0x00000000u, 0x00010703u, 0x0000015Eu,
-    0x00000000u, 0x00010603u, 0x0000004Au, 0x00000000u, 0x00000402u, 0x000020BDu,
-    0x69690101u, 0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u, 0x00000402u,
-    0x000020BEu, 0x69690101u, 0x00010603u, 0x0000004Au, 0x00000002u, 0x01061203u,
-    0x00000050u, 0x0000000Bu, 0x0C012501u, 0x24012301u, 0x050C1F03u, 0x00000000u,
-    0x00000000u, 0x000C0803u, 0x00000000u, 0x5A5A5A5Au, 0x05013104u, 0x00000250u,
-    0x0000000Cu, 0x00000000u, 0x00050503u, 0x00000252u, 0x00000001u, 0x01061203u,
-    0x00000050u, 0x0000000Bu, 0x0B01220Bu, 0x003C0000u, 0x0000FFF4u, 0xC0001F1Fu,
-    0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u,
-    0x00450010u, 0x0B01220Bu, 0x003C0000u, 0x02ABFFF4u, 0xC0001F1Fu, 0x5E5A0076u,
+    0x09012003u, 0x00000019u, 0x00000010u, 0x00010703u, 0x0000001Du, 0x00000001u,
+    0x00010603u, 0x00000038u, 0x00000000u, 0x00010703u, 0x0000001Eu, 0x00000000u,
+    0x00010703u, 0x000000C0u, 0x00000000u, 0x00010703u, 0x0000015Eu, 0x00000000u,
+    0x00010603u, 0x0000004Au, 0x00000000u, 0x00000402u, 0x000020BDu, 0x69690101u,
+    0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u, 0x00000402u, 0x000020BEu,
+    0x69690101u, 0x00010603u, 0x0000004Au, 0x00000002u, 0x01061203u, 0x00000050u,
+    0x0000000Bu, 0x24012301u, 0x2E012301u, 0x050C1F03u, 0x00000000u, 0x00000000u,
+    0x000C0803u, 0x00000000u, 0x5A5A5A5Au, 0x05013104u, 0x00000250u, 0x0000000Cu,
+    0x00000000u, 0x00050503u, 0x00000252u, 0x00000001u, 0x01061203u, 0x00000050u,
+    0x0000000Bu, 0x0B01220Bu, 0x003C0000u, 0x0000FFF4u, 0xC0001F1Fu, 0x5E5A0076u,
     0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u,
-    0x0B01220Bu, 0x003C0000u, 0x0555FFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu,
+    0x0B01220Bu, 0x003C0000u, 0x02ABFFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu,
     0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu,
-    0x003C0000u, 0x0800FFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u,
+    0x003C0000u, 0x0555FFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u,
     0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x003C0000u,
-    0x0AABFFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u,
-    0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x003C0000u, 0x0D55FFF4u,
+    0x0800FFF4u, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u,
+    0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x003C0000u, 0x0AABFFF4u,
     0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u,
-    0x00000011u, 0x00450010u, 0x01061203u, 0x00000050u, 0x0000000Cu, 0x0B01220Bu,
-    0x00230000u, 0x0155FFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u,
-    0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u,
-    0x0400FFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u,
-    0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u, 0x06ABFFFAu,
-    0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u,
-    0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u, 0x0955FFFAu, 0xC0001F1Fu,
+    0x00000011u, 0x00450010u, 0x0B01220Bu, 0x003C0000u, 0x0D55FFF4u, 0xC0001F1Fu,
     0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u,
-    0x00450010u, 0x0B01220Bu, 0x00230000u, 0x0C00FFFAu, 0xC0001F1Fu, 0x5E5A0076u,
+    0x00450010u, 0x01061203u, 0x00000050u, 0x0000000Cu, 0x0B01220Bu, 0x00230000u,
+    0x0155FFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u,
+    0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u, 0x0400FFFAu,
+    0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u,
+    0x00000011u, 0x00450010u, 0x0B01220Bu, 0x00230000u, 0x06ABFFFAu, 0xC0001F1Fu,
+    0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u,
+    0x00450010u, 0x0B01220Bu, 0x00230000u, 0x0955FFFAu, 0xC0001F1Fu, 0x5E5A0076u,
     0x000000FFu, 0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u,
-    0x0B01220Bu, 0x00230000u, 0x0EABFFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu,
-    0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x01011203u,
-    0x00000053u, 0x00000001u, 0x69690201u, 0x00000402u, 0x000020BFu, 0x00010603u,
-    0x0000004Au, 0x00000000u, 0x69690101u, 0x01011203u, 0x00000053u, 0x00000001u,
-    0x69690201u, 0x00030301u,
+    0x0B01220Bu, 0x00230000u, 0x0C00FFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu,
+    0xFFFFFFF1u, 0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x0B01220Bu,
+    0x00230000u, 0x0EABFFFAu, 0xC0001F1Fu, 0x5E5A0076u, 0x000000FFu, 0xFFFFFFF1u,
+    0x00000800u, 0xFFFFFF88u, 0x00000011u, 0x00450010u, 0x01011203u, 0x00000053u,
+    0x00000001u, 0x69690201u, 0x00000402u, 0x000020BFu, 0x00010603u, 0x0000004Au,
+    0x00000000u, 0x69690101u, 0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u,
+    0x00030301u,
 };
 #define DV_SHOT_HOOKS 2
 static const uint8_t kShotHooks[DV_SHOT_HOOKS][2] = {{11, 2}, {17, 1}};   /* anim self, N, 0, 2, 0 (its first) and its
                                                                         * k-th yield: the idle's loop, the walk */
 static const uint8_t kShotHookAt[DV_SHOT_HOOKS] = {0, 6};             /* their hooks in the block */
-static const uint16_t kShotExits[4][2] = {{5, 0}, {11, 1}, {23, 2}, {235, 2}};   /* jump word: 0, 1 on after
+static const uint16_t kShotExits[4][2] = {{5, 0}, {11, 1}, {23, 2}, {234, 2}};   /* jump word: 0, 1 on after
                                                                         * hook k's yield, 2 the idle */
-static const uint8_t kShotLen[2] = {17, 75};                          /* words that take the script's length */
+#define DV_SHOT_SE_AT 68                                       /* the block's `sound.play 1, 46` */
+static const uint8_t kShotLen[2] = {17, 74};                          /* words that take the script's length */
 
 /* An object of a body's file (its obj-th op 3, heroswap.py body_object):
  * its script with `edits` made, its nodes, prims, verts, animations, and
@@ -3572,9 +3613,10 @@ static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* b
 {
     static const uint8_t kRole[52] = {   /* hero SE -> role + 1 (attack 1, hurt 2, jump 3, death 4, strong 5,
                                           * back-jump 6, tired 7: the special's breath, a SE no script plays;
-                                          * 8: quieted, quiet_cries leaves only 32 / 36 to the attack) */
+                                          * 8: quieted, quiet_cries leaves only 32 / 36 to the attack;
+                                          * 9: the shot's, an empty tone, voice role 8) */
         [32] = 1, [33] = 8, [34] = 8, [35] = 8, [36] = 1, [37] = 5, [38] = 6, [39] = 8, [40] = 8, [41] = 8,
-        [42] = 2, [43] = 3, [44] = 4, [45] = 7};
+        [42] = 2, [43] = 3, [44] = 4, [45] = 7, [46] = 9};
     static VabInfo v, b;
     static uint8_t hdr[0x8000], silenced[256];
     uint32_t size[256], vs, n, se, fsize = 0;
@@ -3589,7 +3631,8 @@ static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* b
         int r = kRole[se], bse;
         uint32_t at, bat, bvag;
         if (!r) continue;
-        bse = r == 8 ? DV_VOICE_MUTE : r == 7 && !(kitflags & DV_KIT_SPECIAL) ? DV_VOICE_KIT : roles[r - 1];
+        bse = r == 8 ? DV_VOICE_MUTE : r == 7 && !(kitflags & DV_KIT_SPECIAL) ? DV_VOICE_KIT
+            : r == 9 ? (kitflags & DV_KIT_SHOT ? roles[7] : DV_VOICE_KIT) : roles[r - 1];
         if ((r == 5 || r == 6) && bse == DV_VOICE_KIT) bse = DV_VOICE_MUTE;   /* no strong / back-jump cry: none */
         if (bse == DV_VOICE_KIT) continue;
         e = code + 12 + 16 * se;
@@ -3642,6 +3685,13 @@ static int revoice(Buf* out, const uint8_t* code, uint32_t len, const uint8_t* b
         memcpy(hdr + at + 0x10, bank + bat + 0x10, 4);    /* ADSR 1, 2 */
         hdr[at + 0x16] = (uint8_t)newvag[bse];
         hdr[at + 0x17] = (uint8_t)(newvag[bse] >> 8);
+        if (r == 9) {                                     /* on the effects' voice, at its bank's volume
+                                                           * (heroswap.py se_retarget) */
+            uint8_t* rec = hdr + 12 + 16 * se;
+            rec[0] = DV_SHOT_VOICE;
+            rec[1] = 0;
+            memcpy(rec + 10, be + 10, 4);
+        }
     }
     {   /* hero VAGs no tone names any more: silent */
         static uint8_t used[256];
@@ -3925,8 +3975,8 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
                                                          * g_Objects[74], their textures */
             int si = shot_install(k, b);
             if (si < 0) goto fail;
-            if (!si || !shot_texture(k, b))
-                fprintf(stderr, "%s: no room for the shot's projectile: L2 does nothing\n", DV_HS_PLUGIN);
+            if (si && shot_texture(k, b)) kitflags |= DV_KIT_SHOT;
+            else fprintf(stderr, "%s: no room for the shot's projectile: L2 does nothing\n", DV_HS_PLUGIN);
         }
     }
     /* after the special: its entries are the tail's last; the ops moved, so
@@ -3947,7 +3997,22 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
         for (j = 0; j + 1 < p.nops; j++)
             if (p.ops[j].op == 52 && le32(k->ops.p + p.ops[j].pos + 4) == 0 && p.ops[j].nref)
                 hb = le32(k->ops.p + p.refs[p.ops[j].ref0]);
-        if (!hb || hb > k->nent || !revoice(&nv, k->vab.p, k->vab.n, b->bank.p, b->bank.n, voice, kitflags)) goto fail;
+        if (!hb || hb > k->nent) goto fail;
+        if (kitflags & DV_KIT_SHOT) {
+            /* the lite variant (lite_of): the voice without the shot's sound,
+             * the block's `sound.play 1, 46` a no-op (heroswap.py shot_lite) */
+            uint32_t at = k->entlen[se - 1] / 4 - DV_SHOT_WORDS + DV_SHOT_SE_AT;
+            if (le32(k->ent[se - 1] + 4 * at) != kShotBlock[DV_SHOT_SE_AT] ||
+                !revoice(&k->lite_vab, k->vab.p, k->vab.n, b->bank.p, b->bank.n, voice, kitflags & ~DV_KIT_SHOT) ||
+                !revoice(&k->lite_bank, k->ent[hb - 1], k->entlen[hb - 1], b->bank.p, b->bank.n, voice,
+                         kitflags & ~DV_KIT_SHOT) ||
+                !buf_put(&k->lite_script, k->ent[se - 1], k->entlen[se - 1]))
+                goto fail;
+            put32(k->lite_script.p + 4 * at, 0x00002801u);   /* self.rel +0 */
+            k->lite_hb = hb;
+            k->lite_se = se;
+        }
+        if (!revoice(&nv, k->vab.p, k->vab.n, b->bank.p, b->bank.n, voice, kitflags)) goto fail;
         k->vab.n = 0;
         if (!buf_put(&k->vab, nv.p, nv.n)) goto fail;
         if (!revoice(&nv, k->ent[hb - 1], k->entlen[hb - 1], b->bank.p, b->bank.n, voice, kitflags)) goto fail;
@@ -4728,6 +4793,7 @@ static void resync_after_load(void)
             s_swap_same = h == area_look(area);
             s_armed.ready = 0;
             s_swap_armed = w >= 0 && arm_kit(h, w) != NULL;
+            s_swap_lite = 0;                    /* only the next stage load's files would differ */
             s_name_old_n = read_hero_name(ah, s_name_old);
             s_name_new_n = read_hero_name(h, s_name_new);
             if (!s_name_old_n || !s_name_new_n || s_swap_same) s_name_old_n = s_name_new_n = 0;

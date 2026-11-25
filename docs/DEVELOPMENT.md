@@ -2179,9 +2179,8 @@ has its own colour effect on the sword", "and the voices").**
   yield becomes a jump to a hook that yields, checks raw L2 pressed and goes
   on into the state (L1 keeps Dash; L2 is Dash too in the default map, but
   the check comes first). The move faces the auto-aim, plays 189..191 (his
-  23..25), his cry (SE 36) and the signal, with the hero's magic charge
-  (SE 12, as while a spell is held) from the start to the throw (the
-  player: "the magic's sound on the fireball too"); then the idle. At the throw
+  23..25), his cry (SE 36), the shot's sound and the signal; then the
+  idle. At the throw
   (frames 11 and 12 of his 24) two rings of six of the ball's own trail
   sparks leave his hand (my addition, the player: "it could have fire
   particles as he throws it"). The charge (the player: "the particles going
@@ -2201,11 +2200,16 @@ has its own colour effect on the sword", "and the voices").**
   page with the weapon's placement (`move_texture`, shared with `arm_kit`;
   `kit_page_use` counts the shot's texels, so a weapon armed after it leaves
   them; its 64 x 64 sprite grows the page's image to the 232 rows it
-  reaches, `pg_trim`, so Raimun's sword's six CLUTs still fit). Not ported:
-  the shot's two sounds (his SEs 1
-  and 3): 13 KB more of file 0 and of sound slot 1, and he no longer fit in
-  1/9, 8/1 and 7/34, where he fits without them (225 action stages of 226,
-  as before; `body_oldclovis.bin` version 10). Played in 1/7: L2, then 189,
+  reaches, `pg_trim`, so Raimun's sword's six CLUTs still fit). The shot's
+  sound (the player: "the sound of the fireball as the grown Clovis lets it
+  go"; the hero's magic charge, SE 12, tried first, was not it): his SE 1
+  on the hero's SE 46 (revoice role 9, voice 22; the cry is on 23). It adds
+  9 KB to file 0 and sound slot 1, and 1/9, 8/1 and 7/34 no longer fit
+  with it; there `dv_hs_buffers_entry` takes the kit's lite variant
+  (`lite_of`: its VAB, bank header and script built without it in
+  `kit_dress`; the player's choice over dropping his tired breath), so he
+  plays wherever he did (225 action stages of 226; `body_oldclovis.bin`
+  version 10). Its hit's sound (SE 3) is not kept. Played in 1/7: L2, then 189,
   190, 191, 11; slot 4 flags 0x43, at frame 11 of 190 deathTimer 1, anim 1,
   atkKind 3, flying from his hand (fired into a wall it stays at his hand
   until its 25 frames are up); aimed at an enemy of 10 hp, the first shot
