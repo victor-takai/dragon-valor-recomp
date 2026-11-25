@@ -1688,7 +1688,10 @@ static int s_name_old_n, s_name_new_n;
 static int s_resync;                       /* a save state was loaded: re-read the swap from RAM */
 
 static int s_weapon = -1;                  /* chosen weapon model (kWeapons), -1 = the hero's own */
-static int s_moveset = -1;                 /* option `moves`: the hero (0..8) whose kit the bodies wear, -1 the prologue Clovis's */
+static int s_moveset = -1;                 /* option `moves`: the hero (0..8) whose kit the bodies wear, -1 the prologue
+                                            * Clovis's, DV_MOVES_OLD that with the grown Clovis's own moves */
+#define DV_MOVES_OLD (-2)                   /* `moves` = "oldclovis", Clovis (Old): the prologue Clovis's kit, the grown
+                                            * Clovis's own moves in it (special_patch); the others as Clovis (Young) */
 static int s_swap_armed, s_swap_same;      /* the swap's kit is the armed one / the stage's own hero */
 static Kit s_armed;                        /* a hero's kit with another weapon model (arm_kit) */
 static const Kit* arm_kit(int hero, int weapon);
@@ -1717,7 +1720,10 @@ static void read_options(void)
     s_moveset = -1;
     if (psx_mod_current_option_value("moves", v, sizeof v) ||
         psx_mod_option_value(DV_HS_PKG, DV_HS_FEATURE, "moves", v, sizeof v))
+    {
+        if (!strcmp(v, "oldclovis")) s_moveset = DV_MOVES_OLD;
         for (w = 0; w < BODY_FIRST; w++) if (!strcmp(v, kHeroValues[w])) s_moveset = w;
+    }
 }
 
 static void ram_read(uint32_t addr, uint8_t* out, uint32_t n)
@@ -3232,7 +3238,7 @@ static void retrail(uint8_t* sc, uint32_t len, const uint32_t* trail)
 }
 
 static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail, const int8_t* voice,
-                     int clovis_kit)
+                     int own_moves)
 {
     static Prog p;
     static Buf ops;
@@ -3292,7 +3298,7 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
                  b->portrait.n ? b->portrait.n : d->portrait.n))
         goto fail;
     k->npage = 1;
-    if (clovis_kit && b->anims[0].n) {                 /* the grown Clovis's tired end and slash */
+    if (own_moves && b->anims[0].n) {                  /* Moves > Clovis (Old): his tired end and slash */
         int sp = special_patch(k, b);
         if (sp < 0) goto fail;
         if (sp) {
@@ -3343,27 +3349,29 @@ fail:
  * applies from the next stage load, like the hero's. */
 static void body_kits_refresh(void)
 {
-    static int built_for = -2, built_n = -1;
+    static int built_for = -9, built_n = -1;
     int want = s_moveset >= 0 && s_moveset < BODY_FIRST && s_kits[s_moveset].ready ? s_moveset : -1, b, n = 0;
+    const int own = want < 0 && s_moveset == DV_MOVES_OLD, key = own ? DV_MOVES_OLD : want;
     const Kit* d = want >= 0 ? &s_kits[want] : &s_prologue;
     for (b = 0; b < BODY_COUNT; b++) n += s_bodies[b].ready;
     if (!d->ready) n = 0;
-    if (want == built_for && n == built_n) return;
+    if (key == built_for && n == built_n) return;
     for (b = 0; b < BODY_COUNT; b++) {
         Kit* k = &s_kits[BODY_FIRST + b];
-        if (!n || !s_bodies[b].ready || !kit_dress(k, d, &s_bodies[b], kBodies[b].trail, kBodies[b].voice, want <= 0)) {
+        if (!n || !s_bodies[b].ready || !kit_dress(k, d, &s_bodies[b], kBodies[b].trail, kBodies[b].voice, own)) {
             kit_free(k);
             if (n && s_bodies[b].ready) fprintf(stderr, "%s: no kit for %s\n", DV_HS_PLUGIN, kHeroNames[BODY_FIRST + b]);
         }
     }
-    built_for = want;
+    built_for = key;
     built_n = n;
     s_body_donor = want;
     s_armed.ready = 0;
     if (s_moveset >= 0 && want < 0)
         fprintf(stderr, "%s: %s's moves not read yet (start disc %d once): the prologue Clovis's\n", DV_HS_PLUGIN,
                 kHeroNames[s_moveset], kKitSource[s_moveset][0] >= 7 ? 2 : 1);
-    fprintf(stderr, "%s: %d bodies wear %s's moves\n", DV_HS_PLUGIN, n, want >= 0 ? kHeroNames[want] : "the prologue Clovis");
+    fprintf(stderr, "%s: %d bodies wear %s's moves%s\n", DV_HS_PLUGIN, n,
+            want >= 0 ? kHeroNames[want] : "the prologue Clovis", own ? " (Clovis (Old): Old Clovis's own in his)" : "");
 }
 
 /* --- reloads of the hero's texture ----------------------------------------

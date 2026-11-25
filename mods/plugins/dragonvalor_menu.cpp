@@ -110,12 +110,19 @@ const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", 
 #define DV_WEAPON_CHOICES 13
 #define DV_KEY_MOVES       "dv.heroswap.moves"
 /* dragonvalor.heroswap's `moves` option: whose kit (moves, voice) the
- * characters from the Dragon Valor on wear; index 0 = the prologue Clovis's. */
-const char* const kMovesChoices[] = {"Clovis (Young)", "Clovis", "Arlen", "Kodel", "Felippe",
+ * characters from the Dragon Valor on wear; index 0 = the prologue Clovis's,
+ * 1 = that with the grown Clovis's own moves (his boss slash on the charged
+ * attack, his tired end after the special; the others move as Clovis
+ * (Young)). Picking Old Clovis in Play as while Moves shows Clovis (Young)
+ * shows Clovis (Old), and picking another character while it shows Clovis
+ * (Old) shows Clovis (Young): his own moves are his default (the player,
+ * 2026-11-24). */
+const char* const kMovesChoices[] = {"Clovis (Young)", "Clovis (Old)", "Clovis", "Arlen", "Kodel", "Felippe",
                                      "Phillip", "Gerome", "Anna", "Mihael", "Anita"};
-const char* const kMovesValues[] = {"own", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome", "anna",
-                                    "mihael", "anita"};
-#define DV_MOVES_CHOICES 10
+const char* const kMovesValues[] = {"own", "oldclovis", "clovis", "arlen", "kodel", "felippe", "phillip", "gerome",
+                                    "anna", "mihael", "anita"};
+#define DV_MOVES_CHOICES 11
+#define DV_MOVES_OLD 1
 
 /* ---- live RAM editors: a row shows the value in guest RAM and writes it ----
  * Addresses: docs/DEVELOPMENT.md, "Known RAM addresses (USA EXE)". The rows
@@ -192,7 +199,9 @@ const RecompRuntimeUiItem kItems[] = {
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_WEAPON_CHOICES - 1, 1, kWeaponChoices, DV_WEAPON_CHOICES, nullptr},
     {DV_KEY_MOVES, "Hero", "Moves",
      "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), "
-     "the prologue's, or a hero's. Anna and Anita suit Shalya, Fannah and Jeanne; they and Mihael "
+     "the prologue's, or a hero's. Clovis (Old) is Old Clovis's own: Clovis (Young)'s with his boss slash on "
+     "the charged attack and his tired end after the special (the others move as Clovis (Young)). "
+     "Anna and Anita suit Shalya, Fannah and Jeanne; they and Mihael "
      "are read from disc 2 once it has been started. Locked while Play as names one of the nine heroes (or each "
      "stage's own): they keep their own. Pick one, then confirm it.",
      RECOMP_RUNTIME_UI_CHOICE, 0, DV_MOVES_CHOICES - 1, 1, kMovesChoices, DV_MOVES_CHOICES, nullptr},
@@ -893,6 +902,10 @@ int cb_set_value(void* ctx, const RecompRuntimeUiItem* item, int value) {
         if (value < 0 || value > (mv ? DV_MOVES_CHOICES - 1 : w ? DV_WEAPON_CHOICES - 1 : DV_PLAY_AS_CHOICES - 1))
             return 0;
         (mv ? m.moves_pend : w ? m.weapon_pend : m.play_as_pend) = value;
+        if (!mv && !w) {   /* Old Clovis's own moves are his default */
+            if (value == DV_PLAY_AS_OLDCLOVIS && m.moves_pend == 0) m.moves_pend = DV_MOVES_OLD;
+            else if (value != DV_PLAY_AS_OLDCLOVIS && m.moves_pend == DV_MOVES_OLD) m.moves_pend = 0;
+        }
         std::snprintf(text, sizeof text, "Press %s to apply", accept_name(m));
         recomp_runtime_ui_set_status(m.ui, hero_pending(m) ? text : "");
         return 0;   /* 1 would let recomp-ui show "Saved" */

@@ -303,12 +303,14 @@ the native 60 Hz version.
   decomp tool byte for byte. The grown Clovis's strong attack takes his own
   strong-attack cry, his own sound on the jump back and, after his special
   (the strong attack: the same animations), his tired end with his breath;
-  the skeleton, which has no voice, is silent. With the Clovis kits' moves
-  (2026-11-24, the player's request) his charged attack is the double
-  slash he fights Kodel with as a boss (his own animations, power and
-  reach; tried first as the combo's end, which the player did not like);
-  his guard and his energy shot are not ported yet (the shot's projectile
-  is made to hit the hero).
+  the skeleton, which has no voice, is silent. With Moves > Clovis (Old)
+  (2026-11-24, the player's request; shown when he is picked) he has his
+  own moves: his charged attack is the double slash he fights Kodel with as
+  a boss (his own animations and reach; tried first as the combo's end,
+  which the player did not like) and his special ends tired; with the other
+  Moves he moves as that kit. His guard is the heroes' own (standing still,
+  a hit from the front or a side is blocked); his energy shot is not ported
+  yet (its projectile is made to hit the hero).
   **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
   Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
   scene; first misnamed the Guardian; a Felippe with shield left, the

@@ -2124,12 +2124,29 @@ has its own colour effect on the sword", "and the voices").**
   exits are the release's (attack held after 76 and after 77: charge again;
   the idle), read from it in order and checked by what comes before each.
   His animations take slots 192, 193 (`body_oldclovis.bin` version 8: his
-  21, 22; 6 and 7 held the combo's versions). The combo is the kit's; with
-  another hero's moves the charged attack stays that hero's. Played in 1/7:
-  46, 48, 50, 51, then 74, 75 (the hum), 192 (the hum stopped, his cry keyed
-  on voice 23, the hit armed), 193, the idle. His guard (anim 32, SE 4 and a burst, at random when
-  hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
-  effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
+  21, 22; 6 and 7 held the combo's versions). The combo is the kit's.
+  Played in 1/7: 46, 48, 50, 51, then 74, 75 (the hum), 192 (the hum
+  stopped, his cry keyed on voice 23, the hit armed), 193, the idle. The
+  hit's damage is the charged attack's: a hero's hit takes
+  `g_Hero.attack[g_Hero.hitIndex]` (decomp collision.c, section 3), and the
+  charge set hitIndex 3; atkPower only has to be non-zero, so his power 5
+  changes nothing; his kind 1 makes the enemy reel where the hero's 76
+  (kind 3) knocks it down, and the target's cooldown lasts the rest of the
+  animation, so the two cuts hit an enemy once. *Clovis (Old)* (2026-11-24,
+  the player: "I want Clovis (Old) in the moves"): his own moves (the slash,
+  the tired end) go in only with Moves > Clovis (Old) (`moves` =
+  `oldclovis`, `DV_MOVES_OLD`: the prologue Clovis's kit, `kit_dress` with
+  `own_moves`; the other bodies move as Clovis (Young)); with Clovis (Young),
+  Clovis or a hero's moves he moves as that kit, his voice kept. The menu
+  shows Clovis (Old) when Old Clovis is picked in Play as with Moves on
+  Clovis (Young), and Clovis (Young) again when another character is picked:
+  his own moves are his default there. The decomp's reference is `build 0 1
+  ... --body oldclovis --own-moves`. His guard (anim 32, SE 4 and a burst, when
+  hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is the
+  heroes' own guard (his 32 / 33 are their 99 / 100 byte for byte): a hit from
+  the front or a side while a hero stands still (anim 11) sparks and the
+  reaction script skips the damage (decomp collision.c section 4, the hero
+  script's L17B3 -> L1784), so Old Clovis has it too; not a voice role. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
   and death are silent (`DV_VOICE_MUTE`: the tones point to one silent VAG)
   and its hurt first stayed the kit's; the player heard Clovis there, so it
