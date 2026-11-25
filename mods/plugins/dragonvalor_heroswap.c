@@ -1106,7 +1106,7 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
 #define BODY_POR_NONE  (-1)
 #define DV_VOICE_KIT   (-1)   /* kBodies voice: the kit's own SE stays */
 #define DV_VOICE_MUTE  (-2)   /* kBodies voice: silent */
-#define DV_SPECIAL_N   5      /* kBodies special: the tired end's two animations, the slash's three */
+#define DV_SPECIAL_N   4      /* kBodies special: the tired end's two animations, the first cut's two */
 #define BODY_ORDER_SWAP12 {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_SAME   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_ARMS   {0, 1, 2, 3, 4, 6, 5, 7, 8, 9, 11, 10, 12, 13}
@@ -1119,10 +1119,10 @@ static const struct {
                           * back-jump, tired): DV_VOICE_KIT the kit's own (strong, back-jump:
                           * silent), DV_VOICE_MUTE silent */
     uint8_t special[DV_SPECIAL_N];  /* its slots of the special's tired end (tired, recovery) and of its
-                                     * slash (wind-up, swing, recovery), 0 none */
+                                     * first cut (wind-up, swing), 0 none */
 } kBodies[BODY_COUNT] = {
     {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
-    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 20, 21, 22}},               /* the grown Clovis: 3/17's enemy group */
+    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 20, 21}},               /* the grown Clovis: 3/17's enemy group */
     {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
     {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1, -1}, {0}},               /* Raimun, chapter 1's boss */
     {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1, -1}, {0}},             /* Lodonya, chapter 2's black knight */
@@ -1332,7 +1332,7 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
 #define DV_KIT_VER     1u
 #define DV_BODY_MAGIC  0x42485644u   /* "DVHB" */
-#define DV_BODY_VER    6u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two); 5: its weld lists; 6: its slash (three more) */
+#define DV_BODY_VER    7u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two); 5: its weld lists; 6: its slash (three more); 7: its first cut only (two) */
 #define DV_PROLOGUE_ID 100u          /* the prologue Clovis's kit's id in its file */
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
@@ -2762,7 +2762,7 @@ static int quiet_cries(uint8_t* s, uint32_t len)
  * animations go right after the kit's core, named by slots 195 and 196.
  * -1: no memory; 0: not this script (no anchor); 1: done. */
 static const uint32_t kSpecialAnchor[2] = {0x00000402u, 0x00002088u};   /* anim self, 136, 0, 1, 0 */
-static const uint16_t kSpecialSlots[DV_SPECIAL_N] = {195, 196, 192, 193, 194};   /* then the slash's */
+static const uint16_t kSpecialSlots[DV_SPECIAL_N] = {195, 196, 192, 193};   /* then the first cut's */
 static const uint32_t kSpecialBlock[64] = {
     0x00010503u, 0x00000006u, 0x0000001Eu, 0x00000402u, 0x000040C3u, 0x00010603u,
     0x00000038u, 0x00000000u, 0x00010603u, 0x00000039u, 0x00000000u, 0x00010703u,
@@ -2822,40 +2822,44 @@ static int kit_add_welds(Kit* k, const Body* b)
     return 1;
 }
 
-/* The grown Clovis's slash as the combo's third hit (2026-11-24, the player:
- * "the boss's moveset, or something like it", then "only the third hit";
- * decomp heroswap.py `slash`, whose SLASH_TEXT is the block's source). The
- * boss's one sword attack (3/17 file 76 entry 60, L02AC) is a single slash,
- * his own anims 20 (wind-up), 21 (the swing), 22 (recovery). The hero's
- * `anim self, 50, 0, 1, 0` (once; the lunge and counters before it stay)
- * becomes a jump to a block appended to the script and a `wait` never run.
- * The block's hit window (frames 3..22: kind 1, power 5, his reach) and trail
- * are his word for word; the swing sound and the cry are the kit's (his are
- * the enemy bank's), the cry kept at the player's word; its four exits are
- * the 50 block's (pressed jump, held attack, the magic button, the idle),
- * read from it in their order and checked by the conditions before them.
- * His animations take slots 192..194. `s` holds `n` words and room for 96
- * more. 0: no anchor or other exits; 1: done. */
+/* The grown Clovis's first cut as the combo's third hit (2026-11-24, the
+ * player: "the boss's moveset, or something like it", then "only the third
+ * hit", then, seeing two cuts, "only the first"; decomp heroswap.py `slash`,
+ * whose SLASH_TEXT is the block's source). The boss's one sword attack (3/17
+ * file 76 entry 60, L02AC) is his own anims 20 (wind-up) and 21 (26 frames:
+ * a level cut over 0..5, the pose held over 6..10, a turn into a rising
+ * second cut), then 22. The hero's `anim self, 50, 0, 1, 0` (once; the
+ * lunge and counters before it stay) becomes a jump to a block appended to
+ * the script and a `wait` never run. The block plays 20, then 21 up to frame
+ * 9, in the held pose, then the kit's own 51 (the combo end's recovery,
+ * whose first frame is the nearest pose to it: my choice, as is the end).
+ * Its hit (kind 1, power 5, his reach, frames 3..8) and trail are his word
+ * for word; the swing sound and the cry are the kit's (his are the enemy
+ * bank's), the cry kept at the player's word; its four exits are the 50
+ * block's (pressed jump, held attack, the magic button, the idle), read from
+ * it in their order and checked by the conditions before them. His
+ * animations take slots 192, 193. `s` holds `n` words and room for
+ * DV_SLASH_WORDS more. 0: no anchor or other exits; 1: done. */
+#define DV_SLASH_WORDS 86
 static const uint32_t kSlashAnchor[2] = {0x00000402u, 0x00002032u};   /* anim self, 50, 0, 1, 0 */
-static const uint32_t kSlashBlock[96] = {
+static const uint32_t kSlashBlock[DV_SLASH_WORDS] = {
     0x00000402u, 0x000020C0u, 0x09012003u, 0x00000019u, 0x00000010u, 0x69690101u,
     0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u, 0x00000402u, 0x000020C1u,
     0x69690101u, 0x01011203u, 0x00000050u, 0x00000002u, 0x04012301u, 0x01011203u,
-    0x00000050u, 0x00000011u, 0x04012301u, 0x01011203u, 0x00000050u, 0x00000003u,
-    0x20012301u, 0x01081203u, 0x00000050u, 0x00000003u, 0x00010703u, 0x000000C0u,
-    0x00000001u, 0x00010703u, 0x000000C1u, 0x00000005u, 0x00010603u, 0x00000061u,
-    0x00000C00u, 0x00010603u, 0x00000062u, 0x000002AAu, 0x00010603u, 0x00000063u,
-    0x00000266u, 0x00010603u, 0x00000064u, 0x00000433u, 0x00010603u, 0x00000065u,
-    0x0000FE34u, 0x00010603u, 0x00000066u, 0x00000166u, 0x01011203u, 0x00000050u,
-    0x00000016u, 0x00010703u, 0x000000C0u, 0x00000000u, 0x08062208u, 0x00000003u,
-    0x01020000u, 0x00FF0000u, 0x001F0000u, 0x69010302u, 0x0000FF00u, 0x00001F00u,
-    0x02010B03u, 0x00000012u, 0x00000002u, 0x001B0301u, 0x01011203u, 0x00000053u,
-    0x00000001u, 0x69690201u, 0x00010703u, 0x000000C0u, 0x00000000u, 0x02010B03u,
-    0x00000011u, 0x00000001u, 0x00110301u, 0x00000402u, 0x000020C2u, 0x69690101u,
-    0x02020B03u, 0x00000011u, 0x00000008u, 0x01011103u, 0x00000004u, 0x00000000u,
-    0x00080301u, 0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u, 0x00040301u,
+    0x00000050u, 0x00000003u, 0x20012301u, 0x01081203u, 0x00000050u, 0x00000003u,
+    0x00010703u, 0x000000C0u, 0x00000001u, 0x00010703u, 0x000000C1u, 0x00000005u,
+    0x00010603u, 0x00000061u, 0x00000C00u, 0x00010603u, 0x00000062u, 0x000002AAu,
+    0x00010603u, 0x00000063u, 0x00000266u, 0x00010603u, 0x00000064u, 0x00000433u,
+    0x00010603u, 0x00000065u, 0x0000FE34u, 0x00010603u, 0x00000066u, 0x00000166u,
+    0x08062208u, 0x00000003u, 0x01020000u, 0x00FF0000u, 0x001F0000u, 0x69010302u,
+    0x0000FF00u, 0x00001F00u, 0x02010B03u, 0x00000012u, 0x00000002u, 0x001B0301u,
+    0x01011C03u, 0x00000050u, 0x69690009u, 0x69690201u, 0x00010703u, 0x000000C0u,
+    0x00000000u, 0x02010B03u, 0x00000011u, 0x00000001u, 0x00110301u, 0x00000402u,
+    0x00002033u, 0x69690101u, 0x02020B03u, 0x00000011u, 0x00000008u, 0x01011103u,
+    0x00000004u, 0x00000000u, 0x00080301u, 0x01011203u, 0x00000053u, 0x00000001u,
+    0x69690201u, 0x00040301u,
 };
-static const uint8_t kSlashExits[4] = {69, 80, 90, 95};   /* its jumps: pressed jump, charge, magic, idle */
+static const uint8_t kSlashExits[4] = {59, 70, 80, 85};   /* its jumps: pressed jump, charge, magic, idle */
 
 static int slash_patch(uint8_t* s, uint32_t n)
 {
@@ -2873,7 +2877,7 @@ static int slash_patch(uint8_t* s, uint32_t n)
         for (i = 1; i <= c; i++)
             if (le32(s + 4 * (ex[j] - i)) != kSlashBlock[x - i]) return 0;
     }
-    for (i = 0; i < 96; i++) put32(s + 4 * (n + i), kSlashBlock[i]);
+    for (i = 0; i < DV_SLASH_WORDS; i++) put32(s + 4 * (n + i), kSlashBlock[i]);
     for (j = 0; j < 4; j++) {
         uint32_t x = kSlashExits[j];
         int32_t t = (int32_t)ex[j] + (int16_t)(le32(s + 4 * ex[j]) >> 16);
@@ -2908,7 +2912,7 @@ static int special_patch(Kit* k, const Body* b)
         p += w & 0xFF;
     }
     target = (int32_t)p + (int16_t)(w >> 16);
-    words = n + 64 + (na > 2 ? 96 : 0);
+    words = n + 64 + (na > 2 ? DV_SLASH_WORDS : 0);
     if (!(ns = (uint8_t*)malloc(words * 4))) return -1;
     memcpy(ns, s, n * 4);
     base = n;
@@ -3281,7 +3285,7 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
         if (sp) {
             kitflags |= DV_KIT_SPECIAL;
             fprintf(stderr, "%s: a body's tired end on the strong attack (slots 195, 196)%s\n", DV_HS_PLUGIN,
-                    b->anims[2].n ? " and its slash as the combo's third hit (slots 192..194)" : "");
+                    b->anims[2].n ? " and its first cut as the combo's third hit (slots 192, 193)" : "");
         }
     }
     /* after the special: its entries are the tail's last; the ops moved, so

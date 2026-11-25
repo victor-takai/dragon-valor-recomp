@@ -2105,17 +2105,25 @@ has its own colour effect on the sword", "and the voices").**
   made to hit the hero and drawn from his page: not ported, it needs an
   object slot that hits enemies), the slash then the shot, and the strong
   attack above (decomp `docs/targets/hero-swap.md`, *The boss's moves*).
-  `slash_patch` (the decomp's `slash`) makes the slash the standing combo's
-  third hit on a Clovis kit: the hero's `anim self, 50, 0, 1, 0` (once)
-  becomes a jump to `kSlashBlock` (96 words, the decomp's SLASH_TEXT
-  assembled by objscript.py, after the special's block) and a `wait` never
-  run; the block's hit and trail words are his, the swing sound (SE 4) and
-  the cry (SE 32, kept at the player's word) the kit's, its four exits the
-  50 block's (pressed jump, held attack to the charge, the magic button,
-  the idle), read from it in order and checked by the condition before
-  each. His animations take slots 192..194 (`body_oldclovis.bin` version
-  6: five special animations). With another hero's moves the combo stays
-  that hero's. His guard (anim 32, SE 4 and a burst, at random when
+  His slash is two cuts (anim 21: a level cut, a held pose, a turn into a
+  rising cut); played whole as the combo's end the player saw "two hits"
+  and chose the first. `slash_patch` (the decomp's `slash`) makes that
+  first cut the standing combo's third hit on a Clovis kit: the hero's
+  `anim self, 50, 0, 1, 0` (once) becomes a jump to `kSlashBlock`
+  (`DV_SLASH_WORDS`, 86: the decomp's SLASH_TEXT assembled by
+  objscript.py, after the special's block) and a `wait` never run. The
+  block plays his 20, then 21 up to frame 9 (the held pose), then the
+  kit's own 51 (the combo end's recovery), whose first frame the decomp
+  found the nearest pose to it by decoding and comparing the animations
+  (my choice, as is the end); the hit (frames 3..8) and trail words are
+  his, the swing sound (SE 4) and the cry (SE 32, kept at the player's
+  word) the kit's, its four exits the 50 block's (pressed jump, held
+  attack to the charge, the magic button, the idle), read from it in
+  order and checked by the condition before each. His animations take
+  slots 192, 193 (`body_oldclovis.bin` version 7: four special
+  animations; 6 took his 22 too). With another hero's moves the combo
+  stays that hero's. Played in 1/7: 46, 48, 192, 193, 51, the idle, his
+  cry keyed on voice 23 in 193, the pose carried into 51 without a jump. His guard (anim 32, SE 4 and a burst, at random when
   hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
   effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
