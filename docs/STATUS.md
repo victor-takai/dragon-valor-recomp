@@ -95,6 +95,19 @@ the native 60 Hz version.
   was checked: `psx_game_version.txt` 0.4.0, `make_bezel.py` at its root
   (the same bytes as `tools/`), the event blur's counter in the exe, no
   `texture-packs/` folder.
+  **v0.5.0 was published on 2026-11-24** (pre-release, four zips about
+  25 KB larger than 0.4.0's), with PR #12 (nine story characters to play
+  as, with their trails, voices and moves; three weapons; Skip Intro
+  straight to the menu with the fast boot of `patches/psxrecomp/0005`);
+  PR #14 wrote its notes and VERSION. Before the tag, a
+  `workflow_dispatch` run with `publish=false` on master `9e65378` built
+  the four platforms (12 min), the first build of that code on Linux and
+  macOS. Tag `v0.5.0` at `d148273`, the run took 8 min; the release text
+  was replaced with `RELEASE_NOTES.md`, as before. The Windows zip was
+  checked: `psx_game_version.txt` 0.5.0, the heroswap 2.0.0, skip-intro
+  1.0.0 and cheats 1.4.0 manifests the same bytes as the repo's, the new
+  plugin code in the exe (the Moves label "Clovis (Young)", Fast boot's
+  `psx_mod_hold_acceleration`), no `texture-packs/` folder.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
