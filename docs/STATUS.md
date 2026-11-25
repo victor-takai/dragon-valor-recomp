@@ -108,6 +108,20 @@ the native 60 Hz version.
   1.0.0 and cheats 1.4.0 manifests the same bytes as the repo's, the new
   plugin code in the exe (the Moves label "Clovis (Young)", Fast boot's
   `psx_mod_hold_acceleration`), no `texture-packs/` folder.
+  **v0.6.0 was published on 2026-11-25** (pre-release, four zips about
+  10 KB larger than 0.5.0's), with PR #16 (the grown Clovis's own boss
+  moves with Moves > Clovis (Old): his slash as the charged attack, his
+  ball of fire on L2 with his charge and its sound; the name Clovis (Old)
+  in Play as; the skeleton named, without a portrait; 16 KB of measured
+  headroom above the stage buffers). PR #17 wrote its notes and VERSION.
+  Before the tag, a `workflow_dispatch` run with `publish=false` on master
+  `4d69dc8` built the four platforms (12 min). Tag `v0.6.0` at `fa6f438`,
+  the run took 11 min; the release text was replaced with
+  `RELEASE_NOTES.md`, as before (the workflow appends a "What's Changed"
+  list). The Windows zip was checked: `psx_game_version.txt` 0.6.0, the
+  heroswap 2.0.0 manifest the same bytes as the repo's, the new plugin
+  code in the exe (the name "Clovis (Old)", the lite kit's log line), the
+  release notes the same bytes, no `texture-packs/` folder.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
