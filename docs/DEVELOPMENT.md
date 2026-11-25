@@ -2097,7 +2097,25 @@ has its own colour effect on the sword", "and the voices").**
   and counts it (program tones 13 -> 14, VAB ts 49 -> 50; the decomp's
   vab.revoice does the same). `spu_events` (polled during the special,
   `special_play` in the session notes) show the breath's VAG keyed on
-  voice 23 as the tired pose starts and playing to its end. His guard (anim 32, SE 4 and a burst, at random when
+  voice 23 as the tired pose starts and playing to its end. *His slash*
+  (2026-11-24, the player: "the boss's moveset, or something like it",
+  then "only the third hit"): as a boss (3/17 file 76 entry 60) he has a
+  slash of his own (anims 20, 21, 22; kind 1, power 5, his reach and trail),
+  an energy shot (23..25 and a projectile object of his group, entry 67,
+  made to hit the hero and drawn from his page: not ported, it needs an
+  object slot that hits enemies), the slash then the shot, and the strong
+  attack above (decomp `docs/targets/hero-swap.md`, *The boss's moves*).
+  `slash_patch` (the decomp's `slash`) makes the slash the standing combo's
+  third hit on a Clovis kit: the hero's `anim self, 50, 0, 1, 0` (once)
+  becomes a jump to `kSlashBlock` (96 words, the decomp's SLASH_TEXT
+  assembled by objscript.py, after the special's block) and a `wait` never
+  run; the block's hit and trail words are his, the swing sound (SE 4) and
+  the cry (SE 32, kept at the player's word) the kit's, its four exits the
+  50 block's (pressed jump, held attack to the charge, the magic button,
+  the idle), read from it in order and checked by the condition before
+  each. His animations take slots 192..194 (`body_oldclovis.bin` version
+  6: five special animations). With another hero's moves the combo stays
+  that hero's. His guard (anim 32, SE 4 and a burst, at random when
   hit) sounds unlike a plain hit (the hero weapon's SE and a spark); it is an
   effect of his own script, not a voice role. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
