@@ -94,7 +94,14 @@
 #define DV_STAGE_BUFFERS_ALLOC 0x80035AB8u
 #define DV_PACK_INSTALL       0x80035E48u
 #define DV_ACTION_HEAP        0x800C5E98u   /* g_ModuleHeapStart[3]: row 0 in ACTION */
-#define DV_ARENA_END_MAX      0x801EE69Cu   /* largest stage layout of the discs (12/29) */
+#define DV_ARENA_END_MAX      0x801F269Cu   /* the largest stage layout of the discs (12/29, 0x801EE69C)
+                                             * and 16 KB: above the buffers lies only the RAM stack, from
+                                             * 0x801FFFF4 down, which the game uses for CD callbacks, sound
+                                             * calls and two natives only (it runs on the scratchpad's);
+                                             * measured 2026-11-25: its lowest word written in the test
+                                             * states is 0x801FFBC0, and minutes of stages with 16 KB past
+                                             * 0x801EE69C under a pattern wrote none of it (heroswap.py
+                                             * ARENA_HEADROOM) */
 #define DV_SPU_END_MAX        476096u       /* largest sound slots 1..9 of the discs (0/9) */
 #define DV_RAM_END            0x80200000u
 #define DV_SECTOR             2048u
@@ -1762,7 +1769,7 @@ static int s_swap_lite;                    /* ... in its lite variant (lite_of) 
 
 /* A kit with its body's shot's sound left out (heroswap.py build's lite: the
  * Moves > Clovis (Old) kit where its layout with the sound does not fit,
- * 1/9, 8/1, 7/34 on the discs): a copy of `k` but the VAB, the bank header
+ * 7/34 on the discs, SPU RAM): a copy of `k` but the VAB, the bank header
  * and the script, or `k` itself without a lite variant. */
 static const Kit* lite_of(const Kit* k)
 {
@@ -3163,8 +3170,10 @@ static int slash_patch(uint8_t* s, uint32_t n)
  * shot's sound (the player: "the sound of the fireball as the grown Clovis
  * lets it go"; the hero's magic charge, tried first, was not it): his bank's
  * SE 1 on the hero's SE 46 (revoice role 9, on SPU voice 22: the cry is on
- * 23). It adds 9 KB to file 0 and to sound slot 1, and 1/9, 8/1 and 7/34 no
- * longer fit with it: there the stage load takes the kit's lite variant
+ * 23). It adds 9 KB to file 0 and to sound slot 1: 1/9 and 8/1 fit with it
+ * thanks to DV_ARENA_END_MAX's 16 KB (the player found the sound gone in
+ * 1/9, the stage after 1/7's town), 7/34 does not (SPU RAM): there the
+ * stage load takes the kit's lite variant
  * (lite_of: the VAB and bank header without it, the block's sound a no-op;
  * the player's choice), so he plays wherever he did. Its hit's sound (SE 3)
  * is not kept: the enemy's own hit reaction sounds. */

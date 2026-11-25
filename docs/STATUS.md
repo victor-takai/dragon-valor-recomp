@@ -318,8 +318,10 @@ the native 60 Hz version.
   addition, at the player's word) and his ball of fire flying from it,
   hitting the enemies it meets (power 8), held back by walls; its
   projectile takes the last spell object slot (with spell 4 or 5 at level
-  3 selected, L2 does nothing until the next stage); in 1/9, 8/1 and
-  7/34 the shot's sound is left out so that he still fits there.
+  3 selected, L2 does nothing until the next stage); in 7/34 the shot's
+  sound is left out so that he still fits there (sound memory). Stages
+  may now use 16 KB more RAM than the game's largest layout: measured
+  free (only the RAM stack is above, and it stays at its top).
   **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
   Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
   scene; first misnamed the Guardian; a Felippe with shield left, the

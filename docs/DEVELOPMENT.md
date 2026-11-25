@@ -1590,9 +1590,16 @@ What the plugin (`mods/plugins/dragonvalor_heroswap.c`) does:
   sizes and raises row 0 (`g_StageBufferSizes[0]`, 0x80078B20: file 0 and
   then the action pack, whole sectors) and sound slot 1 (`g_SoundBodySize[1]`,
   0x80077DBC: the VAB body rounded up to 64) when needed, unless the stage
-  buffers would then end past 0x801EE69C or the sound slots take more than
-  476096 bytes (the largest layouts the game itself uses: that stage keeps
-  its hero). Otherwise it gives back the hero index a swap replaced.
+  buffers would then end past 0x801F269C or the sound slots take more than
+  476096 bytes (the largest layouts the game itself uses, 0x801EE69C for
+  the buffers, and 16 KB: that stage keeps its hero). The 16 KB were
+  measured (2026-11-25): above the buffers lies only the RAM stack from
+  0x801FFFF4 down, which the game uses only for CD callbacks, sound calls
+  and two natives (it runs on the scratchpad's, `SetSp(0x1F800400)`); its
+  lowest word written in test states 10 and 9 (their whole run since boot) is
+  0x801FFBC0, and several minutes of stages (fights, magic, a death and its
+  Continue, 1/9, the boss stage 1/20, the scene of 3/1) with 16 KB past
+  0x801EE69C under a pattern wrote none of it. Otherwise it gives back the hero index a swap replaced.
 - **`PackInstall` (0x80035E48, a0 = the file just read).** In a swapped
   stage, file 0 and the action pack, both read to ACTION's heap (0x800C5E98),
   are rebuilt in RAM before the install: file 0 takes the kit's VAB,
@@ -2204,8 +2211,10 @@ has its own colour effect on the sword", "and the voices").**
   sound (the player: "the sound of the fireball as the grown Clovis lets it
   go"; the hero's magic charge, SE 12, tried first, was not it): his SE 1
   on the hero's SE 46 (revoice role 9, voice 22; the cry is on 23). It adds
-  9 KB to file 0 and sound slot 1, and 1/9, 8/1 and 7/34 no longer fit
-  with it; there `dv_hs_buffers_entry` takes the kit's lite variant
+  9 KB to file 0 and sound slot 1: 1/9 and 8/1 fit with it thanks to
+  the 16 KB measured above the stage buffers (the player found the sound
+  gone in 1/9, the stage after 1/7's town), 7/34 does not (SPU RAM); there
+  `dv_hs_buffers_entry` takes the kit's lite variant
   (`lite_of`: its VAB, bank header and script built without it in
   `kit_dress`; the player's choice over dropping his tired breath), so he
   plays wherever he did (225 action stages of 226; `body_oldclovis.bin`
