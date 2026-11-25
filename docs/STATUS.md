@@ -304,11 +304,11 @@ the native 60 Hz version.
   strong-attack cry, his own sound on the jump back and, after his special
   (the strong attack: the same animations), his tired end with his breath;
   the skeleton, which has no voice, is silent. With the Clovis kits' moves
-  (2026-11-24, the player's request) his standing combo ends with the
-  first cut of the slash he fights Kodel with as a boss (his own
-  animations, power and reach; the second cut left out at the player's
-  word); his guard and his energy shot are not ported yet (the shot's
-  projectile is made to hit the hero).
+  (2026-11-24, the player's request) his charged attack is the double
+  slash he fights Kodel with as a boss (his own animations, power and
+  reach; tried first as the combo's end, which the player did not like);
+  his guard and his energy shot are not ported yet (the shot's projectile
+  is made to hit the hero).
   **More bodies** (2026-11-23, the player's request): a skeleton, Raimun,
   Lodonya, Shalya, Fannah, Jeanne and Phillip with Kadum on his back (5/19's
   scene; first misnamed the Guardian; a Felippe with shield left, the

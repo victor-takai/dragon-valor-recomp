@@ -1106,7 +1106,7 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
 #define BODY_POR_NONE  (-1)
 #define DV_VOICE_KIT   (-1)   /* kBodies voice: the kit's own SE stays */
 #define DV_VOICE_MUTE  (-2)   /* kBodies voice: silent */
-#define DV_SPECIAL_N   4      /* kBodies special: the tired end's two animations, the first cut's two */
+#define DV_SPECIAL_N   4      /* kBodies special: the tired end's two animations, the slash's two (his 21, 22) */
 #define BODY_ORDER_SWAP12 {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_SAME   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_ARMS   {0, 1, 2, 3, 4, 6, 5, 7, 8, 9, 11, 10, 12, 13}
@@ -1119,10 +1119,10 @@ static const struct {
                           * back-jump, tired): DV_VOICE_KIT the kit's own (strong, back-jump:
                           * silent), DV_VOICE_MUTE silent */
     uint8_t special[DV_SPECIAL_N];  /* its slots of the special's tired end (tired, recovery) and of its
-                                     * first cut (wind-up, swing), 0 none */
+                                     * slash (the cuts, recovery), 0 none */
 } kBodies[BODY_COUNT] = {
     {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
-    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 20, 21}},               /* the grown Clovis: 3/17's enemy group */
+    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 21, 22}},               /* the grown Clovis: 3/17's enemy group */
     {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
     {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1, -1}, {0}},               /* Raimun, chapter 1's boss */
     {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1, -1}, {0}},             /* Lodonya, chapter 2's black knight */
@@ -1332,7 +1332,7 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
 #define DV_KIT_VER     1u
 #define DV_BODY_MAGIC  0x42485644u   /* "DVHB" */
-#define DV_BODY_VER    7u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two); 5: its weld lists; 6: its slash (three more); 7: its first cut only (two) */
+#define DV_BODY_VER    8u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two); 5: its weld lists; 6: its slash (three more); 7: its first cut only (two); 8: its slash as the charged attack (21, 22) */
 #define DV_PROLOGUE_ID 100u          /* the prologue Clovis's kit's id in its file */
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
@@ -2762,7 +2762,7 @@ static int quiet_cries(uint8_t* s, uint32_t len)
  * animations go right after the kit's core, named by slots 195 and 196.
  * -1: no memory; 0: not this script (no anchor); 1: done. */
 static const uint32_t kSpecialAnchor[2] = {0x00000402u, 0x00002088u};   /* anim self, 136, 0, 1, 0 */
-static const uint16_t kSpecialSlots[DV_SPECIAL_N] = {195, 196, 192, 193};   /* then the first cut's */
+static const uint16_t kSpecialSlots[DV_SPECIAL_N] = {195, 196, 192, 193};   /* then the slash's */
 static const uint32_t kSpecialBlock[64] = {
     0x00010503u, 0x00000006u, 0x0000001Eu, 0x00000402u, 0x000040C3u, 0x00010603u,
     0x00000038u, 0x00000000u, 0x00010603u, 0x00000039u, 0x00000000u, 0x00010703u,
@@ -2822,63 +2822,76 @@ static int kit_add_welds(Kit* k, const Body* b)
     return 1;
 }
 
-/* The grown Clovis's first cut as the combo's third hit (2026-11-24, the
- * player: "the boss's moveset, or something like it", then "only the third
- * hit", then, seeing two cuts, "only the first"; decomp heroswap.py `slash`,
- * whose SLASH_TEXT is the block's source). The boss's one sword attack (3/17
- * file 76 entry 60, L02AC) is his own anims 20 (wind-up) and 21 (26 frames:
- * a level cut over 0..5, the pose held over 6..10, a turn into a rising
- * second cut), then 22. The hero's `anim self, 50, 0, 1, 0` (once; the
- * lunge and counters before it stay) becomes a jump to a block appended to
- * the script and a `wait` never run. The block plays 20, then 21 up to frame
- * 9, in the held pose, then the kit's own 51 (the combo end's recovery,
- * whose first frame is the nearest pose to it: my choice, as is the end).
- * Its hit (kind 1, power 5, his reach, frames 3..8) and trail are his word
- * for word; the swing sound and the cry are the kit's (his are the enemy
- * bank's), the cry kept at the player's word; its four exits are the 50
- * block's (pressed jump, held attack, the magic button, the idle), read from
- * it in their order and checked by the conditions before them. His
- * animations take slots 192, 193. `s` holds `n` words and room for
- * DV_SLASH_WORDS more. 0: no anchor or other exits; 1: done. */
-#define DV_SLASH_WORDS 86
-static const uint32_t kSlashAnchor[2] = {0x00000402u, 0x00002032u};   /* anim self, 50, 0, 1, 0 */
+/* The grown Clovis's slash as the charged attack (2026-11-24, the player:
+ * "the boss's moveset, or something like it"; as the combo's third hit,
+ * whole, it read as "two hits", its first cut alone did not please, so "in
+ * the charged attack"; decomp heroswap.py `slash`, whose SLASH_TEXT is the
+ * block's source). The boss's one sword attack (3/17 file 76 entry 60,
+ * L02AC) is his own anims 20 (wind-up), 21 (a level cut, a held pose, a
+ * turn into a rising second cut) and 22 (recovery). The Clovis kits' charged
+ * attack (hold attack: 74, then 75 looping with the hum SE 15) is released
+ * by `anim self, 76, 0, 1, 5` (once), then the release's settings and
+ * `sound.stop 1, 15`: the anchor becomes a jump to a block appended to the
+ * script and a `wait` never run. The block repeats those settings (the first
+ * DV_SLASH_PRE words, checked equal), plays his 21 whole and his 22, then
+ * the idle: the charge stands for his wind-up (by the decomp's comparison of
+ * the decoded poses, 75 to 21 moves less than the game's own 75 to 76). Its
+ * hit (kind 1, power 5, his reach, frames 3..22; the hero's 76 is kind 3,
+ * power 8) and trail are his word for word; the swing sound (SE 4, frames 2
+ * and 17) and the cry (SE 36, the charged attack's, kept at the player's
+ * word) are the kit's; its three exits are the release's (attack held after
+ * 76 and after 77: charge again; the idle), read from it in their order and
+ * checked by what comes before them. His animations take slots 192, 193.
+ * `s` holds `n` words and room for DV_SLASH_WORDS more. 0: no anchor or
+ * other words; 1: done. */
+#define DV_SLASH_WORDS 92
+#define DV_SLASH_PRE   13
+static const uint32_t kSlashAnchor[2] = {0x00000402u, 0x0500204Cu};   /* anim self, 76, 0, 1, 5 */
 static const uint32_t kSlashBlock[DV_SLASH_WORDS] = {
-    0x00000402u, 0x000020C0u, 0x09012003u, 0x00000019u, 0x00000010u, 0x69690101u,
-    0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u, 0x00000402u, 0x000020C1u,
-    0x69690101u, 0x01011203u, 0x00000050u, 0x00000002u, 0x04012301u, 0x01011203u,
-    0x00000050u, 0x00000003u, 0x20012301u, 0x01081203u, 0x00000050u, 0x00000003u,
-    0x00010703u, 0x000000C0u, 0x00000001u, 0x00010703u, 0x000000C1u, 0x00000005u,
-    0x00010603u, 0x00000061u, 0x00000C00u, 0x00010603u, 0x00000062u, 0x000002AAu,
-    0x00010603u, 0x00000063u, 0x00000266u, 0x00010603u, 0x00000064u, 0x00000433u,
-    0x00010603u, 0x00000065u, 0x0000FE34u, 0x00010603u, 0x00000066u, 0x00000166u,
-    0x08062208u, 0x00000003u, 0x01020000u, 0x00FF0000u, 0x001F0000u, 0x69010302u,
-    0x0000FF00u, 0x00001F00u, 0x02010B03u, 0x00000012u, 0x00000002u, 0x001B0301u,
-    0x01011C03u, 0x00000050u, 0x69690009u, 0x69690201u, 0x00010703u, 0x000000C0u,
-    0x00000000u, 0x02010B03u, 0x00000011u, 0x00000001u, 0x00110301u, 0x00000402u,
-    0x00002033u, 0x69690101u, 0x02020B03u, 0x00000011u, 0x00000008u, 0x01011103u,
-    0x00000004u, 0x00000000u, 0x00080301u, 0x01011203u, 0x00000053u, 0x00000001u,
-    0x69690201u, 0x00040301u,
+    0x00010703u, 0x0000001Du, 0x00000001u, 0x00010603u, 0x00000039u, 0x00000000u,
+    0x00010503u, 0x00000003u, 0x00000002u, 0x00010503u, 0x00000002u, 0x00000001u,
+    0x0F012501u, 0x00000402u, 0x000020C0u, 0x69690101u, 0x01011203u, 0x00000050u,
+    0x00000002u, 0x04012301u, 0x01011203u, 0x00000050u, 0x00000003u, 0x24012301u,
+    0x01011203u, 0x00000050u, 0x00000011u, 0x04012301u, 0x01081203u, 0x00000050u,
+    0x00000003u, 0x00010703u, 0x000000C0u, 0x00000001u, 0x00010703u, 0x000000C1u,
+    0x00000005u, 0x00010603u, 0x00000061u, 0x00000C00u, 0x00010603u, 0x00000062u,
+    0x000002AAu, 0x00010603u, 0x00000063u, 0x00000266u, 0x00010603u, 0x00000064u,
+    0x00000433u, 0x00010603u, 0x00000065u, 0x0000FE34u, 0x00010603u, 0x00000066u,
+    0x00000166u, 0x01011203u, 0x00000050u, 0x00000016u, 0x00010703u, 0x000000C0u,
+    0x00000000u, 0x08062208u, 0x00000003u, 0x01020000u, 0x00FF0000u, 0x001F0000u,
+    0x69010302u, 0x0000FF00u, 0x00001F00u, 0x01011203u, 0x00000053u, 0x00000001u,
+    0x69690201u, 0x00010703u, 0x000000C0u, 0x00000000u, 0x02010B03u, 0x00000011u,
+    0x00000001u, 0x000D0301u, 0x00000402u, 0x000020C1u, 0x69690101u, 0x01011203u,
+    0x00000053u, 0x00000001u, 0x69690201u, 0x02010B03u, 0x00000011u, 0x00000001u,
+    0x00030301u, 0x00030301u,
 };
-static const uint8_t kSlashExits[4] = {59, 70, 80, 85};   /* its jumps: pressed jump, charge, magic, idle */
+static const uint8_t kSlashExits[3] = {79, 90, 91};   /* its jumps: charge again (twice), the idle */
+
+static int same_insn(uint32_t a, uint32_t b)   /* alike, a jump's offset aside */
+{
+    return a == b || ((a & 0xFFFFu) == 0x0301u && (b & 0xFFFFu) == 0x0301u);
+}
 
 static int slash_patch(uint8_t* s, uint32_t n)
 {
-    uint32_t i, j, p = 0, q, hits = 0, ex[4], ne = 0, w = 0;
+    uint32_t i, j, p = 0, q, hits = 0, ex[3], ne = 0, w = 0;
     for (i = 0; i + 1 < n; i++)
         if (le32(s + 4 * i) == kSlashAnchor[0] && le32(s + 4 * i + 4) == kSlashAnchor[1]) { p = i; hits++; }
-    if (hits != 1) return 0;
-    for (q = p; ne < 4; q += w & 0xFF) {               /* the four jumps after it */
+    if (hits != 1 || p + 2 + DV_SLASH_PRE > n) return 0;
+    for (i = 0; i < DV_SLASH_PRE; i++)                 /* the release's settings, as the block repeats them */
+        if (le32(s + 4 * (p + 2 + i)) != kSlashBlock[i]) return 0;
+    for (q = p; ne < 3; q += w & 0xFF) {               /* the three jumps after it */
         if (q >= n || !((w = le32(s + 4 * q)) & 0xFF)) return 0;
         if ((w & 0xFFFFu) == 0x0301u) ex[ne++] = q;
     }
-    for (j = 0; j < 4; j++) {                          /* the condition (or the wait) before each */
-        uint32_t x = kSlashExits[j], c = j == 3 ? 1 : 3;
+    for (j = 0; j < 3; j++) {                          /* the condition (or the jump) before each */
+        uint32_t x = kSlashExits[j], c = j == 2 ? 1 : 3;
         if (ex[j] < c) return 0;
         for (i = 1; i <= c; i++)
-            if (le32(s + 4 * (ex[j] - i)) != kSlashBlock[x - i]) return 0;
+            if (!same_insn(le32(s + 4 * (ex[j] - i)), kSlashBlock[x - i])) return 0;
     }
     for (i = 0; i < DV_SLASH_WORDS; i++) put32(s + 4 * (n + i), kSlashBlock[i]);
-    for (j = 0; j < 4; j++) {
+    for (j = 0; j < 3; j++) {
         uint32_t x = kSlashExits[j];
         int32_t t = (int32_t)ex[j] + (int16_t)(le32(s + 4 * ex[j]) >> 16);
         put32(s + 4 * (n + x), (kSlashBlock[x] & 0xFFFFu) | ((uint32_t)(t - (int32_t)(n + x)) & 0xFFFFu) << 16);
@@ -2888,9 +2901,9 @@ static int slash_patch(uint8_t* s, uint32_t n)
     return 1;
 }
 
-/* The tired end and, with the slash's three animations, the slash: both
+/* The tired end and, with the slash's two animations, the slash: both
  * blocks after the script, all the animations after the kit's core (slots
- * kSpecialSlots, then 192..194). 0 when an anchor is missing: none of it. */
+ * kSpecialSlots, then 192, 193). 0 when an anchor is missing: none of it. */
 static int special_patch(Kit* k, const Body* b)
 {
     uint32_t se = le32(k->ops.p + 8), n, hits = 0, i, p = 0, base, last, core, after, slots, w, na, words;
@@ -3285,7 +3298,7 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
         if (sp) {
             kitflags |= DV_KIT_SPECIAL;
             fprintf(stderr, "%s: a body's tired end on the strong attack (slots 195, 196)%s\n", DV_HS_PLUGIN,
-                    b->anims[2].n ? " and its first cut as the combo's third hit (slots 192, 193)" : "");
+                    b->anims[2].n ? " and its slash as the charged attack (slots 192, 193)" : "");
         }
     }
     /* after the special: its entries are the tail's last; the ops moved, so
