@@ -313,7 +313,8 @@ the native 60 Hz version.
   Moves he moves as that kit. His guard is the heroes' own (standing still,
   a hit from the front or a side is blocked). His energy shot is on L2
   (2026-11-25, the player's request: "the fire attack"): his own wind-up,
-  blink and recovery with his charge (purple sparks drawn in to his hand),
+  blink and recovery with his charge (purple sparks drawn in to his hand,
+  the magic's charging sound),
   his cry, a burst of fire sparks from his hand (my
   addition, at the player's word) and his ball of fire flying from it,
   hitting the enemies it meets (power 8), held back by walls; its

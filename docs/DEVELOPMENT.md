@@ -2179,7 +2179,9 @@ has its own colour effect on the sword", "and the voices").**
   yield becomes a jump to a hook that yields, checks raw L2 pressed and goes
   on into the state (L1 keeps Dash; L2 is Dash too in the default map, but
   the check comes first). The move faces the auto-aim, plays 189..191 (his
-  23..25), his cry (SE 36) and the signal; then the idle. At the throw
+  23..25), his cry (SE 36) and the signal, with the hero's magic charge
+  (SE 12, as while a spell is held) from the start to the throw (the
+  player: "the magic's sound on the fireball too"); then the idle. At the throw
   (frames 11 and 12 of his 24) two rings of six of the ball's own trail
   sparks leave his hand (my addition, the player: "it could have fire
   particles as he throws it"). The charge (the player: "the particles going
