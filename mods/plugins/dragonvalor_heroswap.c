@@ -1106,7 +1106,9 @@ static int weapon_take(WKit* w, const uint8_t* f0, uint32_t l0, const uint8_t* f
 #define BODY_POR_NONE  (-1)
 #define DV_VOICE_KIT   (-1)   /* kBodies voice: the kit's own SE stays */
 #define DV_VOICE_MUTE  (-2)   /* kBodies voice: silent */
-#define DV_SPECIAL_N   4      /* kBodies special: the tired end's two animations, the slash's two (his 21, 22) */
+#define DV_SPECIAL_N   7      /* kBodies special: the tired end's two animations, the slash's two (his 21, 22),
+                               * the shot's three (his 23, 24, 25) */
+#define DV_VOICE_N     7      /* kBodies voice: its roles */
 #define BODY_ORDER_SWAP12 {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_SAME   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 #define BODY_ORDER_ARMS   {0, 1, 2, 3, 4, 6, 5, 7, 8, 9, 11, 10, 12, 13}
@@ -1115,14 +1117,19 @@ static const struct {
     uint8_t order[14];
     int weapon;
     uint32_t trail[4];   /* sword trail: colour_a, fade_a, colour_b, fade_b (0xBBGGRR; retrail) */
-    int8_t voice[7];     /* its bank's SE for each voice role (attack, hurt, jump, death, strong,
-                          * back-jump, tired): DV_VOICE_KIT the kit's own (strong, back-jump:
-                          * silent), DV_VOICE_MUTE silent */
-    uint8_t special[DV_SPECIAL_N];  /* its slots of the special's tired end (tired, recovery) and of its
-                                     * slash (the cuts, recovery), 0 none */
+    int8_t voice[DV_VOICE_N];   /* its bank's SE for each voice role (attack, hurt, jump, death, strong,
+                                 * back-jump, tired): DV_VOICE_KIT the kit's own
+                                 * (strong, back-jump: silent), DV_VOICE_MUTE silent */
+    uint8_t special[DV_SPECIAL_N];  /* its slots of the special's tired end (tired, recovery), of its
+                                     * slash (the cuts, recovery) and of its shot (wind-up, the shot,
+                                     * recovery), 0 none */
+    struct { uint8_t on, obj, tex_entry; uint16_t tex_x, tex_y; } shot;   /* its shot's projectile: its file's
+                                     * obj-th op 3; its texture: the TIM at (tex_x, tex_y) of entry tex_entry of
+                                     * the texture file (shot_take) */
 } kBodies[BODY_COUNT] = {
     {0, 1, 80, 0, 80, 4, 0, BODY_ORDER_SWAP12, -1, {0x0060FF, 0x000A1C, 0x80FFFF, 0x0E1C1C}, {-1, -1, -1, -1, -1, -1, -1}, {0}},                /* the Dragon Valor: 0/1's opening scene */
-    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 21, 22}},               /* the grown Clovis: 3/17's enemy group */
+    {3, 17, 76, 0, 80, 3, 1, BODY_ORDER_SAME, -1, {0xFF0000, 0x1F0000, 0x00FF00, 0x001F00}, {16, 18, 17, 19, 17, 5, 20}, {54, 57, 21, 22, 23, 24, 25},
+     {1, 1, 2, 480, 256}},               /* the grown Clovis: 3/17's enemy group */
     {1, 5, 132, 0, BODY_POR_NONE, 0, 0, BODY_ORDER_SWAP12, -1, {0xFFFFFF, 0x1C1C1C, 0xFFFFFF, 0x1C1C1C}, {DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_MUTE, DV_VOICE_KIT, DV_VOICE_KIT, DV_VOICE_KIT}, {0}},   /* a skeleton of chapter 1: no voice */
     {1, 20, 84, 0, 88, 3, 1, BODY_ORDER_ARMS, -1, {0x00BFBF, 0x001010, 0xFFFFFF, 0x1F1F1F}, {16, 18, 17, 19, -1, -1, -1}, {0}},               /* Raimun, chapter 1's boss */
     {2, 25, 76, 0, 80, 4, 1, BODY_ORDER_SWAP12, -1, {0x1000C0, 0x010015, 0xC040FF, 0x15071C}, {17, 18, 17, 19, -1, -1, -1}, {0}},             /* Lodonya, chapter 2's black knight */
@@ -1140,17 +1147,25 @@ static const struct {
  * pointed at its baked hero page (body_bake; until then `tex` holds its
  * texture file), the page TIM, its portrait (empty: the kit's stays). */
 #define DV_BODY_WELDS 4
+#define DV_SHOT_PARTS 2                 /* the shot's projectile: its nodes, its animations */
 typedef struct {
     int ready;
     Buf prims[14], verts[14], tex, page, portrait, bank, anims[DV_SPECIAL_N];
     Buf weld[DV_BODY_WELDS];          /* its own weld lists (op 31 of its pack) */
     uint8_t weldn[DV_BODY_WELDS], weldnode[DV_BODY_WELDS][16];   /* their parts: the hero nodes they go to */
     uint32_t nweld;
+    /* its shot's projectile (shot_take): its script (kShotEdits made), its
+     * op 3's hidden count and node templates, their prims and verts, its
+     * animations, the TIM its texture comes from; shot_script.n 0: none */
+    Buf shot_script, shot_nodes, shot_prims[DV_SHOT_PARTS], shot_verts[DV_SHOT_PARTS], shot_anims[DV_SHOT_PARTS],
+        shot_tex;
+    uint32_t shot_hidden;
 } Body;
 static Body s_bodies[BODY_COUNT];
 static Kit s_prologue;   /* the prologue Clovis's kit (0/1): the bodies' moves by default */
 static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, uint32_t lt, const uint8_t* fp,
                      uint32_t lp, const uint8_t* f0, uint32_t l0);
+static int shot_take(Body* body, int b, const Ct* c, const Prog* p, const uint8_t* ft, uint32_t lt);
 static int body_bake(Body* body);
 static void body_kits_refresh(void);
 
@@ -1332,7 +1347,7 @@ static int rbuf(FILE* f, Buf* b, uint32_t max)
 #define DV_TABLE_MAGIC 0x53485644u   /* "DVHS" */
 #define DV_KIT_VER     1u
 #define DV_BODY_MAGIC  0x42485644u   /* "DVHB" */
-#define DV_BODY_VER    8u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two); 5: its weld lists; 6: its slash (three more); 7: its first cut only (two); 8: its slash as the charged attack (21, 22) */
+#define DV_BODY_VER    9u   /* 2: the body's sound bank (its voice); 3: its special's animations (four, a first try); 4: its tired end (two); 5: its weld lists; 6: its slash (three more); 7: its first cut only (two); 8: its slash as the charged attack (21, 22); 9: its shot (three animations, the projectile) */
 #define DV_PROLOGUE_ID 100u          /* the prologue Clovis's kit's id in its file */
 #define DV_TABLE_VER   3u   /* 2: scene copies; 3: copies of the area hero's kit look too */
 
@@ -1425,6 +1440,11 @@ static void body_save(int b)
     ok = ok && w32(f, y->nweld);
     for (i = 0; ok && i < (int)y->nweld; i++)
         ok = wbuf(f, y->weld[i].p, y->weld[i].n) && wbuf(f, y->weldnode[i], y->weldn[i]);
+    ok = ok && wbuf(f, y->shot_script.p, y->shot_script.n) && w32(f, y->shot_hidden) &&
+         wbuf(f, y->shot_nodes.p, y->shot_nodes.n) && wbuf(f, y->shot_tex.p, y->shot_tex.n);
+    for (i = 0; ok && i < DV_SHOT_PARTS; i++)
+        ok = wbuf(f, y->shot_prims[i].p, y->shot_prims[i].n) && wbuf(f, y->shot_verts[i].p, y->shot_verts[i].n) &&
+             wbuf(f, y->shot_anims[i].p, y->shot_anims[i].n);
     fclose(f);
     if (!ok) remove(path);
 }
@@ -1457,6 +1477,13 @@ static int body_load(int b)
         y->weldn[i] = (uint8_t)nb.n;
         for (q = 0; q < nb.n; q++) ok = ok && nb.p[q] < 14, y->weldnode[i][q] = nb.p[q];
     }
+    ok = ok && rbuf(f, &y->shot_script, 0x10000) && r32(f, &y->shot_hidden) && rbuf(f, &y->shot_nodes, 0x1000) &&
+         rbuf(f, &y->shot_tex, 0x100000) && (!kBodies[b].shot.on || (y->shot_script.n && y->shot_tex.n &&
+                                                                       y->shot_nodes.n == DV_SHOT_PARTS * DV_NODE));
+    for (i = 0; ok && i < DV_SHOT_PARTS; i++)
+        ok = rbuf(f, &y->shot_prims[i], 0x100000) && rbuf(f, &y->shot_verts[i], 0x100000) &&
+             rbuf(f, &y->shot_anims[i], 0x10000) &&
+             (!kBodies[b].shot.on || (y->shot_prims[i].n >= 17 * 16 && y->shot_verts[i].n && y->shot_anims[i].n));
     fclose(f);
     y->ready = ok;
     return ok;
@@ -2087,19 +2114,20 @@ typedef struct { Buf tim; uint32_t ihead; int cx, cy, cw, ch, iw, ih, ox, oy, tp
 
 static uint16_t le16u(const uint8_t* p) { return (uint16_t)(p[0] | p[1] << 8); }
 
-/* A prim table's textured prims (records 0..3: FT3 FT4 GT3 GT4), in record
- * order: buffer 0's packet, its size, the words holding u / v (the first
- * also the CLUT, the second the tpage); include/dv/r2A_draw.h. */
-static int tex_prims(const uint8_t* tab, uint32_t len, TexPrim* out, int max)
+/* A prim table's textured prims (records 0..3: FT3 FT4 GT3 GT4; with
+ * `sprites` record 15 too, a POLY_FT4 per sprite), in record order: buffer
+ * 0's packet, its size, the words holding u / v (the first also the CLUT,
+ * the second the tpage); include/dv/r2A_draw.h. */
+static int tex_prims_ex(const uint8_t* tab, uint32_t len, TexPrim* out, int max, int sprites)
 {
-    static const uint32_t size[4] = {0x20, 0x28, 0x28, 0x34};
-    static const uint8_t uvw[4][4] = {{3, 5, 7, 0}, {3, 5, 7, 9}, {3, 6, 9, 0}, {3, 6, 9, 12}};
-    static const uint32_t nuv[4] = {3, 4, 3, 4};
+    static const uint32_t size[5] = {0x20, 0x28, 0x28, 0x34, 0x28};
+    static const uint8_t uvw[5][4] = {{3, 5, 7, 0}, {3, 5, 7, 9}, {3, 6, 9, 0}, {3, 6, 9, 12}, {3, 5, 7, 9}};
+    static const uint32_t nuv[5] = {3, 4, 3, 4, 4};
     uint32_t r, k;
     int n = 0;
     if (len < 17 * 16) return -1;
-    for (r = 0; r < 4; r++) {
-        uint32_t cnt = le16u(tab + 16 * r + 2), poff = le32(tab + 16 * r + 4);
+    for (r = 0; r < (sprites ? 5u : 4u); r++) {
+        uint32_t rec = r < 4 ? r : 15, cnt = le16u(tab + 16 * rec + 2), poff = le32(tab + 16 * rec + 4);
         for (k = 0; k < cnt; k++) {
             if (n == max || poff + 2 * size[r] * (k + 1) > len) return -1;
             out[n].off = poff + 2 * size[r] * k;
@@ -2110,6 +2138,10 @@ static int tex_prims(const uint8_t* tab, uint32_t len, TexPrim* out, int max)
         }
     }
     return n;
+}
+static int tex_prims(const uint8_t* tab, uint32_t len, TexPrim* out, int max)
+{
+    return tex_prims_ex(tab, len, out, max, 0);
 }
 
 static void prim_box(const uint8_t* tab, const TexPrim* p, PBox* b)
@@ -2378,6 +2410,176 @@ static int weapon_is_own(int hero, int w)
            !memcmp(hk->ent[hv - 1], wk->verts.p, wk->verts.n);
 }
 
+/* The op 3 of a kit's shot (shot_install: op 6 class 5 after the hero's ops,
+ * then g_Objects[1..4]'s op 3s, the last the projectile's): its byte offset
+ * in the kit's ops, or 0 for none. */
+#define DV_SPELL_CLASS 5
+#define DV_SHOT_OBJ    4
+static uint32_t kit_shot_op(const Kit* k)
+{
+    static Buf ops;
+    static Prog p;
+    static const uint8_t end[4] = {0};
+    int j, n = 0;
+    ops.n = 0;
+    if (!buf_put(&ops, k->ops.p, k->ops.n) || !buf_put(&ops, end, 4) || !prog_walk(&p, ops.p, ops.n)) return 0;
+    for (j = 1; j < p.nops && p.ops[j].op != 6; j++) {}
+    if (j >= p.nops || le32(ops.p + p.ops[j].pos + 4) != DV_SPELL_CLASS) return 0;
+    for (j++; j < p.nops && p.ops[j].op == 3; j++) n++;
+    return n == DV_SHOT_OBJ ? p.ops[j - 1].pos : 0;
+}
+
+/* The texels and CLUTs of the hero page that a kit's nodes but `skip` (-1:
+ * none) draw with, and its shot's once moved in (heroswap.py page_use). */
+static void kit_page_use(const Kit* k, int skip, uint8_t* body, uint8_t* body_clut)
+{
+    static TexPrim tp[DV_MAX_TPRIMS];
+    uint32_t nn = le32(k->ops.p + 12), node, sp = kit_shot_op(k), tabs[52], sprites[52], nt = 0, t;
+    int n, i;
+    memset(body, 0, 256 * 256);
+    memset(body_clut, 0, 65536 / 8);
+    for (node = 0; node < nn && node < 48; node++)
+        if ((int)node != skip) {
+            tabs[nt] = kit_node_ref(k, node, 0x68);
+            sprites[nt++] = 0;
+        }
+    for (node = 0; sp && node < le32(k->ops.p + sp + 12) && node < 4; node++) {
+        tabs[nt] = le32(k->ops.p + sp + 16 + node * DV_NODE + 0x68);
+        sprites[nt++] = 1;
+    }
+    for (t = 0; t < nt; t++) {
+        uint32_t e = tabs[t];
+        if (!e || e > k->nent) continue;
+        n = tex_prims_ex(k->ent[e - 1], k->entlen[e - 1], tp, DV_MAX_TPRIMS, (int)sprites[t]);
+        for (i = 0; i < n; i++) {
+            PBox b;
+            int u, v;
+            prim_box(k->ent[e - 1], &tp[i], &b);
+            if (b.tpage != DV_HERO_TPAGE) continue;
+            body_clut[b.clut >> 3] |= (uint8_t)(1 << (b.clut & 7));
+            for (v = b.v0; v <= b.v1; v++)
+                for (u = b.u0; u <= b.u1; u++) body[v * 256 + u] = 1;
+        }
+    }
+}
+
+/* The page with its image cut to its first `h` rows (PageTim.trimmed). */
+static int pg_trim(PageTim* p, int h)
+{
+    Buf t = {0};
+    uint8_t hd[12];
+    if (h > p->ih || !buf_put(&t, p->tim.p, p->ihead)) return 0;
+    put32(hd, 12 + 2u * (uint32_t)(p->iw * h));
+    memcpy(hd + 4, p->tim.p + p->ihead + 4, 6);
+    hd[10] = (uint8_t)h;
+    hd[11] = (uint8_t)(h >> 8);
+    if (!buf_put(&t, hd, 12) || !buf_put(&t, p->tim.p + p->ihead + 12, 2u * (uint32_t)(p->iw * h))) {
+        buf_free(&t);
+        return 0;
+    }
+    buf_free(&p->tim);
+    p->tim = t;
+    p->ih = h;
+    return 1;
+}
+
+/* The prims of `tabs`, drawn from page `src`, drawn from the hero page `pg`
+ * instead: their texels and CLUTs moved in where `body` / `body_clut` leave
+ * room, the prims pointed there, in place (heroswap.py move_texture; with
+ * `trim`, an image grown for them cut back to the rows they reach, the rows
+ * under it left for a weapon's CLUTs). 1: done; 0: bad data; -1: no room
+ * for the CLUTs; -2: it does not fit. */
+static int move_texture(PageTim* pg, const uint8_t* body, const uint8_t* body_clut, const PageTim* src,
+                        uint8_t* const* tabs, const uint32_t* lens, int ntabs, int sprites, int trim, int* nisl,
+                        int* ncl, int* grown)
+{
+    static TexPrim tp[DV_MAX_TPRIMS];
+    static PBox bx[DV_MAX_TPRIMS];
+    static Isl isl[DV_MAX_TPRIMS];
+    static int owner[DV_MAX_TPRIMS], pu[DV_MAX_TPRIMS], pv[DV_MAX_TPRIMS], tabof[DV_MAX_TPRIMS];
+    uint16_t cfrom[64], cto[64];
+    uint32_t j;
+    int n = 0, nr, nc, i, t;
+    for (t = 0; t < ntabs; t++) {
+        int c = tex_prims_ex(tabs[t], lens[t], tp + n, DV_MAX_TPRIMS - n, sprites);
+        if (c < 0) return 0;
+        for (i = n; i < n + c; i++) {
+            prim_box(tabs[t], &tp[i], &bx[i]);
+            tabof[i] = t;
+        }
+        n += c;
+    }
+    nr = weapon_islands(bx, n, isl, owner, src->tpage);
+    {
+        /* more CLUTs than the hero's block has free (Raimun's sword's six):
+         * the block grows up into the page's rows above it, which the image
+         * leaves (heroswap.py PageTim.more_cluts) */
+        uint16_t used[256];
+        int nu = 0, nfree = 0, short_by, rows, x, y, q;
+        for (i = 0; i < n; i++) {
+            if (owner[i] < 0) continue;
+            for (q = 0; q < nu && used[q] != bx[i].clut; q++) {}
+            if (q == nu && nu < 256) used[nu++] = bx[i].clut;
+        }
+        for (y = pg->cy; y < pg->cy + pg->ch; y++)
+            for (x = pg->cx; x < pg->cx + pg->cw; x += 16) {
+                uint16_t id = (uint16_t)((y << 6) | (x / 16));
+                nfree += !(body_clut[id >> 3] & (1 << (id & 7)));
+            }
+        short_by = nu - nfree;
+        if (short_by > 0) {
+            rows = (short_by + pg->cw / 16 - 1) / (pg->cw / 16);
+            if (pg->ih > pg->cy - rows || !pg_more_cluts(pg, rows)) return -1;
+        }
+    }
+    *grown = 0;
+    if (!place_weapon(pg, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
+        int ih = pg->ih;
+        if (!pg_grow(pg) || !place_weapon(pg, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc))
+            return -2;
+        *grown = 1;
+        if (trim) {
+            for (i = 0; i < nr; i++)
+                if (pv[i] + isl[i].v1 - isl[i].v0 + 1 > ih) ih = pv[i] + isl[i].v1 - isl[i].v0 + 1;
+            if (!pg_trim(pg, ih)) return 0;
+        }
+    }
+    /* texels, CLUTs, then the prims' u / v and CLUT */
+    for (i = 0; i < nr; i++) {
+        int x, y, w4 = (isl[i].u1 - isl[i].u0 + 1) / 4, h = isl[i].v1 - isl[i].v0 + 1;
+        /* the source's units are page-relative: its image starts at (ox, oy) of its page */
+        if (isl[i].u0 / 4 < src->ox || isl[i].v0 < src->oy || isl[i].u1 / 4 - src->ox >= src->iw ||
+            isl[i].v1 - src->oy >= src->ih)
+            return 0;
+        for (y = 0; y < h; y++)
+            for (x = 0; x < w4; x++)
+                pg_set_unit(pg, pu[i] / 4 + x, pv[i] + y, pg_unit(src, isl[i].u0 / 4 + x - src->ox, isl[i].v0 + y - src->oy));
+    }
+    for (i = 0; i < nc; i++) {
+        if (!pg_has_slot(src, cfrom[i]) || !pg_has_slot(pg, cto[i])) return 0;
+        memcpy(pg_clut(pg, cto[i]), pg_clut(src, cfrom[i]), 32);
+    }
+    for (i = 0; i < n; i++) {
+        int du, dv, buf;
+        if (owner[i] < 0) continue;
+        du = pu[owner[i]] - isl[owner[i]].u0;
+        dv = pv[owner[i]] - isl[owner[i]].v0;
+        for (buf = 0; buf < 2; buf++)
+            for (j = 0; j < tp[i].nuv; j++) {
+                uint8_t* q = tabs[tabof[i]] + tp[i].off + (uint32_t)buf * tp[i].size + 4 * tp[i].uvw[j];
+                uint32_t w = le32(q), hi = w >> 16;
+                int k;
+                if (j == 0)
+                    for (k = 0; k < nc; k++) if (cfrom[k] == hi) { hi = cto[k]; break; }
+                if (j == 1) hi = (hi & ~0x1Fu) | DV_HERO_TPAGE;   /* the tpage: now the hero page */
+                put32(q, hi << 16 | (uint32_t)((int)((w >> 8) & 0xFF) + dv) << 8 | (uint32_t)((int)(w & 0xFF) + du));
+            }
+    }
+    *nisl = nr;
+    *ncl = nc;
+    return 1;
+}
+
 /* The armed kit: hero `hero`'s kit with weapon model `weapon`'s node 2
  * (entries and page are this plugin's; the rest is the hero kit's, never
  * freed here). */
@@ -2387,18 +2589,13 @@ static int s_armed_hero = -1, s_armed_weapon = -1;
 
 static const Kit* arm_kit(int hero, int weapon)
 {
-    static TexPrim tp[DV_MAX_TPRIMS];
-    static PBox bx[DV_MAX_TPRIMS];
-    static Isl isl[DV_MAX_TPRIMS];
-    static int owner[DV_MAX_TPRIMS], pu[DV_MAX_TPRIMS], pv[DV_MAX_TPRIMS];
     static uint8_t body[256 * 256], body_clut[65536 / 8];
     static PageTim src;
     static Tim t[64];
     const Kit* hk;
     const WKit* wk;
-    uint32_t hp, hv, nn, node, j;
-    uint16_t cfrom[64], cto[64];
-    int n, nr, nc, i, nt, grown = 0;
+    uint32_t hp, hv;
+    int nr = 0, nc = 0, nt, grown = 0, r;
 
     if (s_armed.ready && s_armed_hero == hero && s_armed_weapon == weapon) return &s_armed;
     s_armed.ready = 0;
@@ -2410,103 +2607,22 @@ static const Kit* arm_kit(int hero, int weapon)
     hp = kit_node_ref(hk, DV_WEAPON_NODE, 0x68);
     hv = kit_node_ref(hk, DV_WEAPON_NODE, 0x6C);
     if (!hp || hp > hk->nent || !hv || hv > hk->nent) return NULL;
-    /* the hero's body: texels and CLUTs of its other nodes' hero-page prims */
-    memset(body, 0, sizeof body);
-    memset(body_clut, 0, sizeof body_clut);
-    nn = le32(hk->ops.p + 12);
-    for (node = 0; node < nn && node < 32; node++) {
-        uint32_t e = kit_node_ref(hk, node, 0x68);
-        if (node == DV_WEAPON_NODE || !e || e > hk->nent) continue;
-        n = tex_prims(hk->ent[e - 1], hk->entlen[e - 1], tp, DV_MAX_TPRIMS);
-        for (i = 0; i < n; i++) {
-            PBox b;
-            int u, v;
-            prim_box(hk->ent[e - 1], &tp[i], &b);
-            if (b.tpage != DV_HERO_TPAGE) continue;
-            body_clut[b.clut >> 3] |= (uint8_t)(1 << (b.clut & 7));
-            for (v = b.v0; v <= b.v1; v++)
-                for (u = b.u0; u <= b.u1; u++) body[v * 256 + u] = 1;
-        }
-    }
-    /* the weapon's prims, its islands; the two pages (the weapon's stage's and
-     * the hero kit's last page TIM) */
-    n = tex_prims(wk->prims.p, wk->prims.n, tp, DV_MAX_TPRIMS);
-    if (n < 0) return NULL;
-    for (i = 0; i < n; i++) prim_box(wk->prims.p, &tp[i], &bx[i]);
+    /* the hero's body: texels and CLUTs of its other nodes' hero-page prims
+     * (and its shot's); the two pages (the weapon's stage's and the hero
+     * kit's last page TIM) */
+    kit_page_use(hk, DV_WEAPON_NODE, body, body_clut);
     if (!page_parse(&src, wk->page.p, wk->page.n, 0)) return NULL;
-    nr = weapon_islands(bx, n, isl, owner, src.tpage);
     nt = tim_chain(hk->page.p, hk->page.n, t, 64, NULL);
     if (nt < 1 || !page_parse(&s_armed_page, hk->page.p + t[nt - 1].start, t[nt - 1].end - t[nt - 1].start, 1))
         return NULL;
-    {
-        /* a weapon with more CLUTs than the hero's block has free (Raimun's
-         * six): the block grows up into the page's rows above it, which the
-         * image leaves (heroswap.py arm / PageTim.more_cluts) */
-        uint16_t used[256];
-        int nu = 0, nfree = 0, short_by, rows, x, y, q;
-        for (i = 0; i < n; i++) {
-            if (owner[i] < 0) continue;
-            for (q = 0; q < nu && used[q] != bx[i].clut; q++) {}
-            if (q == nu && nu < 256) used[nu++] = bx[i].clut;
-        }
-        for (y = s_armed_page.cy; y < s_armed_page.cy + s_armed_page.ch; y++)
-            for (x = s_armed_page.cx; x < s_armed_page.cx + s_armed_page.cw; x += 16) {
-                uint16_t id = (uint16_t)((y << 6) | (x / 16));
-                nfree += !(body_clut[id >> 3] & (1 << (id & 7)));
-            }
-        short_by = nu - nfree;
-        if (short_by > 0) {
-            rows = (short_by + s_armed_page.cw / 16 - 1) / (s_armed_page.cw / 16);
-            if (s_armed_page.ih > s_armed_page.cy - rows || !pg_more_cluts(&s_armed_page, rows)) {
-                fprintf(stderr, "%s: no room for %s's CLUTs in %s's page\n", DV_HS_PLUGIN, kWeapons[weapon].name,
-                        kHeroNames[hero]);
-                return NULL;
-            }
-        }
-    }
-    if (!place_weapon(&s_armed_page, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
-        if (!pg_grow(&s_armed_page) ||
-            !place_weapon(&s_armed_page, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
-            fprintf(stderr, "%s: %s does not fit in %s's page\n", DV_HS_PLUGIN, kWeapons[weapon].name,
-                    kHeroNames[hero]);
-            return NULL;
-        }
-        grown = 1;
-    }
-    /* texels, CLUTs, then the prims' u / v and CLUT */
-    for (i = 0; i < nr; i++) {
-        int x, y, w4 = (isl[i].u1 - isl[i].u0 + 1) / 4, h = isl[i].v1 - isl[i].v0 + 1;
-        /* the source's units are page-relative: its image starts at (ox, oy) of its page */
-        if (isl[i].u0 / 4 < src.ox || isl[i].v0 < src.oy || isl[i].u1 / 4 - src.ox >= src.iw ||
-            isl[i].v1 - src.oy >= src.ih)
-            return NULL;
-        for (y = 0; y < h; y++)
-            for (x = 0; x < w4; x++)
-                pg_set_unit(&s_armed_page, pu[i] / 4 + x, pv[i] + y,
-                            pg_unit(&src, isl[i].u0 / 4 + x - src.ox, isl[i].v0 + y - src.oy));
-    }
-    for (i = 0; i < nc; i++) {
-        if (!pg_has_slot(&src, cfrom[i]) || !pg_has_slot(&s_armed_page, cto[i])) return NULL;
-        memcpy(pg_clut(&s_armed_page, cto[i]), pg_clut(&src, cfrom[i]), 32);
-    }
     s_armed_prims.n = 0;
     if (!buf_put(&s_armed_prims, wk->prims.p, wk->prims.n)) return NULL;
-    for (i = 0; i < n; i++) {
-        int du, dv, buf;
-        if (owner[i] < 0) continue;
-        du = pu[owner[i]] - isl[owner[i]].u0;
-        dv = pv[owner[i]] - isl[owner[i]].v0;
-        for (buf = 0; buf < 2; buf++)
-            for (j = 0; j < tp[i].nuv; j++) {
-                uint8_t* q = s_armed_prims.p + tp[i].off + (uint32_t)buf * tp[i].size + 4 * tp[i].uvw[j];
-                uint32_t w = le32(q), hi = w >> 16;
-                int k;
-                if (j == 0)
-                    for (k = 0; k < nc; k++) if (cfrom[k] == hi) { hi = cto[k]; break; }
-                if (j == 1) hi = (hi & ~0x1Fu) | DV_HERO_TPAGE;   /* the tpage: now the hero page */
-                put32(q, hi << 16 | (uint32_t)((int)((w >> 8) & 0xFF) + dv) << 8 | (uint32_t)((int)(w & 0xFF) + du));
-            }
-    }
+    r = move_texture(&s_armed_page, body, body_clut, &src, &s_armed_prims.p, &s_armed_prims.n, 1, 0, 0, &nr, &nc,
+                     &grown);
+    if (r < 0)
+        fprintf(stderr, "%s: %s %s %s's page\n", DV_HS_PLUGIN, kWeapons[weapon].name,
+                r == -1 ? "has no room for its CLUTs in" : "does not fit in", kHeroNames[hero]);
+    if (r <= 0) return NULL;
     s_armed = *hk;
     s_armed.ent[hp - 1] = s_armed_prims.p;
     s_armed.entlen[hp - 1] = s_armed_prims.n;
@@ -2606,6 +2722,7 @@ static int body_take(int b, const uint8_t* fo, uint32_t lo, const uint8_t* ft, u
             if (!ref || ref >= c.n || !buf_put(&body->anims[q], CT_E(&c, ref), CT_L(&c, ref))) return 0;
         }
     }
+    if (!shot_take(body, b, &c, &p, ft, lt)) return 0;
     body->tex.n = body->portrait.n = 0;
     if (!buf_put(&body->tex, ft, lt)) return 0;           /* the texture file, whole: baked with the kit */
     if (kBodies[b].por_file >= 0) {                       /* the k-th TIM of a scene pack's image set */
@@ -2768,7 +2885,8 @@ static int quiet_cries(uint8_t* s, uint32_t len)
  * animations go right after the kit's core, named by slots 195 and 196.
  * -1: no memory; 0: not this script (no anchor); 1: done. */
 static const uint32_t kSpecialAnchor[2] = {0x00000402u, 0x00002088u};   /* anim self, 136, 0, 1, 0 */
-static const uint16_t kSpecialSlots[DV_SPECIAL_N] = {195, 196, 192, 193};   /* then the slash's */
+static const uint16_t kSpecialSlots[DV_SPECIAL_N] = {195, 196, 192, 193, 189, 190, 191};   /* then the slash's,
+                                                                                   * the shot's */
 static const uint32_t kSpecialBlock[64] = {
     0x00010503u, 0x00000006u, 0x0000001Eu, 0x00000402u, 0x000040C3u, 0x00010603u,
     0x00000038u, 0x00000000u, 0x00010603u, 0x00000039u, 0x00000000u, 0x00010703u,
@@ -2907,15 +3025,284 @@ static int slash_patch(uint8_t* s, uint32_t n)
     return 1;
 }
 
-/* The tired end and, with the slash's two animations, the slash: both
- * blocks after the script, all the animations after the kit's core (slots
- * kSpecialSlots, then 192, 193). 0 when an anchor is missing: none of it. */
+/* The grown Clovis's energy shot (2026-11-25, the player: "and the fire
+ * attack?"; on L2, my proposal: "ok, let's try"; decomp heroswap.py
+ * shot_moves / shot_install / shot_texture, whose SHOT_TEXT is the block's
+ * source). As the boss (3/17 file 76 entry 60, L0310) he plays his anims 23
+ * (wind-up), 24 (blinking; at its 12th frame his cry, the shot's sound and
+ * the projectile's signal: its deathTimer set to 1) and 25 (recovery). The
+ * projectile is his file's second object (entry 67: a ring of quads and an
+ * additive sprite, a ball of fire; 2 animations, 0 hidden, 1 the spin), at
+ * rest in its own loop until the signal, then attached to his node 0's
+ * point and sent along his facing for 25 frames with the effects page's
+ * sparks, kind 3, power 8, until it hits or meets a wall. An object that
+ * hits enemies must be one of g_Objects[1..4], CollisionUpdate's attackers
+ * (41..72 would hit the hero too, and rooms free them): the spell objects
+ * (class 5). A spell's pack puts its objects from 1 on, and of 3/17's spells
+ * only spells 4 and 5 at level 3 reach 4. So the kit puts the projectile in
+ * g_Objects[4] (shot_install): after the hero's ops, op 6 class 5 and three
+ * op 3s for 1..3 (kShotDummy: off at once; a hidden node, a copy of the
+ * hero's weapon node, as SpellCancel / SpellObjectsReset trade g_Objects[1]'s
+ * hidden node with the hero's node 2 while a power-up is on), then the
+ * projectile's, its entries right after the hero's script: its script's
+ * address is the hero's plus the hero script's length, which the move
+ * checks (a spell may have taken slot 4: then no shot). Its script is the
+ * boss's but for kShotEdits: its attach point is the hero's (obj -4 from
+ * slot 4), its direction the hero's facing (the boss passed his through acc,
+ * which the spell objects between write), and its hit sound none. The move
+ * (shot_patch): L2 (the raw button; Dash keeps L1, and L2's
+ * Dash comes after these checks) pressed in the idle's loop, the walk's or
+ * the run's (their yield becomes a jump to a hook that yields, checks and
+ * goes on); it turns slot 4 on (SetCurrentSpell turns 1..4 off at stage
+ * starts and spell changes), faces the auto-aim, plays his 23, 24, 25 (slots
+ * 189..191) with his cry (SE 36, his by the body's voice), then the idle.
+ * Its texture (his texture file's TIM at (480, 256)) moves into the hero
+ * page (shot_texture; its 64 x 64 sprite makes the page's image grow, as far
+ * as it reaches: the rows under it stay free for a weapon's CLUTs). The shot's own
+ * two sounds (his bank's SE 1 and 3) are not kept: 13 KB more of file 0 and
+ * of sound slot 1, and the grown Clovis no longer fit in 1/9, 8/1 and 7/34,
+ * where he fits without them (225 action stages of 226); the enemy's own hit
+ * reaction still sounds. */
+#define DV_SHOT_WORDS 99
+#define DV_SHOT_ENTS  (2 + 3 * DV_SHOT_PARTS)   /* script, the dummies' script, prims, verts, animations */
+static const uint32_t kShotEdits[4][3] = {     /* word, the disc's, the hero's */
+    {157, 0x0000FFFFu, 0x0000FFFCu},           /* native attach obj=-1 -> -4 */
+    {158, 0x0C012003u, 0x05012003u},           /* mov.h self+0x32, acc -> objects+0x32 */
+    {160, 0x00000000u, 0x00000019u},
+    {168, 0x03072301u, 0x00002801u},           /* sound.play 7, 3 -> self.rel +0 (none: see above) */
+};
+static const uint32_t kShotDummy[6] = {0x00010703u, 0x0000001Cu, 0x00000000u, 0x69690101u, 0x69690201u, 0};
+static const uint32_t kShotBlock[DV_SHOT_WORDS] = {
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x000E0301u, 0x005E0301u,
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00080301u, 0x00590301u,
+    0x69690101u, 0x02010B03u, 0x00000012u, 0x01000000u, 0x00020301u, 0x00540301u,
+    0x050C1F03u, 0x00000000u, 0x00000000u, 0x000C0803u, 0x00000000u, 0x5A5A5A5Au,
+    0x05013104u, 0x00000250u, 0x0000000Cu, 0x00000000u, 0x00020301u, 0x00490301u,
+    0x00050703u, 0x0000095Cu, 0x00000043u, 0x09012003u, 0x00000019u, 0x00000010u,
+    0x00010703u, 0x0000001Du, 0x00000001u, 0x00010603u, 0x00000038u, 0x00000000u,
+    0x00010703u, 0x0000001Eu, 0x00000000u, 0x00010703u, 0x000000C0u, 0x00000000u,
+    0x00010703u, 0x0000015Eu, 0x00000000u, 0x00010603u, 0x0000004Au, 0x00000000u,
+    0x00000402u, 0x000020BDu, 0x69690101u, 0x01011203u, 0x00000053u, 0x00000001u,
+    0x69690201u, 0x00000402u, 0x000020BEu, 0x69690101u, 0x00010603u, 0x0000004Au,
+    0x00000002u, 0x01051203u, 0x00000050u, 0x0000000Bu, 0x24012301u, 0x050C1F03u,
+    0x00000000u, 0x00000000u, 0x000C0803u, 0x00000000u, 0x5A5A5A5Au, 0x05013104u,
+    0x00000250u, 0x0000000Cu, 0x00000000u, 0x00050503u, 0x00000252u, 0x00000001u,
+    0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u, 0x00000402u, 0x000020BFu,
+    0x00010603u, 0x0000004Au, 0x00000000u, 0x69690101u, 0x01011203u, 0x00000053u,
+    0x00000001u, 0x69690201u, 0x00040301u,
+};
+static const uint8_t kShotHooks[3][2] = {{11, 2}, {17, 1}, {18, 1}};   /* anim self, N, 0, 2, 0 (its first) and its
+                                                                        * k-th yield: the idle's loop, walk, run */
+static const uint8_t kShotHookAt[3] = {0, 6, 12};                     /* their hooks in the block */
+static const uint8_t kShotExits[5][2] = {{5, 0}, {11, 1}, {17, 2}, {29, 3}, {98, 3}};   /* jump word: 0..2 on after
+                                                                        * hook k's yield, 3 the idle */
+static const uint8_t kShotLen[2] = {23, 76};                          /* words that take the script's length */
+
+/* A body's shot (kBodies shot): its projectile's script (kShotEdits made),
+ * node templates, prims, verts, animations; the TIM its texture comes from
+ * (its texture file `ft`). 1 also for a body without one. */
+static int shot_take(Body* body, int b, const Ct* c, const Prog* p, const uint8_t* ft, uint32_t lt)
+{
+    static Ct ct;
+    static Tim t[64];
+    const uint8_t* e0 = CT_E(c, 0);
+    uint32_t pos, n, after, se, i;
+    int j, k = 0, op3 = -1, nt;
+    body->shot_script.n = body->shot_nodes.n = body->shot_tex.n = 0;
+    for (i = 0; i < DV_SHOT_PARTS; i++) body->shot_prims[i].n = body->shot_verts[i].n = body->shot_anims[i].n = 0;
+    if (!kBodies[b].shot.on) return 1;
+    for (j = 0; j < p->nops && op3 < 0; j++)
+        if (p->ops[j].op == 3 && k++ == kBodies[b].shot.obj) op3 = j;
+    if (op3 < 0) return 0;
+    pos = p->ops[op3].pos;
+    n = le32(e0 + pos + 12);
+    after = pos + 16 + n * DV_NODE;
+    se = le32(e0 + pos + 8);
+    if (n != DV_SHOT_PARTS || le32(e0 + after) != DV_SHOT_PARTS || !se || se >= c->n ||
+        !buf_put(&body->shot_script, CT_E(c, se), CT_L(c, se)))
+        return 0;
+    for (i = 0; i < 4; i++) {
+        uint32_t w = kShotEdits[i][0];
+        if (4 * w + 4 > body->shot_script.n || le32(body->shot_script.p + 4 * w) != kShotEdits[i][1]) return 0;
+        put32(body->shot_script.p + 4 * w, kShotEdits[i][2]);
+    }
+    body->shot_hidden = le32(e0 + pos + 4);
+    if (!buf_put(&body->shot_nodes, e0 + pos + 16, n * DV_NODE)) return 0;
+    for (i = 0; i < n; i++) {
+        uint32_t pe = le32(e0 + pos + 16 + i * DV_NODE + 0x68), ve = le32(e0 + pos + 16 + i * DV_NODE + 0x6C),
+                 ae = le32(e0 + after + 4 + 4 * i);
+        if (!pe || pe >= c->n || !ve || ve >= c->n || !ae || ae >= c->n || CT_L(c, pe) < 17 * 16 ||
+            !buf_put(&body->shot_prims[i], CT_E(c, pe), CT_L(c, pe)) ||
+            !buf_put(&body->shot_verts[i], CT_E(c, ve), CT_L(c, ve)) ||
+            !buf_put(&body->shot_anims[i], CT_E(c, ae), CT_L(c, ae)))
+            return 0;
+    }
+    if (!ct_parse(&ct, ft, lt) || kBodies[b].shot.tex_entry >= ct.n) return 0;
+    nt = tim_chain(CT_E(&ct, kBodies[b].shot.tex_entry), CT_L(&ct, kBodies[b].shot.tex_entry), t, 64, NULL);
+    for (j = 0, k = 0; j < nt; j++)
+        if (t[j].has_clut && t[j].image[0] == kBodies[b].shot.tex_x && t[j].image[1] == kBodies[b].shot.tex_y) {
+            k++;
+            body->shot_tex.n = 0;
+            if (!buf_put(&body->shot_tex, CT_E(&ct, kBodies[b].shot.tex_entry) + t[j].start, t[j].end - t[j].start))
+                return 0;
+        }
+    return k == 1;
+}
+
+/* The shot's move in the script `s` (`n` words, room for DV_SHOT_WORDS
+ * more): the block appended, the hooks' yields to it, its exits and the
+ * script's length (in bytes) filled. 0: a state not found. */
+static int shot_patch(uint8_t* s, uint32_t n)
+{
+    uint32_t hooks[3], to[4], p, q, w = 0, i;
+    int j;
+    for (j = 0; j < 3; j++) {
+        uint32_t want = kShotHooks[j][0] | 2u << 13, h = 0, nth = 0, y = 0;
+        int found = 0;
+        for (p = 0; p < n && !found; p += w & 0xFF) {      /* the state: its first `anim self, N, 0, 2, 0` */
+            if (!((w = le32(s + 4 * p)) & 0xFF)) return 0;
+            if (w == 0x00000402u && p + 1 < n && le32(s + 4 * p + 4) == want) {
+                h = p;
+                found = 1;
+            }
+        }
+        if (!found) return 0;
+        for (q = h + 2; q < n; q += w & 0xFF) {            /* its k-th yield, before the next `anim self` */
+            if (!((w = le32(s + 4 * q)) & 0xFF) || w == 0x00000402u) break;
+            if (w == 0x69690101u && ++nth == kShotHooks[j][1]) {
+                y = q;
+                break;
+            }
+        }
+        if (!y) return 0;
+        hooks[j] = y;
+        to[j] = y + 1;
+        if (!j) to[3] = h;
+    }
+    for (i = 0; i < DV_SHOT_WORDS; i++) put32(s + 4 * (n + i), kShotBlock[i]);
+    for (j = 0; j < 5; j++) {
+        uint32_t x = kShotExits[j][0];
+        put32(s + 4 * (n + x), 0x0301u | ((to[kShotExits[j][1]] - (n + x)) & 0xFFFFu) << 16);
+    }
+    for (j = 0; j < 3; j++) put32(s + 4 * hooks[j], 0x0301u | ((n + kShotHookAt[j] - hooks[j]) & 0xFFFFu) << 16);
+    for (j = 0; j < 2; j++) put32(s + 4 * (n + kShotLen[j]), 4 * (n + DV_SHOT_WORDS));
+    return 1;
+}
+
+/* The kit with the body's projectile in g_Objects[DV_SHOT_OBJ]: its entries
+ * right after the hero's script (the script first), the refs past it moved
+ * on, then after the hero's ops op 6 class 5, the dummies' op 3s and the
+ * projectile's. -1: no memory; 0: no room. */
+static int shot_install(Kit* k, const Body* b)
+{
+    static Buf ops;
+    static Prog p;
+    static const uint8_t end[4] = {0};
+    const Buf* src[DV_SHOT_ENTS];
+    Buf dummy = {0};
+    uint8_t* ne[DV_SHOT_ENTS];
+    uint32_t se = le32(k->ops.p + 8), first = se + 1, i, j, nn = DV_SHOT_PARTS, weapon;
+    if (!se || se > k->nent || k->nent + DV_SHOT_ENTS > 400 || k->nrefs + 64 > 512) return 0;
+    src[0] = &b->shot_script;
+    src[1] = &dummy;
+    for (i = 0; i < nn; i++) {
+        src[2 + i] = &b->shot_prims[i];
+        src[2 + nn + i] = &b->shot_verts[i];
+        src[2 + 2 * nn + i] = &b->shot_anims[i];
+    }
+    for (i = 0; i < 6; i++)
+        if (!buf_u32(&dummy, kShotDummy[i])) { buf_free(&dummy); return -1; }
+    for (i = 0; i < DV_SHOT_ENTS; i++) {
+        if (!(ne[i] = (uint8_t*)malloc(src[i]->n ? src[i]->n : 1))) {
+            while (i--) free(ne[i]);
+            buf_free(&dummy);
+            return -1;
+        }
+        memcpy(ne[i], src[i]->p, src[i]->n);
+    }
+    for (i = 0; i < k->nrefs; i++) {
+        uint32_t v = le32(k->ops.p + k->refs[i]);
+        if (v >= first) put32(k->ops.p + k->refs[i], v + DV_SHOT_ENTS);
+    }
+    for (i = k->nent; i > se; i--) {
+        k->ent[i - 1 + DV_SHOT_ENTS] = k->ent[i - 1];
+        k->entlen[i - 1 + DV_SHOT_ENTS] = k->entlen[i - 1];
+    }
+    for (i = 0; i < DV_SHOT_ENTS; i++) {
+        k->ent[se + i] = ne[i];
+        k->entlen[se + i] = src[i]->n;
+    }
+    k->nent += DV_SHOT_ENTS;
+    buf_free(&dummy);
+    /* the ops: class 5; three dummies (a hidden node: the hero's weapon node); the projectile */
+    weapon = 16 + DV_WEAPON_NODE * DV_NODE;
+    ops.n = 0;
+    if (!buf_put(&ops, k->ops.p, k->ops.n) || !buf_u32(&ops, 6) || !buf_u32(&ops, DV_SPELL_CLASS)) return -1;
+    for (i = 0; i + 1 < DV_SHOT_OBJ; i++)
+        if (!buf_u32(&ops, 3) || !buf_u32(&ops, 1) || !buf_u32(&ops, first + 1) || !buf_u32(&ops, 1) ||
+            !buf_put(&ops, k->ops.p + weapon, DV_NODE) || !buf_u32(&ops, 0))
+            return -1;
+    if (!buf_u32(&ops, 3) || !buf_u32(&ops, b->shot_hidden) || !buf_u32(&ops, first) || !buf_u32(&ops, nn)) return -1;
+    for (i = 0; i < nn; i++) {
+        uint32_t at = ops.n;
+        if (!buf_put(&ops, b->shot_nodes.p + i * DV_NODE, DV_NODE)) return -1;
+        put32(ops.p + at + 0x68, first + 2 + i);
+        put32(ops.p + at + 0x6C, first + 2 + nn + i);
+    }
+    if (!buf_u32(&ops, nn)) return -1;
+    for (i = 0; i < nn; i++)
+        if (!buf_u32(&ops, first + 2 + 2 * nn + i)) return -1;
+    if (!buf_put(&ops, end, 4) || !prog_walk(&p, ops.p, ops.n) || p.nrefs > 512) return 0;
+    k->ops.n = 0;
+    if (!buf_put(&k->ops, ops.p, ops.n - 4)) return -1;
+    k->nrefs = 0;
+    for (j = 0; j < (uint32_t)p.nrefs; j++) k->refs[k->nrefs++] = p.refs[j];
+    return 1;
+}
+
+/* The kit's page with its shot's texture moved in (heroswap.py
+ * shot_texture; arm_kit's placement): the projectile's prims drawn from
+ * the hero page. 0: it does not fit (no shot then: the kit is dressed
+ * again without it). */
+static int shot_texture(Kit* k, const Body* b)
+{
+    static uint8_t body[256 * 256], body_clut[65536 / 8];
+    static PageTim src, pg;
+    static Tim t[64];
+    uint8_t* tabs[DV_SHOT_PARTS];
+    uint32_t lens[DV_SHOT_PARTS], sp = kit_shot_op(k), i;
+    int nr = 0, nc = 0, grown = 0, nt;
+    if (!sp || le32(k->ops.p + sp + 12) != DV_SHOT_PARTS) return 0;
+    for (i = 0; i < DV_SHOT_PARTS; i++) {
+        uint32_t e = le32(k->ops.p + sp + 16 + i * DV_NODE + 0x68);
+        if (!e || e > k->nent) return 0;
+        tabs[i] = k->ent[e - 1];
+        lens[i] = k->entlen[e - 1];
+    }
+    kit_page_use(k, -1, body, body_clut);
+    nt = tim_chain(k->page.p, k->page.n, t, 64, NULL);
+    if (!page_parse(&src, b->shot_tex.p, b->shot_tex.n, 0) || nt < 1 ||
+        !page_parse(&pg, k->page.p + t[nt - 1].start, t[nt - 1].end - t[nt - 1].start, 1) ||
+        move_texture(&pg, body, body_clut, &src, tabs, lens, DV_SHOT_PARTS, 1, 1, &nr, &nc, &grown) <= 0)
+        return 0;
+    k->page.n = 0;
+    if (!buf_put(&k->page, pg.tim.p, pg.tim.n)) return 0;
+    k->npage = 1;
+    fprintf(stderr, "%s: the shot's texture: %d island(s)%s, %d CLUT(s)\n", DV_HS_PLUGIN, nr,
+            grown ? " (page grown)" : "", nc);
+    return 1;
+}
+
+/* The tired end and, with the slash's two animations, the slash, with the
+ * shot's three the shot's move: the blocks after the script, all the
+ * animations after the kit's core (slots kSpecialSlots: 195, 196, then 192,
+ * 193, then 189..191). 0 when an anchor is missing: none of it. */
 static int special_patch(Kit* k, const Body* b)
 {
     uint32_t se = le32(k->ops.p + 8), n, hits = 0, i, p = 0, base, last, core, after, slots, w, na, words;
     uint8_t *s, *ns, *an[DV_SPECIAL_N];
     int32_t target;
-    na = b->anims[2].n ? DV_SPECIAL_N : 2;
+    na = b->anims[4].n ? DV_SPECIAL_N : b->anims[2].n ? 4 : 2;
     if (!se || se > k->nent || k->nent + na > 400 || le32(k->ops.p + 12) != 14) return 0;
     after = 16 + 14 * DV_NODE;
     slots = le32(k->ops.p + after);
@@ -2931,7 +3318,7 @@ static int special_patch(Kit* k, const Body* b)
         p += w & 0xFF;
     }
     target = (int32_t)p + (int16_t)(w >> 16);
-    words = n + 64 + (na > 2 ? DV_SLASH_WORDS : 0);
+    words = n + 64 + (na > 2 ? DV_SLASH_WORDS : 0) + (na > 4 ? DV_SHOT_WORDS : 0);
     if (!(ns = (uint8_t*)malloc(words * 4))) return -1;
     memcpy(ns, s, n * 4);
     base = n;
@@ -2939,7 +3326,7 @@ static int special_patch(Kit* k, const Body* b)
     put32(ns + 4 * p, (w & 0xFFFFu) | ((base - p) & 0xFFFFu) << 16);   /* now to the block */
     for (i = 0; i < 64; i++) put32(ns + 4 * (n + i), kSpecialBlock[i]);
     put32(ns + 4 * last, (kSpecialBlock[63] & 0xFFFFu) | ((uint32_t)(target - (int32_t)last) & 0xFFFFu) << 16);
-    if (na > 2 && !slash_patch(ns, n + 64)) {
+    if ((na > 2 && !slash_patch(ns, n + 64)) || (na > 4 && !shot_patch(ns, n + 64 + DV_SLASH_WORDS))) {
         free(ns);
         return 0;
     }
@@ -3298,13 +3685,20 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
                  b->portrait.n ? b->portrait.n : d->portrait.n))
         goto fail;
     k->npage = 1;
-    if (own_moves && b->anims[0].n) {                  /* Moves > Clovis (Old): his tired end and slash */
+    if (own_moves && b->anims[0].n) {                  /* Moves > Clovis (Old): his tired end, slash, shot */
         int sp = special_patch(k, b);
         if (sp < 0) goto fail;
         if (sp) {
             kitflags |= DV_KIT_SPECIAL;
-            fprintf(stderr, "%s: a body's tired end on the strong attack (slots 195, 196)%s\n", DV_HS_PLUGIN,
-                    b->anims[2].n ? " and its slash as the charged attack (slots 192, 193)" : "");
+            fprintf(stderr, "%s: a body's tired end on the strong attack (slots 195, 196)%s%s\n", DV_HS_PLUGIN,
+                    b->anims[2].n ? ", its slash as the charged attack (slots 192, 193)" : "",
+                    b->anims[4].n ? ", its shot on L2 (slots 189..191)" : "");
+        }
+        if (sp && b->anims[4].n && b->shot_script.n) {  /* the shot's projectile in g_Objects[4], its texture */
+            int si = shot_install(k, b);
+            if (si < 0) goto fail;
+            if (!si || !shot_texture(k, b))
+                fprintf(stderr, "%s: no room for the shot's projectile: L2 does nothing\n", DV_HS_PLUGIN);
         }
     }
     /* after the special: its entries are the tail's last; the ops moved, so
@@ -3315,9 +3709,8 @@ static int kit_dress(Kit* k, const Kit* d, const Body* b, const uint32_t* trail,
         uint32_t se = le32(k->ops.p + 8);              /* op 3's behaviour script */
         if (trail && se && se <= k->nent) retrail(k->ent[se - 1], k->entlen[se - 1], trail);
     }
-    if (voice && b->bank.n && (voice[0] != DV_VOICE_KIT || voice[1] != DV_VOICE_KIT || voice[2] != DV_VOICE_KIT ||
-                               voice[3] != DV_VOICE_KIT || voice[4] != DV_VOICE_KIT || voice[5] != DV_VOICE_KIT ||
-                               voice[6] != DV_VOICE_KIT)) {
+    for (j = 0; voice && j < DV_VOICE_N && voice[j] == DV_VOICE_KIT; j++) {}
+    if (voice && b->bank.n && j < DV_VOICE_N) {
         /* its cries only on the kept moves, then the body's voice in both
          * copies of the kit's bank */
         static Buf nv;

@@ -200,7 +200,8 @@ const RecompRuntimeUiItem kItems[] = {
     {DV_KEY_MOVES, "Hero", "Moves",
      "Whose moves and voice the characters from the Dragon Valor to Phillip (Kadum) have: Clovis (Young), "
      "the prologue's, or a hero's. Clovis (Old) is Old Clovis's own: Clovis (Young)'s with his boss slash on "
-     "the charged attack and his tired end after the special (the others move as Clovis (Young)). "
+     "the charged attack, his tired end after the special and his fire shot on L2 (the others move as "
+     "Clovis (Young)). "
      "Anna and Anita suit Shalya, Fannah and Jeanne; they and Mihael "
      "are read from disc 2 once it has been started. Locked while Play as names one of the nine heroes (or each "
      "stage's own): they keep their own. Pick one, then confirm it.",

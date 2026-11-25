@@ -2134,7 +2134,7 @@ has its own colour effect on the sword", "and the voices").**
   (kind 3) knocks it down, and the target's cooldown lasts the rest of the
   animation, so the two cuts hit an enemy once. *Clovis (Old)* (2026-11-24,
   the player: "I want Clovis (Old) in the moves"): his own moves (the slash,
-  the tired end) go in only with Moves > Clovis (Old) (`moves` =
+  the tired end, the shot below) go in only with Moves > Clovis (Old) (`moves` =
   `oldclovis`, `DV_MOVES_OLD`: the prologue Clovis's kit, `kit_dress` with
   `own_moves`; the other bodies move as Clovis (Young)); with Clovis (Young),
   Clovis or a hero's moves he moves as that kit, his voice kept. The menu
@@ -2146,7 +2146,48 @@ has its own colour effect on the sword", "and the voices").**
   heroes' own guard (his 32 / 33 are their 99 / 100 byte for byte): a hit from
   the front or a side while a hero stands still (anim 11) sparks and the
   reaction script skips the damage (decomp collision.c section 4, the hero
-  script's L17B3 -> L1784), so Old Clovis has it too; not a voice role. The skeleton has no voice (its bank: its swing
+  script's L17B3 -> L1784), so Old Clovis has it too; not a voice role.
+  *His energy shot, on L2* (2026-11-25, the player: "and the fire attack?";
+  L2 my proposal, as the guard needs no button; decomp hero-swap.md, "His
+  energy shot", `shot_moves` / `shot_install` / `shot_texture`): as the
+  boss he plays his anims 23, 24 (blinking) and 25, and at 24's 12th frame
+  the deathTimer of his group's next object, a ball of fire (entry 67: a
+  ring of quads and an additive sprite, the effects page's sparks behind)
+  set to 1 makes it fly from his hand along his facing for 25 frames, kind
+  3, power 8. An object that hits enemies must be one of g_Objects[1..4]
+  (CollisionUpdate's attackers; 41..72 would hit the hero too), the spell
+  objects: a spell's pack puts its objects from 1 on, and only spells 4 and
+  5 at level 3 (in 3/17's files) reach 4. So the kit puts the projectile in
+  g_Objects[4]: after the hero's ops, op 6 class 5 and three op 3s for 1..3
+  (`kShotDummy`, off at once; a hidden node each, a copy of the hero's
+  weapon node, as SpellCancel / SpellObjectsReset trade g_Objects[1]'s
+  hidden node with the hero's node 2 while a power-up is on), then the
+  projectile's, its entries right after the hero's script (`shot_install`):
+  its script's address is then the hero's plus the hero script's length,
+  which the move checks before it turns slot 4 on (SetCurrentSpell turns
+  1..4 off at stage starts and spell changes) and fires (with spell 4 or 5
+  at level 3 selected, L2 does nothing until the next stage). Its script is
+  the boss's but for `kShotEdits`: attach to obj -4 (the hero, from slot 4),
+  its direction the hero's facing (the boss passed his through acc), no hit
+  sound. `shot_patch` hooks the idle's loop, the walk and the run: their
+  yield becomes a jump to a hook that yields, checks raw L2 pressed and goes
+  on into the state (L1 keeps Dash; L2 is Dash too in the default map, but
+  the check comes first). The move faces the auto-aim, plays 189..191 (his
+  23..25), his cry (SE 36) and the signal; then the idle. `shot_texture`
+  moves its texture (his texture file's TIM at (480, 256)) into the hero
+  page with the weapon's placement (`move_texture`, shared with `arm_kit`;
+  `kit_page_use` counts the shot's texels, so a weapon armed after it leaves
+  them; its 64 x 64 sprite grows the page's image to the 232 rows it
+  reaches, `pg_trim`, so Raimun's sword's six CLUTs still fit). Not ported:
+  his charge flash (a third object) and the shot's two sounds (his SEs 1
+  and 3): 13 KB more of file 0 and of sound slot 1, and he no longer fit in
+  1/9, 8/1 and 7/34, where he fits without them (225 action stages of 226,
+  as before; `body_oldclovis.bin` version 9). Played in 1/7: L2, then 189,
+  190, 191, 11; slot 4 flags 0x43, at frame 11 of 190 deathTimer 1, anim 1,
+  atkKind 3, flying from his hand (fired into a wall it stays at his hand
+  until its 25 frames are up); aimed at an enemy of 10 hp, the first shot
+  left it 2,
+  the second killed it. The skeleton has no voice (its bank: its swing
   0, its hit landing 2, a fall 1), so at the player's word its attacks, jump
   and death are silent (`DV_VOICE_MUTE`: the tones point to one silent VAG)
   and its hurt first stayed the kit's; the player heard Clovis there, so it
