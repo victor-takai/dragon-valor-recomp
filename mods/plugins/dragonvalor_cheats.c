@@ -211,6 +211,18 @@ static void dv_cheats_vblank(void)
 
 volatile int dv_trip_request = 0;   /* set by the menu; cleared when the trip starts */
 volatile int dv_trip_area = 0, dv_trip_stage = 0;
+/* Warp > Go now is a trip too (2026-11-25, the player: "why a GAME OVER when
+ * the character swap is instant?"); before, it killed the hero and let the
+ * CONTINUE load the stage. A warp's trip always takes kind 0, which reloads
+ * the area header: the Area row has already written the target area into
+ * g_StageSelect.area (it is also where a CONTINUE goes), so the area delta
+ * may be 0 while the area header in memory is the old area's. Then it gives
+ * what the CONTINUE gave: HP and MP refilled (mod1 ContinuePrompt's YES). The
+ * stage loader saves the new stage as the checkpoint (StageCheckpointSave), so
+ * a later CONTINUE starts there. Val, items and flags stay as they are (the
+ * CONTINUE took 50 Val, which the old warp gave back, and rolled items and
+ * flags back to the stage start). */
+volatile int dv_trip_warp = 0;
 
 static int dv_trip_quiet(void)
 {
@@ -227,19 +239,26 @@ static int dv_trip_quiet(void)
 
 static void dv_trip_frame(struct CPUState* cpu, uint32_t address)
 {
-    int da, ds, kind;
+    int da, ds, kind, warp;
     (void)address;
     if (!dv_trip_request || !dv_trip_quiet()) return;
     dv_trip_request = 0;
+    warp = dv_trip_warp;
+    dv_trip_warp = 0;
     da = dv_trip_area - (int16_t)psx_mod_read_half(DV_STAGE_AREA);
     ds = dv_trip_stage - (int16_t)psx_mod_read_half(DV_STAGE_STAGE);
     if (da < -128 || da > 127 || ds < -128 || ds > 127) return;
-    kind = da ? 0 : 1;
+    kind = da || warp ? 0 : 1;
     psx_mod_write_word(DV_TRIP_ARGS, (uint32_t)kind | (uint32_t)(uint8_t)(int8_t)da << 8 |
                                      (uint32_t)(uint8_t)(int8_t)ds << 16);
-    fprintf(stderr, "%s: trip to %d/%d (ModeTransition kind %d)\n", DV_PLUGIN_ID, dv_trip_area, dv_trip_stage, kind);
+    fprintf(stderr, "%s: %s to %d/%d (ModeTransition kind %d)\n", DV_PLUGIN_ID, warp ? "warp" : "trip",
+            dv_trip_area, dv_trip_stage, kind);
     psx_mod_call_guest(cpu, DV_MODE_TRANSITION, cpu->gpr[31], 0, DV_TRIP_ARGS, 0, 0);
     psx_mod_write_word(DV_TRIP_ARGS, 0);
+    if (warp) {
+        psx_mod_write_half(DV_HP, psx_mod_read_half(DV_HP_MAX));
+        psx_mod_write_half(DV_MP, psx_mod_read_half(DV_MP_MAX));
+    }
 }
 
 /* --- the cut prologue scene in English --------------------------------------
@@ -581,6 +600,7 @@ static void dv_frame(struct CPUState* cpu, uint32_t address)
 static void dv_cheats_savestate_loaded(void)
 {
     dv_trip_request = 0;
+    dv_trip_warp = 0;
     g_hud_refresh = 1;
 }
 

@@ -531,8 +531,9 @@ int nearest_action_stage(int area, int stage) {
     return -1;
 }
 
-/* ---- "Go now": a Game Over that reloads the stage in the chosen area -------
- * The row writes HP 0 and closes the menu. ACTION.BIN (0x800C40E0) turns
+/* ---- "Go now" without dragonvalor.cheats: a Game Over that reloads the stage
+ * in the chosen area (with the cheats plugin it is a trip, below; this was
+ * the only way until 2026-11-25). The row writes HP 0 and closes the menu. ACTION.BIN (0x800C40E0) turns
  * HP 0 straight into mode 9 (no death animation: the hero stays on its feet
  * and the world keeps running under GAME OVER), and the mode 9 / sub-state 2
  * handler (0x800C51F0) runs the CONTINUE prompt as a small state machine at
@@ -623,16 +624,23 @@ const PSXModPadTransform kWarpTransform = {
     warp_transform,
 };
 
-bool warp_possible() { return !g_warp.phase && hero_loaded() && psx_mod_read_byte(DV_MODE) == 8; }
-
-/* ---- Warp > Cut prologue scene: a trip (dragonvalor_cheats.c) -------------- */
-extern "C" volatile int dv_trip_request, dv_trip_area, dv_trip_stage;
+/* ---- Warp > Cut prologue scene and Go now: trips (dragonvalor_cheats.c) ----
+ * Since 2026-11-25 Go now is a trip as well, with no GAME OVER (the player:
+ * "why a GAME OVER when the character swap is instant?"): the cheats
+ * plugin calls the game's ModeTransition (kind 0) at the next quiet frame,
+ * as a stage exit would, and refills HP and MP as the CONTINUE did
+ * (dv_trip_warp). The GAME OVER trip above is kept for a plan without
+ * dragonvalor.cheats, whose hook makes the trips. */
+extern "C" volatile int dv_trip_request, dv_trip_area, dv_trip_stage, dv_trip_warp;
 /* dragonvalor.cheats is in the running plan: its hook makes the trip. */
 bool cheats_live() {
     char v[16];
     return psx_mod_option_value("dragonvalor.cheats", "cheats", "infinite_hp", v, sizeof v) != 0;
 }
-bool trip_possible() { return warp_possible() && !dv_trip_request && cheats_live(); }
+bool warp_possible() {
+    return !g_warp.phase && !dv_trip_request && hero_loaded() && psx_mod_read_byte(DV_MODE) == 8;
+}
+bool trip_possible() { return warp_possible() && cheats_live(); }
 
 #define DV_ATTACK_TABLE 0x80086324u
 #define DV_STR          0x8008A5B6u
@@ -1098,8 +1106,12 @@ bool ask_first(Menu& m, const RecompRuntimeUiItem* item) {
         std::snprintf(title, sizeof title, "Warp to area %d, stage %d?", psx_mod_read_half(DV_AREA),
                       psx_mod_read_half(DV_STAGE_RECORD));
         open_dialog(m, DV_DIALOG_ACTION, item, title,
-                    "The stage ends with a Game Over and the Continue loads it, in about 10 seconds. Make a save "
-                    "state first: skipped stages can leave items and keys behind.",
+                    cheats_live()
+                        ? "The game loads the stage as if you had left through an exit, with HP and MP refilled. "
+                          "Make a save state first: skipped stages can leave items and keys behind."
+                        : "The stage ends with a Game Over and the Continue loads it, in about 10 seconds (turn the "
+                          "Cheats package on for a warp without it). Make a save state first: skipped stages can "
+                          "leave items and keys behind.",
                     "Warp", nullptr, false, 0);
         return true;
     }
@@ -1167,6 +1179,17 @@ int cb_run_action(void* ctx, const RecompRuntimeUiItem* item) {
     if (is(item, DV_KEY_GO_NOW)) {
         if (m.host->netplay_active()) { recomp_runtime_ui_set_status(m.ui, "Not during netplay"); return 0; }
         if (!warp_possible()) { recomp_runtime_ui_set_status(m.ui, "Only in an action stage"); return 0; }
+        if (cheats_live()) {   /* the trip: no GAME OVER */
+            std::snprintf(text, sizeof text, "Area %d, stage %d", psx_mod_read_half(DV_AREA),
+                          psx_mod_read_half(DV_STAGE_RECORD));
+            dv_trip_area = psx_mod_read_half(DV_AREA);
+            dv_trip_stage = psx_mod_read_half(DV_STAGE_RECORD);
+            dv_trip_warp = 1;
+            dv_trip_request = 1;   /* last: the emulation thread reads the three above once it sees this */
+            toast(m, "Warping", text);
+            set_open_locked(m, false);
+            return 0;
+        }
         if (!g_warp.registered) {
             if (!psx_mod_set_pad_transform(0, &kWarpTransform)) {
                 recomp_runtime_ui_set_status(m.ui, "The pad hook was refused");

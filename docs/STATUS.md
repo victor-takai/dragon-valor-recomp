@@ -391,6 +391,14 @@ the native 60 Hz version.
   things of the game a download does carry (the recompiled program and the
   launcher's cover art); "nothing from the game is included" was too broad.
   The GitHub repository description says the same in one line.
+- **Warp > Go now with no GAME OVER** (2026-11-25, the player: "why a GAME
+  OVER when the character swap is instant?"):
+  - With the Cheats package on, Go now is a trip, like Cut prologue scene: the game's own ModeTransition (kind 0), as a stage exit would. HP and MP are refilled, as the CONTINUE did, and the new stage becomes the checkpoint.
+  - It takes about 2 s instead of about 10, and Val, items and flags are kept.
+  - Because the stage loads the normal way, 3/1's opening lines now read right; they were garbage after the old jump.
+  - `tests/test_warp.py`: from test state 10 to 1/3, 1/5, the boss stage 1/20 and 3/3, with no GAME OVER, the hero walking and attacking: 36/36. `tests/test_secret_stages.py`: 6/6.
+  - Without the Cheats package the old GAME OVER trip is kept.
+  - `tools/dvdbg.py kill` now stops only the runtimes it launched (`--all` for every one), so tests leave a running game alone.
 - **Stage warp** (2026-10-16): after the player asked why the Area row
   only offered areas 3 and 6 (their stage number, 21, is an action stage
   only there), the stage the Continue reloads was found in the stage-start
