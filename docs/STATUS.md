@@ -122,6 +122,20 @@ the native 60 Hz version.
   heroswap 2.0.0 manifest the same bytes as the repo's, the new plugin
   code in the exe (the name "Clovis (Old)", the lite kit's log line), the
   release notes the same bytes, no `texture-packs/` folder.
+  **v0.7.0 was published on 2026-11-26** (pre-release, four zips within
+  2 KB of 0.6.0's), with PR #19 (Hero > Weapon: the grown Clovis's long
+  sword; both cuts of his charged slash hit; Warp > Go now with no GAME
+  OVER when the Cheats package is on; the widescreen dialogue border to
+  the edges with the scene blur on). PR #20 wrote its notes and VERSION
+  and fixed the menu's Warp blurb, which still spoke of a Game Over.
+  Because of that code line, the `workflow_dispatch` run with
+  `publish=false` was made on the release branch `128b9c6`, not on
+  master (9 min). Tag `v0.7.0` at `45e1a77`, the run took 9 min; the
+  release text was replaced with `RELEASE_NOTES.md`, as before. The
+  Windows zip was checked: `psx_game_version.txt` 0.7.0, the heroswap
+  2.0.0 manifest the same bytes as the repo's, the new menu text in the
+  exe (the old "through a Game Over and Continue" gone), the release
+  notes the same bytes, no `texture-packs/` folder.
 - **Widescreen** (2026-10-15): `dragonvalor.enhancement.widescreen`, off by
   default, experimental. Native-wide: the 384-pixel stage gains 128 real
   columns at 16:9 (288 at 21:9), the pause screen stays wide (mode-byte
