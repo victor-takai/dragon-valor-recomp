@@ -255,14 +255,14 @@ const RecompRuntimeUiItem kItems[] = {
      * scenes, skipped stages' items and keys), so it sits apart from the
      * cheats (player's choice, 2026-10-16). */
     DV_ROW_INT("dv.ram.area", "Warp", "Area",
-               "The area the next Continue loads, on this disc. The stage below moves to the nearest action "
-               "stage there.", 0, 12, 1),
+               "The area Go now (and the next Continue) loads, on this disc. The stage below moves to the "
+               "nearest action stage there.", 0, 12, 1),
     DV_ROW_INT("dv.ram.stage", "Warp", "Stage",
-               "The stage the next Continue loads; only action stages are offered. A story scene right after "
-               "the jump can show garbled text, but it plays.", 0, 47, 1),
+               "The stage Go now (and the next Continue) loads; only action stages are offered.", 0, 47, 1),
     DV_ROW_ACTION(DV_KEY_GO_NOW, "Warp", "Go now",
-                  "End the stage with a Game Over and Continue into the area and stage above, in about 10 "
-                  "seconds. Make a save state first: skipped stages can leave items and keys behind."),
+                  "Leave this stage for the area and stage above as an exit would, HP and MP refilled: no Game "
+                  "Over (without the Cheats package: a Game Over and Continue). Make a save state first: "
+                  "skipped stages can leave items and keys behind."),
     DV_ROW_ACTION(DV_KEY_SECRET_GO, "Warp", "Cut prologue scene",
                   "Watch a scene cut from the prologue, left on disc 1, its Japanese lines in English. Leaves "
                   "this stage as an exit would: no Game Over. Make a save state first."),

@@ -160,8 +160,8 @@ def cmd_launch(args):
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:   # the child keeps its own handle
         proc = subprocess.Popen([str(build / EXE_NAME), *exe_args], cwd=str(build), env=env,
                                 stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
-    with open(PID_FILE, "a", encoding="utf-8") as f:   # `kill` stops only these
-        f.write(f"{proc.pid}\n")
+    with open(PID_FILE, "a", encoding="utf-8") as f:   # `kill` stops only these: pid and executable
+        f.write(f"{proc.pid}\t{(build / EXE_NAME).resolve()}\n")
     print(f"pid={proc.pid} port={port} renderer={'software' if sw else 'opengl'} "
           f"audio={'on' if sound else 'muted'} window={'shown' if '--show' in args else 'hidden'} log={log_path}")
     t0 = time.time()
@@ -269,11 +269,22 @@ def main(argv):
         if "--all" in args:
             subprocess.run(["taskkill", "/F", "/IM", EXE_NAME], check=False)
         else:
-            pids = PID_FILE.read_text(encoding="utf-8").split() if PID_FILE.is_file() else []
-            for pid in pids:
-                subprocess.run(["taskkill", "/F", "/PID", pid], check=False, capture_output=True)
+            # A pid is only killed while it is still that executable: a run that
+            # ended by itself leaves its line, and Windows reuses pids.
+            lines = PID_FILE.read_text(encoding="utf-8").splitlines() if PID_FILE.is_file() else []
+            stopped = 0
+            for line in lines:
+                pid, _, exe = line.partition("\t")
+                if not pid.isdigit() or not exe:
+                    continue
+                r = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                    f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).Path"],
+                                   capture_output=True, text=True, check=False)
+                if r.stdout.strip() and Path(r.stdout.strip()).resolve() == Path(exe):
+                    subprocess.run(["taskkill", "/F", "/PID", pid], check=False, capture_output=True)
+                    stopped += 1
             PID_FILE.unlink(missing_ok=True)
-            print(f"stopped {len(pids)} runtime(s) launched by dvdbg")
+            print(f"stopped {stopped} runtime(s) launched by dvdbg")
         return 0
     port = port_from_args(args)
     if cmd == "press":
