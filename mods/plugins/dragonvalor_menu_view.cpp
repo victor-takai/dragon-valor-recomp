@@ -267,7 +267,7 @@ const SectionNote kSectionNotes[] = {
     {"Cheats", "Infinite HP and MP, more drops, Val and the hero's stats.", false},
     {"Magic", "Learn the spells and set their levels.", false},
     {"Items", "How many of each item the hero carries.", false},
-    {"Warp", "Jump to another stage through a Game Over and Continue.", true},
+    {"Warp", "Jump to another stage, or watch a scene cut from the prologue.", true},
     {"Video", "The window and the picture.", false},
     {"Options", "Sound, this menu, and the intro movie.", false},
 };

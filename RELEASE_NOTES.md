@@ -10,13 +10,12 @@ Dragon Valor (PlayStation, USA) running natively on PC, statically recompiled wi
 
 No BIOS is needed. Controls are in `CONTROLS.md`.
 
-## New in 0.6.0
+## New in 0.7.0
 
-- The grown Clovis fights with his own boss moves: Hero > Moves > Clovis (Old), chosen for you when you pick him
-- His double slash as the charged attack
-- His ball of fire on L2, standing or walking: his charge, his cry and its own sound, and a burst of fire sparks as he throws it. It flies through the enemies in its way
-- Play as names him "Clovis (Old)", as Moves does
-- The skeleton is named Skeleton and shows no portrait
+- Hero > Weapon: the grown Clovis's long sword, for any hero or story character
+- The grown Clovis's charged double slash hits with both cuts
+- Warp > Go now takes about 2 s with no GAME OVER, and keeps your Val, items and flags (with the Cheats package on)
+- Widescreen: the dialogue border reaches the screen edges in scenes with the blur, like the prologue's flashback and the dragon fight
 
 ## Features
 
@@ -38,5 +37,6 @@ No BIOS is needed. Controls are in `CONTROLS.md`.
 - Widescreen: a few transitions still show at 4:3, like the menus, the world map and the movies.
 - Play as a story character: played in short sessions only, not yet through a boss or a whole chapter.
 - The grown Clovis's ball of fire: with one of two spells at level 3 selected, L2 does nothing until the next stage; in one stage (7/34) it has no sound, for lack of sound memory.
+- Warp > Go now: tried on a handful of disc-1 stages only.
 
 Bugs and feedback: [`docs/PLAYTESTING.md`](https://github.com/victor-takai/dragon-valor-recomp/blob/master/docs/PLAYTESTING.md) says what to test and which files to attach; report with the [bug form](https://github.com/victor-takai/dragon-valor-recomp/issues/new/choose).
