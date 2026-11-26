@@ -181,10 +181,13 @@ static int game_hero(int h)
  * just before it into the same buffer (file - 1). Raimun, chapter 1's boss,
  * in 1/20 room 2's enemy group; Princess Jeanne in 4/1 room 1's scene;
  * Kodel in 3/1's opening scene, before Azos. (Mihael's in 11/4 looked the
- * same as Azos in play, the player: out. The grown Clovis's long sword of
- * 3/17 draws from his whole sheet and fits no hero's page: it comes with his
- * body.) */
-#define WEAPON_COUNT 12
+ * same as Azos in play, the player: out.) The fifth (2026-11-25, the
+ * player: "Clovis (Old)'s weapon on the other characters"): the grown
+ * Clovis's long sword, part 2 of 3/17 file 76's object 0 (his enemy group),
+ * its texture in file 75. Its 54 prims of his sheet chain into one island
+ * of 64 x 192 texels, taller than any hero page's free room, so it goes in
+ * box by box (weapon_boxes, below): it fits every hero, look and body. */
+#define WEAPON_COUNT 13
 #define WEAPON_CUTLASS 11
 static const struct { const char* id; const char* name; int area, stage, file, obj; } kWeapons[WEAPON_COUNT] = {
     {"azos",       "Azos",                    1, 1, 0, 0},
@@ -199,6 +202,7 @@ static const struct { const char* id; const char* name; int area, stage, file, o
     {"raimun",     "Raimun's sword",          1, 20, 84, 0},
     {"jeanne",     "Jeanne's crystal sword",  4, 1, 80, 2},
     {"cutlass",    "Kodel's cutlass",         3, 1, 80, 0},
+    {"longsword",  "Clovis (Old)'s long sword", 3, 17, 76, 0},
 };
 /* The cache key of a weapon model (the first nine's as before). */
 static uint32_t weapon_key(int w)
@@ -2398,6 +2402,48 @@ static int weapon_islands(const PBox* b, int n, Isl* isl, int* owner, int tpage)
     return nr;
 }
 
+/* One rect per prim box on page `tpage` (tools/heroswap.py weapon_boxes): a
+ * box inside an earlier rect joins it, then a rect inside another joins that
+ * one; boxes that only overlap stay apart, their shared texels copied twice.
+ * For a weapon whose merged islands do not fit even the grown page (the grown
+ * Clovis's long sword: 54 prims chained into one island of 64 x 192 texels);
+ * each prim still draws the same texels, from its own box. */
+static int weapon_boxes(const PBox* b, int n, Isl* isl, int* owner, int tpage)
+{
+    int nr = 0, p, q, a, c, changed;
+    for (p = 0; p < n; p++) {
+        Isl r;
+        owner[p] = -1;
+        if (b[p].tpage != tpage) continue;
+        r.u0 = b[p].u0 & ~3;
+        r.v0 = b[p].v0;
+        r.u1 = b[p].u1 | 3;
+        r.v1 = b[p].v1;
+        for (q = 0; q < nr; q++)
+            if (isl[q].u0 <= r.u0 && isl[q].v0 <= r.v0 && r.u1 <= isl[q].u1 && r.v1 <= isl[q].v1) break;
+        if (q == nr) isl[nr++] = r;
+        owner[p] = q;
+    }
+    do {
+        changed = 0;
+        for (a = 0; a < nr && !changed; a++)
+            for (c = 0; c < nr; c++) {
+                if (c == a || !(isl[c].u0 <= isl[a].u0 && isl[c].v0 <= isl[a].v0 && isl[a].u1 <= isl[c].u1 &&
+                                isl[a].v1 <= isl[c].v1))
+                    continue;
+                for (p = 0; p < n; p++) {     /* a's prims to c, then a out of the list */
+                    if (owner[p] == a) owner[p] = c;
+                    if (owner[p] > a) owner[p]--;
+                }
+                memmove(&isl[a], &isl[a + 1], sizeof(Isl) * (size_t)(nr - a - 1));
+                nr--;
+                changed = 1;
+                break;
+            }
+    } while (changed);
+    return nr;
+}
+
 /* Places for the islands and the CLUT map in `pg` (place_weapon); 0 if
  * they do not fit. */
 static int place_weapon(const PageTim* pg, const uint8_t* body, const uint8_t* body_clut, const PBox* b, int n,
@@ -2628,8 +2674,14 @@ static int move_texture(PageTim* pg, const uint8_t* body, const uint8_t* body_cl
     *grown = 0;
     if (!place_weapon(pg, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
         int ih = pg->ih;
-        if (!pg_grow(pg) || !place_weapon(pg, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc))
-            return -2;
+        if (!pg_grow(pg)) return -2;
+        if (!place_weapon(pg, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) {
+            /* the prims' boxes apart (weapon_boxes; the grown Clovis's long
+             * sword): only when the islands do not fit, so the weapons that
+             * fit before are placed as before */
+            nr = weapon_boxes(bx, n, isl, owner, src->tpage);
+            if (!place_weapon(pg, body, body_clut, bx, n, isl, owner, nr, pu, pv, cfrom, cto, &nc)) return -2;
+        }
         *grown = 1;
         if (trim) {
             for (i = 0; i < nr; i++)

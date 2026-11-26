@@ -1904,8 +1904,27 @@ files unchanged). Raimun's sword needs six CLUTs, more than a hero's block
 has free (four to eight): `arm_kit` then grows the block up by the rows it
 needs (`pg_more_cluts`), into the page's rows between the hero's image and
 its block, which nothing uploads to; the body's CLUTs keep their places.
-The grown Clovis's long sword (3/17) is not offered: its prims draw from his
-whole sheet, one island of 256 x 192 texels, which fits no hero's page.
+The grown Clovis's long sword (`longsword`, 3/17 file 76 object 0, his
+enemy group; texture in file 75) is the fifth (2026-11-25, the player:
+"Clovis (Old)'s weapon on the other characters"). It was left out because
+its prims seemed to draw from his whole sheet; measured, its 62 prims use
+two islands of his page (576, 256), 64 x 192 texels (54 prims chained by
+shared texels) and 24 x 32, with 2 CLUTs, and the 64 x 192 one is taller
+than any hero page's free room even grown. So when the merged islands do
+not fit the grown page, `move_texture` places the prims' boxes apart
+(`weapon_boxes`, the decomp's `heroswap.py weapon_boxes`: a box inside an
+earlier rect joins it, then a rect inside another; overlapping boxes keep
+their shared texels twice): 23 rects, 15804 texels, in the grown page of
+every hero, look and body. Each prim still draws the same texels, from its
+own box. The weapons that fit before never reach that step, so their kits
+are the same bytes as before (Arlen with Raimun's sword, against a reference
+built before and after: identical). Its geometry is his, 198 vertices.
+- **Checked** (the long sword, 2026-11-25) against the decomp's references,
+  `test_heroswap.py HERO --weapon longsword --ref`: Arlen 26/26 (file 0
+  447468 B, the page grown, 23 rects), Kodel 26/26, the skeleton 26/26;
+  Arlen with Raimun's sword still 26/26. The decomp tool's survey: it fits
+  the nine heroes, Mihael's area-10 look, the Dragon Valor and the eight
+  other bodies (Gerome's 12/1 look is built from another stage there).
 - **Checked** on build-debug against the decomp tool (`heroswap.py build
   2 1 1 7 --prune --weapon AREA STAGE FILE OBJECT`), pack head and hero page
   image, CLUTs and portrait in VRAM byte for byte: Arlen with Raimun's sword

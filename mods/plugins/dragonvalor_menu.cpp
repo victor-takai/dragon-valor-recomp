@@ -104,10 +104,10 @@ const char* const kPlayAsValues[] = {"stage", "clovis", "arlen", "kodel", "felip
 const char* const kWeaponChoices[] = {"The hero's own", "Azos", "Soul", "Kadum", "Igunis", "Felippe's first sword",
                                       "Mihael's dark sword", "Anna's red weapon", "Anita's purple sword",
                                       "Anita's turquoise sword", "Raimun's sword", "Jeanne's crystal sword",
-                                      "Kodel's cutlass"};
+                                      "Kodel's cutlass", "Clovis (Old)'s long sword"};
 const char* const kWeaponValues[] = {"hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple",
-                                     "turquoise", "raimun", "jeanne", "cutlass"};
-#define DV_WEAPON_CHOICES 13
+                                     "turquoise", "raimun", "jeanne", "cutlass", "longsword"};
+#define DV_WEAPON_CHOICES 14
 #define DV_KEY_MOVES       "dv.heroswap.moves"
 /* dragonvalor.heroswap's `moves` option: whose kit (moves, voice) the
  * characters from the Dragon Valor on wear; index 0 = the prologue Clovis's,

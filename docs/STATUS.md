@@ -292,8 +292,8 @@ the native 60 Hz version.
   were offered: Raimun's sword (chapter 1's boss, 1/20), Jeanne's crystal
   sword, Mihael's broadsword (Anna's chapter, disc 2; out again: in play it
   looks like Azos, the player) and Kodel's cutlass (3/1's opening scene);
-  the grown Clovis's long sword (3/17) draws from his whole
-  texture sheet and fits no hero. Raimun's needs more CLUTs than a hero has
+  the grown Clovis's long sword (3/17), left out then (it seemed to draw from his whole sheet), is a choice since
+  2026-11-25 (below). Raimun's needs more CLUTs than a hero has
   free: the hero's CLUT block grows up into the page's unused rows. Each
   matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
   raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
@@ -391,6 +391,11 @@ the native 60 Hz version.
   things of the game a download does carry (the recompiled program and the
   launcher's cover art); "nothing from the game is included" was too broad.
   The GitHub repository description says the same in one line.
+- **Weapon > Clovis (Old)'s long sword** (2026-11-25, the player: "Clovis (Old)'s weapon on the other characters").
+  His sword, from 3/17, on any hero or story character. Its texture is two pieces of his sheet, one 64 x 192 texels, too
+  tall for a hero's page, so its prims' boxes go in one by one (23 of them) when the pieces do not fit. The other
+  weapons are placed as before, byte for byte. Against the decomp's references: Arlen, Kodel and the skeleton 26/26;
+  Raimun's sword still 26/26. It fits every hero, look and body.
 - **Widescreen: the dialogue border to the edges in scenes with a blur** (2026-11-25, the player: "in some places
   the dialogue frame does not reach the end"). With the scene blur on (20 fps), the border's repeat tag ran out before the window was drawn, so the border stopped at the 4:3 edges. The VBlank now tags it again, as it does for the HUD. In 3/1 with the blur forced on, the margins went from bare to bordered. `tests/test_widescreen.py` 11/11.
 - **Clovis (Old)'s charged attack hits twice** (2026-11-25, the player: "why

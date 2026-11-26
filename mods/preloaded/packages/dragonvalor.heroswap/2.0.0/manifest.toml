@@ -174,7 +174,7 @@ label = "Anita"
 feature = "play-as"
 id = "weapon"
 label = "Weapon"
-description = "The weapon the hero holds: its own, or one the game's heroes or other characters hold (Raimun, Jeanne, Kodel), the model and its texture; damage and moves stay the hero's. With Each stage's own above, every stage's hero holds it. The disc-2 weapons (Kadum, Igunis, Mihael's, Anna's and Anita's) are offered once disc 2 has been started with this on. Applies at the next stage load."
+description = "The weapon the hero holds: its own, or one the game's heroes or other characters hold (Raimun, Jeanne, Kodel, Clovis (Old)), the model and its texture; damage and moves stay the hero's. With Each stage's own above, every stage's hero holds it. The disc-2 weapons (Kadum, Igunis, Mihael's, Anna's and Anita's) are offered once disc 2 has been started with this on. Applies at the next stage load."
 type = "choice"
 default = "hero"
 
@@ -229,6 +229,10 @@ label = "Jeanne's crystal sword"
 [[option.choice]]
 value = "cutlass"
 label = "Kodel's cutlass"
+
+[[option.choice]]
+value = "longsword"
+label = "Clovis (Old)'s long sword"
 
 [[plugin]]
 feature = "play-as"
