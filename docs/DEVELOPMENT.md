@@ -1265,6 +1265,9 @@ worked examples this one follows.
   address of the word before the `0x64` command of the E1 + SPRT packet,
   only while `g_EventVm.winList[frame]` is set), and the renderer repeats it
   into the side margins only.
+  - **Refreshed every VBlank** (2026-11-25, the player: "in some places the dialogue frame does not reach the end"). A repeat tag lives 2 frames (`WS_REPEAT_RECT_TAG_FRESH_FRAMES`). FrameDraw tags at `ModelWeldReset`, then waits `g_FrameWait` VBlanks before `DrawOTag`; the window list is drawn last. The wait is 2 at 30 fps and 3 with the scene blur on (`g_Render.blurOn`, 20 fps: the prologue's flashback, the dragon fight).
+  - With the blur, the tag had run out by the draw, and the border stopped at the 4:3 edges while the band went on. `dv_ws_refresh_tags` (the VBlank) now tags it again, as it already did for the HUD and the transitions.
+  - Checked in 3/1's first dialogue with `blurOn` written to 1, as event op 0x2A sets it: before, the border's row was lit in the side margins with the blur off (1.0) and not with it on (0.0); now it is lit in both (1.0, 1.0). 4:3 is untouched (the tag is inert outside native widescreen). `tests/test_widescreen.py`: 11/11.
 - **Numbers.** The stage is 384 pixels wide (`0x180`, `video_info
   display_w`): 16:9 reveals 128 extra columns (64 per side, `ws_nw
   nw_extra`), 21:9 reveals 288. Debug-server knobs used for the A/B without
