@@ -29,7 +29,10 @@ in-process, so it is safe from any shell.
         fulfilled at the next composed present: after a stage reload it can
         stay pending and be written with a later frame; poll present_shot_seq
         or use `shot` (VRAM) when the timing matters.
-  python tools/dvdbg.py kill              stop every DragonValorRecompiled.exe
+  python tools/dvdbg.py kill [--all]      stop the runtimes this tool launched (their
+        pids are kept in build-*/dvdbg_pids.txt); a player's own game is left
+        running. --all stops every DragonValorRecompiled.exe, as before
+        2026-11-25.
 
 PORT env or --port selects another instance (--renderer software runs are
 started on 4371 by `launch --sw`).
@@ -46,6 +49,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EXE_NAME = "DragonValorRecompiled.exe"
+# The runtimes `launch` started, so `kill` leaves a player's own game alone.
+PID_FILE = Path(os.environ.get("TEMP", ".")) / "dvdbg_pids.txt"
 
 
 def _entry_pc():
@@ -155,6 +160,8 @@ def cmd_launch(args):
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:   # the child keeps its own handle
         proc = subprocess.Popen([str(build / EXE_NAME), *exe_args], cwd=str(build), env=env,
                                 stdout=log, stderr=subprocess.STDOUT, creationflags=flags)
+    with open(PID_FILE, "a", encoding="utf-8") as f:   # `kill` stops only these: pid and executable
+        f.write(f"{proc.pid}\t{(build / EXE_NAME).resolve()}\n")
     print(f"pid={proc.pid} port={port} renderer={'software' if sw else 'opengl'} "
           f"audio={'on' if sound else 'muted'} window={'shown' if '--show' in args else 'hidden'} log={log_path}")
     t0 = time.time()
@@ -259,7 +266,25 @@ def main(argv):
         cmd_launch(args)
         return 0
     if cmd == "kill":
-        subprocess.run(["taskkill", "/F", "/IM", EXE_NAME], check=False)
+        if "--all" in args:
+            subprocess.run(["taskkill", "/F", "/IM", EXE_NAME], check=False)
+        else:
+            # A pid is only killed while it is still that executable: a run that
+            # ended by itself leaves its line, and Windows reuses pids.
+            lines = PID_FILE.read_text(encoding="utf-8").splitlines() if PID_FILE.is_file() else []
+            stopped = 0
+            for line in lines:
+                pid, _, exe = line.partition("\t")
+                if not pid.isdigit() or not exe:
+                    continue
+                r = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                    f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).Path"],
+                                   capture_output=True, text=True, check=False)
+                if r.stdout.strip() and Path(r.stdout.strip()).resolve() == Path(exe):
+                    subprocess.run(["taskkill", "/F", "/PID", pid], check=False, capture_output=True)
+                    stopped += 1
+            PID_FILE.unlink(missing_ok=True)
+            print(f"stopped {stopped} runtime(s) launched by dvdbg")
         return 0
     port = port_from_args(args)
     if cmd == "press":

@@ -292,8 +292,8 @@ the native 60 Hz version.
   were offered: Raimun's sword (chapter 1's boss, 1/20), Jeanne's crystal
   sword, Mihael's broadsword (Anna's chapter, disc 2; out again: in play it
   looks like Azos, the player) and Kodel's cutlass (3/1's opening scene);
-  the grown Clovis's long sword (3/17) draws from his whole
-  texture sheet and fits no hero. Raimun's needs more CLUTs than a hero has
+  the grown Clovis's long sword (3/17), left out then (it seemed to draw from his whole sheet), is a choice since
+  2026-11-25 (below). Raimun's needs more CLUTs than a hero has
   free: the hero's CLUT block grows up into the page's unused rows. Each
   matches the decomp tool byte for byte (`test_heroswap.py arlen --weapon
   raimun / jeanne / cutlass / broadsword`, Dragon Valor with Raimun's).
@@ -391,6 +391,23 @@ the native 60 Hz version.
   things of the game a download does carry (the recompiled program and the
   launcher's cover art); "nothing from the game is included" was too broad.
   The GitHub repository description says the same in one line.
+- **Weapon > Clovis (Old)'s long sword** (2026-11-25, the player: "Clovis (Old)'s weapon on the other characters").
+  His sword, from 3/17, on any hero or story character. Its texture is two pieces of his sheet, one 64 x 192 texels, too
+  tall for a hero's page, so its prims' boxes go in one by one (23 of them) when the pieces do not fit. The other
+  weapons are placed as before, byte for byte. Against the decomp's references: Arlen, Kodel and the skeleton 26/26;
+  Raimun's sword still 26/26. It fits every hero, look and body.
+- **Widescreen: the dialogue border to the edges in scenes with a blur** (2026-11-25, the player: "in some places
+  the dialogue frame does not reach the end"). With the scene blur on (20 fps), the border's repeat tag ran out before the window was drawn, so the border stopped at the 4:3 edges. The VBlank now tags it again, as it does for the HUD. In 3/1 with the blur forced on, the margins went from bare to bordered. `tests/test_widescreen.py` 11/11.
+- **Clovis (Old)'s charged attack hits twice** (2026-11-25, the player: "why
+  does the charged attack not give 2 hits?"). His double slash is one animation, and a hit's cooldown lasted to its end. The block now plays it in two parts, each a swing of its own, as the combo's hits are. In 1/9 an enemy lost 20 HP at each cut (`tests/test_oldclovis_slash.py`; before: one hit). The kits are again the same bytes as the decomp's: `tests/test_heroswap.py oldclovis` 25/25, with Raimun's sword 26/26. He still fits 225 of 226 action stages.
+- **Warp > Go now with no GAME OVER** (2026-11-25, the player: "why a GAME
+  OVER when the character swap is instant?"):
+  - With the Cheats package on, Go now is a trip, like Cut prologue scene: the game's own ModeTransition (kind 0), as a stage exit would. HP and MP are refilled, as the CONTINUE did, and the new stage becomes the checkpoint.
+  - It takes about 2 s instead of about 10, and Val, items and flags are kept.
+  - Because the stage loads the normal way, 3/1's opening lines now read right; they were garbage after the old jump.
+  - `tests/test_warp.py`: from test state 10 to 1/3, 1/5, the boss stage 1/20 and 3/3, with no GAME OVER, the hero walking and attacking: 36/36. `tests/test_secret_stages.py`: 6/6.
+  - Without the Cheats package the old GAME OVER trip is kept.
+  - `tools/dvdbg.py kill` now stops only the runtimes it launched (`--all` for every one), so tests leave a running game alone.
 - **Stage warp** (2026-10-16): after the player asked why the Area row
   only offered areas 3 and 6 (their stage number, 21, is an action stage
   only there), the stage the Continue reloads was found in the stage-start

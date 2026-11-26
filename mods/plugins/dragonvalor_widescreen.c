@@ -508,15 +508,23 @@ static void dv_ws_tag_transition(uint32_t frame)
     if (tagged) psx_mod_counter_add("dv.ws.transition_copies_tagged", tagged);
 }
 
-/* Every VBlank: the HUD and transition tags again (nothing the hook has not
- * already written), so they are fresh when FrameDraw finally draws, however
- * many VBlanks its wait took. The HUD only while its chain is linked: the
- * VBlank also comes in modes whose work areas reuse the HUD's state word. */
+/* Every VBlank: the HUD, transition and dialogue border tags again (nothing
+ * the hook has not already written), so they are fresh when FrameDraw finally
+ * draws, however many VBlanks its wait took. A repeat tag lives 2 frames
+ * (WS_REPEAT_RECT_TAG_FRESH_FRAMES); FrameDraw tags at ModelWeldReset, then
+ * waits g_FrameWait VBlanks before DrawOTag, the window list last: 2 at 30
+ * fps, 3 with the scene blur on (20 fps). So with the blur on, as in the
+ * prologue's flashback and the dragon fight, the border's tag had run out and
+ * the border stopped at the 4:3 edges (2026-11-25, the player: "in some
+ * places the dialogue frame does not reach the end"). The HUD only while its
+ * chain is linked: the VBlank also comes in modes whose work areas reuse the
+ * HUD's state word. */
 static void dv_ws_refresh_tags(void)
 {
     if (dv_ws_hud_linked()) dv_ws_tag_hud(1);
     dv_ws_tag_transition(psx_mod_read_byte(DV_RENDER_FRAME) & 1u);
     dv_ws_tag_event_blur(psx_mod_read_byte(DV_RENDER_FRAME) & 1u);
+    dv_ws_tag_dialogue_border(psx_mod_read_byte(DV_RENDER_FRAME) & 1u);
 }
 
 static void dv_ws_weld_reset_entry(struct CPUState* cpu, uint32_t address)

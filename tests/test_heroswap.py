@@ -15,7 +15,7 @@ body only) and confirms it: the stage must restart with the bodies in M's
 kit; --ref-after FOLDER (the reference of that kit) compares the pack in RAM.
 --weapon W sets the feature's `weapon` option: HERO holds weapon model W
 (azos soul kadum igunis felippe dark red purple turquoise raimun jeanne
-cutlass; the reference
+cutlass longsword; the reference
 then comes from `heroswap.py build ... --weapon A S` with W's source stage,
 e.g. `build 2 1 1 7 --prune --weapon 8 1` for Arlen with Kadum).
 --menu HERO2[,HERO3...|stage] then picks each on the in-game menu's Hero > Play as
@@ -140,7 +140,7 @@ def letters(glyphs):
 # the `weapon` option's values, in the menu row's order (kWeapons of the plugin
 # and their source stages: 1/1 4/15 8/1 10/2 4/3 10/1 11/1 12/6 12/1)
 WEAPONS = ["hero", "azos", "soul", "kadum", "igunis", "felippe", "dark", "red", "purple", "turquoise",
-           "raimun", "jeanne", "cutlass"]
+           "raimun", "jeanne", "cutlass", "longsword"]
 DISC2 = ROOT.parent / "Dragon Valor (USA) (Disc 2)" / "Dragon Valor (USA) (Disc 2).cue"
 
 
