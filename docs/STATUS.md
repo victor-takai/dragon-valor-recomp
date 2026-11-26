@@ -391,6 +391,8 @@ the native 60 Hz version.
   things of the game a download does carry (the recompiled program and the
   launcher's cover art); "nothing from the game is included" was too broad.
   The GitHub repository description says the same in one line.
+- **Widescreen: the dialogue border to the edges in scenes with a blur** (2026-11-25, the player: "in some places
+  the dialogue frame does not reach the end"). With the scene blur on (20 fps), the border's repeat tag ran out before the window was drawn, so the border stopped at the 4:3 edges. The VBlank now tags it again, as it does for the HUD. In 3/1 with the blur forced on, the margins went from bare to bordered. `tests/test_widescreen.py` 11/11.
 - **Clovis (Old)'s charged attack hits twice** (2026-11-25, the player: "why
   does the charged attack not give 2 hits?"). His double slash is one animation, and a hit's cooldown lasted to its end. The block now plays it in two parts, each a swing of its own, as the combo's hits are. In 1/9 an enemy lost 20 HP at each cut (`tests/test_oldclovis_slash.py`; before: one hit). The kits are again the same bytes as the decomp's: `tests/test_heroswap.py oldclovis` 25/25, with Raimun's sword 26/26. He still fits 225 of 226 action stages.
 - **Warp > Go now with no GAME OVER** (2026-11-25, the player: "why a GAME
