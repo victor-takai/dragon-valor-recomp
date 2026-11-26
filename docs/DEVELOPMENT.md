@@ -2123,14 +2123,14 @@ has its own colour effect on the sword", "and the voices").**
   please; the player chose the charged attack. `slash_patch` (the decomp's
   `slash`) makes the slash the charged attack's release on a Clovis kit:
   the release's `anim self, 76, 0, 1, 5` (once) becomes a jump to
-  `kSlashBlock` (`DV_SLASH_WORDS`, 92: the decomp's SLASH_TEXT assembled by
+  `kSlashBlock` (`DV_SLASH_WORDS`, 140: the decomp's SLASH_TEXT assembled by
   objscript.py, after the special's block) and a `wait` never run. The
   block repeats the release's settings and `sound.stop 1, 15` (the charge's
   hum; `DV_SLASH_PRE` words, checked equal to the script's), plays his 21
-  whole and his 22, then the idle: the charge stands for his wind-up (the
+  in two parts (below) and his 22, then the idle: the charge stands for his wind-up (the
   decomp decoded and compared the poses: from 75 to his 21 the pose moves
   less than the game's own release, 75 to 76). The hit (kind 1, power 5,
-  his reach, frames 3..22; the hero's 76 is kind 3, power 8) and trail
+  his reach; his on frames 3..22, here 3..10 and 13..22; the hero's 76 is kind 3, power 8) and trail
   words are his, the swing sound (SE 4, frames 2 and 17) and the cry (SE
   36, the charged attack's, kept at the player's word) the kit's; its three
   exits are the release's (attack held after 76 and after 77: charge again;
@@ -2143,8 +2143,19 @@ has its own colour effect on the sword", "and the voices").**
   `g_Hero.attack[g_Hero.hitIndex]` (decomp collision.c, section 3), and the
   charge set hitIndex 3; atkPower only has to be non-zero, so his power 5
   changes nothing; his kind 1 makes the enemy reel where the hero's 76
-  (kind 3) knocks it down, and the target's cooldown lasts the rest of the
-  animation, so the two cuts hit an enemy once. *Clovis (Old)* (2026-11-24,
+  (kind 3) knocks it down. **Both cuts hit** (2026-11-25, the player: "why
+  does the charged attack not give 2 hits?"): the target's `hitCooldown` and
+  `blink` last the rest of the hero's animation + 3 frames, and while the
+  hero's `atkKind` stays on a swing's later hits do 1 (`swingHits`), so 21
+  played whole hit an enemy once (the boss's own slash lands once on the
+  player too: the hero's 30-frame blink). The block now plays 21 up to frame
+  11 (`set.h self+0xA4, 11`, the animation's end, written after `anim`),
+  the hit off, then 21 again from frame 11 with the hit on from frame 13:
+  a new swing, the game's own way to hit again, as each combo hit is. The
+  first cut's cooldown ends by frame 14 and the second cut hits in full.
+  `tests/test_oldclovis_slash.py`: in 1/9 an enemy given 200 HP lost 20 at
+  frame 5 and 20 at frame 15 (the old block: 20 at frame 5 only); the
+  decomp's fit survey still gives 225 of 226 action stages. *Clovis (Old)* (2026-11-24,
   the player: "I want Clovis (Old) in the moves"): his own moves (the slash,
   the tired end, the shot below) go in only with Moves > Clovis (Old) (`moves` =
   `oldclovis`, `DV_MOVES_OLD`: the prologue Clovis's kit, `kit_dress` with

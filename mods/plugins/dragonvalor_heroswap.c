@@ -3053,10 +3053,17 @@ static int kit_add_welds(Kit* k, const Body* b)
  * by `anim self, 76, 0, 1, 5` (once), then the release's settings and
  * `sound.stop 1, 15`: the anchor becomes a jump to a block appended to the
  * script and a `wait` never run. The block repeats those settings (the first
- * DV_SLASH_PRE words, checked equal), plays his 21 whole and his 22, then
- * the idle: the charge stands for his wind-up (by the decomp's comparison of
+ * DV_SLASH_PRE words, checked equal), plays his 21 in two parts and his
+ * 22, then the idle. The two parts (2026-11-25, the player: "why does the
+ * charged attack not give 2 hits?"): whole, 21 hit once, because a hit gives
+ * the enemy hitCooldown and blink of what is left of the hero's animation + 3
+ * frames, so the second cut fell inside them, and a swing's later hits do 1
+ * (swingHits). So 21 plays up to frame 11 (animEnd written), the hit off,
+ * then from frame 11 with the hit on from frame 13: the frames between end
+ * the swing, as between two combo hits, and the second cut hits in full. The
+ * charge stands for his wind-up (by the decomp's comparison of
  * the decoded poses, 75 to 21 moves less than the game's own 75 to 76). Its
- * hit (kind 1, power 5, his reach, frames 3..22; the hero's 76 is kind 3,
+ * hit (kind 1, power 5, his reach, frames 3..10 and 13..22; the hero's 76 is kind 3,
  * power 8) and trail are his word for word; the swing sound (SE 4, frames 2
  * and 17) and the cry (SE 36, the charged attack's, kept at the player's
  * word) are the kit's; its three exits are the release's (attack held after
@@ -3064,16 +3071,24 @@ static int kit_add_welds(Kit* k, const Body* b)
  * checked by what comes before them. His animations take slots 192, 193.
  * `s` holds `n` words and room for DV_SLASH_WORDS more. 0: no anchor or
  * other words; 1: done. */
-#define DV_SLASH_WORDS 92
+#define DV_SLASH_WORDS 140
 #define DV_SLASH_PRE   13
 static const uint32_t kSlashAnchor[2] = {0x00000402u, 0x0500204Cu};   /* anim self, 76, 0, 1, 5 */
 static const uint32_t kSlashBlock[DV_SLASH_WORDS] = {
     0x00010703u, 0x0000001Du, 0x00000001u, 0x00010603u, 0x00000039u, 0x00000000u,
     0x00010503u, 0x00000003u, 0x00000002u, 0x00010503u, 0x00000002u, 0x00000001u,
-    0x0F012501u, 0x00000402u, 0x000020C0u, 0x69690101u, 0x01011203u, 0x00000050u,
-    0x00000002u, 0x04012301u, 0x01011203u, 0x00000050u, 0x00000003u, 0x24012301u,
+    0x0F012501u, 0x00000402u, 0x000020C0u, 0x00010603u, 0x00000052u, 0x0000000Bu,
+    0x69690101u, 0x01011203u, 0x00000050u, 0x00000002u, 0x04012301u, 0x01011203u,
+    0x00000050u, 0x00000003u, 0x24012301u, 0x01081203u, 0x00000050u, 0x00000003u,
+    0x00010703u, 0x000000C0u, 0x00000001u, 0x00010703u, 0x000000C1u, 0x00000005u,
+    0x00010603u, 0x00000061u, 0x00000C00u, 0x00010603u, 0x00000062u, 0x000002AAu,
+    0x00010603u, 0x00000063u, 0x00000266u, 0x00010603u, 0x00000064u, 0x00000433u,
+    0x00010603u, 0x00000065u, 0x0000FE34u, 0x00010603u, 0x00000066u, 0x00000166u,
+    0x08062208u, 0x00000003u, 0x01020000u, 0x00FF0000u, 0x001F0000u, 0x69010302u,
+    0x0000FF00u, 0x00001F00u, 0x01011203u, 0x00000053u, 0x00000001u, 0x69690201u,
+    0x00010703u, 0x000000C0u, 0x00000000u, 0x00000402u, 0x000B20C0u, 0x69690101u,
     0x01011203u, 0x00000050u, 0x00000011u, 0x04012301u, 0x01081203u, 0x00000050u,
-    0x00000003u, 0x00010703u, 0x000000C0u, 0x00000001u, 0x00010703u, 0x000000C1u,
+    0x0000000Du, 0x00010703u, 0x000000C0u, 0x00000001u, 0x00010703u, 0x000000C1u,
     0x00000005u, 0x00010603u, 0x00000061u, 0x00000C00u, 0x00010603u, 0x00000062u,
     0x000002AAu, 0x00010603u, 0x00000063u, 0x00000266u, 0x00010603u, 0x00000064u,
     0x00000433u, 0x00010603u, 0x00000065u, 0x0000FE34u, 0x00010603u, 0x00000066u,
@@ -3085,7 +3100,7 @@ static const uint32_t kSlashBlock[DV_SLASH_WORDS] = {
     0x00000053u, 0x00000001u, 0x69690201u, 0x02010B03u, 0x00000011u, 0x00000001u,
     0x00030301u, 0x00030301u,
 };
-static const uint8_t kSlashExits[3] = {79, 90, 91};   /* its jumps: charge again (twice), the idle */
+static const uint8_t kSlashExits[3] = {127, 138, 139};   /* its jumps: charge again (twice), the idle */
 
 static int same_insn(uint32_t a, uint32_t b)   /* alike, a jump's offset aside */
 {
